@@ -68,7 +68,7 @@ _clone_or_pull_project() {
 
 _clone_or_pull() {
   projects="$@"
-  printf "%s\0" ${projects[@]} | xargs -0 -I% -n 1 -P8 bash -c '_clone_or_pull_project %'
+  printf "%s\0" ${projects[@]} | xargs -0 -I% -n 1 -P1 bash -c '_clone_or_pull_project %'
   printf "%s\0" ${projects[@]} | xargs -0 -I% -n 1 -P8 bash -c '_last_commit %'
 }
 
