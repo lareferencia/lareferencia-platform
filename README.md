@@ -8,9 +8,9 @@ En las páginas wiki se encuentra la documentación de manuales de instalación 
 
 Requerimientos para la instalación.
 
-* Java Oracle JDK > 8 
-* Postegres >= 9.6
+* Java Oracle JDK > 11 
+* Postegres >= 12
 
-La plataforma está testeada sobre Ubuntu 16.04LTS aunque puede funcionar adecuadamente en cualquier
+La plataforma está testeada sobre Ubuntu 20.04LTS aunque puede funcionar adecuadamente en cualquier
 distribución de Linux.
 # lareferencia-platform
