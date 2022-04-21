@@ -5,7 +5,16 @@ LAREFERENCIA_PLATFORM_PATH=$(cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)
 LAREFERENCIA_HOME=$(cd -- "$LAREFERENCIA_PLATFORM_PATH/.." >/dev/null 2>&1 ; pwd -P)
 LAREFERENCIA_GITHUB_REPO="https://github.com/lareferencia/{PROJECT}"
 
+
+if [ $# -gt 0 ]; then
+   PROFILE="$1"
+else
+   PROFILE="lite"
+fi
+
+
 all_projects=(
+  "lareferencia-platform"
   "lareferencia-oclc-harvester"
   "lareferencia-core-lib"
   "lareferencia-entity-lib"
@@ -54,7 +63,7 @@ _clone_or_pull_project() {
     (msg_scoped $project "Cloning to $project_path" && git clone $project_repo $project_path || msg_error "Failed to clone $project") || exit 255
   fi
 
-  ##(msg_scoped $project "Building $project_path" && cd $project_path && bash build.sh || msg_error "Failed to build $project") || exit 255
+  (msg_scoped $project "Building $project_path with profile: $PROFILE" && cd $project_path && bash build.sh $PROFILE || msg_error "Failed to build $project") || exit 255
 }
 
 _clone_or_pull() {
@@ -73,6 +82,7 @@ _configure() {
   export -p LAREFERENCIA_PLATFORM_PATH
   export -p LAREFERENCIA_HOME
   export -p LAREFERENCIA_GITHUB_REPO
+  export -p PROFILE
 }
 
 help() {
