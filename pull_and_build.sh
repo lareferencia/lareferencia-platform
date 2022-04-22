@@ -23,6 +23,7 @@ all_projects=(
   "lareferencia-shell"
   "lareferencia-shell-entity-plugin"
   "lareferencia-lrharvester-app"
+  "lareferencia-entity-rest"
 )
 
 LAREFERENCIA_PROJECTS=("${all_projects[@]}")
@@ -63,6 +64,8 @@ _clone_or_pull_project() {
     (msg_scoped $project "Cloning to $project_path" && git clone $project_repo $project_path || msg_error "Failed to clone $project") || exit 255
   fi
 
+  (msg_scoped $project "Creating symlink for $project_path" && ln -s $LAREFERENCIA_HOME/$project $project || msg_error "Failed create symlink $project") || exit 255
+  
   (msg_scoped $project "Building $project_path with profile: $PROFILE" && cd $project_path && bash build.sh $PROFILE || msg_error "Failed to build $project") || exit 255
 }
 
@@ -100,6 +103,7 @@ pull() {
   _configure
   _show_config
   _clone_or_pull ${LAREFERENCIA_PROJECTS[@]}
+  
   msg "Done."
 }
 
