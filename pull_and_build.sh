@@ -15,6 +15,7 @@ fi
 
 all_projects=(
   "lareferencia-platform"
+  "lareferencia-solr-cores"
   "lareferencia-oclc-harvester"
   "lareferencia-core-lib"
   "lareferencia-entity-lib"
@@ -64,9 +65,9 @@ _clone_or_pull_project() {
     (msg_scoped $project "Cloning to $project_path" && git clone $project_repo $project_path || msg_error "Failed to clone $project") || exit 255
   fi
   
-  if [ ! -L $project ]; then
-    (msg_scoped $project "Creating symlink for $project_path" && ln -s $LAREFERENCIA_HOME/$project $project || msg_error "Failed create symlink $project") || exit 255
-  fi
+  # if [ ! -L $project ]; then
+  #   (msg_scoped $project "Creating symlink for $project_path" && ln -s $LAREFERENCIA_HOME/$project $project || msg_error "Failed create symlink $project") || exit 255
+  # fi
 
   (msg_scoped $project "Building $project_path with profile: $PROFILE" && cd $project_path && bash build.sh $PROFILE || msg_error "Failed to build $project") || exit 255
 }
