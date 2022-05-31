@@ -21,8 +21,8 @@ all_projects=(
   "lareferencia-entity-lib"
   "lareferencia-contrib-rcaap"
   "lareferencia-contrib-ibict"
-  "lareferencia-shell"
   "lareferencia-shell-entity-plugin"
+  "lareferencia-shell"
   "lareferencia-lrharvester-app"
   "lareferencia-entity-rest"
 )
