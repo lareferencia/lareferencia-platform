@@ -11,10 +11,12 @@ fi
 
 
 all_projects=(
+  "lareferencia-docker"
   "lareferencia-platform"
   "lareferencia-oclc-harvester"
   "lareferencia-core-lib"
   "lareferencia-entity-lib"
+  "lareferencia-indexing-filters-lib"
   "lareferencia-contrib-rcaap"
   "lareferencia-contrib-ibict"
   "lareferencia-shell"

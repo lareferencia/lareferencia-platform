@@ -21,6 +21,7 @@ all_projects=(
   "lareferencia-entity-lib"
   "lareferencia-contrib-rcaap"
   "lareferencia-contrib-ibict"
+  "lareferencia-indexing-filters-lib"
   "lareferencia-shell-entity-plugin"
   "lareferencia-shell"
   "lareferencia-lrharvester-app"
