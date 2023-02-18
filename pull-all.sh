@@ -1,34 +1,23 @@
 #!/bin/bash
+
 set -eou pipefail
 
-LAREFERENCIA_PLATFORM_PATH=$(cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)
-LAREFERENCIA_HOME=$(cd -- "$LAREFERENCIA_PLATFORM_PATH/.." >/dev/null 2>&1 ; pwd -P)
-LAREFERENCIA_GITHUB_REPO="git@github.com:lareferencia/{PROJECT}"
+# load configuration from enviroment.sh
+source enviroment.sh
+
+# print configuration
+echo "LAREFERENCIA_PLATFORM_PATH: $LAREFERENCIA_PLATFORM_PATH"
+echo "LAREFERENCIA_HOME: $LAREFERENCIA_HOME"
+echo "LAREFERENCIA_GITHUB_REPO: $LAREFERENCIA_GITHUB_REPO"
+
+# load modules from modules.txt
+read -r -a modules <<< $(cat modules.txt)
+
+# print modules
+echo "Modules: ${modules[@]}"
 
 
-if [ $# -gt 0 ]; then
-   PROFILE="$1"
-else
-   PROFILE="lite"
-fi
-
-
-all_projects=(
-  "lareferencia-platform"
-  "lareferencia-solr-cores"
-  "lareferencia-oclc-harvester"
-  "lareferencia-core-lib"
-  "lareferencia-entity-lib"
-  "lareferencia-contrib-rcaap"
-  "lareferencia-contrib-ibict"
-  "lareferencia-indexing-filters-lib"
-  "lareferencia-shell-entity-plugin"
-  "lareferencia-shell"
-  "lareferencia-lrharvester-app"
-  "lareferencia-entity-rest"
-)
-
-LAREFERENCIA_PROJECTS=("${all_projects[@]}")
+LAREFERENCIA_PROJECTS=("${modules[@]}")
 
 msg() {
   echo -e "\x1B[32m[LAREFERENCIA]\x1B[0m $1"
@@ -91,7 +80,7 @@ _configure() {
 }
 
 help() {
-  echo "Pull all or selected projects:"
+  echo "Pull all or clone selected projects:"
   echo ""
   echo "  $0 [project...]"
   echo ""

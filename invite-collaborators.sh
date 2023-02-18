@@ -1,31 +1,38 @@
 #!/bin/bash
+
 set -eou pipefail
 
-GITHUB_API_URL="/repos/lareferencia/{PROJECT}/collaborators/{USER}"
+# read parameters passed to script and print usage
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <user>"
+  echo "  user: user to invite as collaborator"
+  exit 1
+fi
 
+# parameters
 if [ $# -gt 0 ]; then
    USER="$1"
 else
    exit 1
 fi
 
+# load configuration from enviroment.sh
+source enviroment.sh
 
-all_projects=(
-  "lareferencia-docker"
-  "lareferencia-platform"
-  "lareferencia-oclc-harvester"
-  "lareferencia-core-lib"
-  "lareferencia-entity-lib"
-  "lareferencia-indexing-filters-lib"
-  "lareferencia-contrib-rcaap"
-  "lareferencia-contrib-ibict"
-  "lareferencia-shell"
-  "lareferencia-shell-entity-plugin"
-  "lareferencia-lrharvester-app"
-  "lareferencia-entity-rest"
-)
+# print configuration
+echo "LAREFERENCIA_PLATFORM_PATH: $LAREFERENCIA_PLATFORM_PATH"
+echo "LAREFERENCIA_HOME: $LAREFERENCIA_HOME"
+echo "LAREFERENCIA_GITHUB_REPO: $LAREFERENCIA_GITHUB_REPO"
 
-LAREFERENCIA_PROJECTS=("${all_projects[@]}")
+# load modules from modules.txt
+read -r -a modules <<< $(cat modules.txt)
+
+# print modules
+echo "Modules: ${modules[@]}"
+
+LAREFERENCIA_PROJECTS=("${modules[@]}")
+
+GITHUB_API_URL="/repos/lareferencia/{PROJECT}/collaborators/{USER}"
 
 msg() {
   echo -e "\x1B[32m[LAREFERENCIA]\x1B[0m $1"
