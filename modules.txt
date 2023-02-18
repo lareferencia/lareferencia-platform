@@ -1,4 +1,5 @@
 lareferencia-platform
+lareferencia-platform-lite
 lareferencia-solr-cores
 lareferencia-oclc-harvester
 lareferencia-core-lib
