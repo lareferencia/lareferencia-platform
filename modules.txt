@@ -11,3 +11,4 @@ lareferencia-shell-entity-plugin
 lareferencia-shell
 lareferencia-lrharvester-app
 lareferencia-entity-rest
+lareferencia-dashboard-rest
