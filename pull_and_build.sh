@@ -21,4 +21,4 @@ fi
 
 # pull and build all modules
 bash pull-all.sh
-bash build-all.sh $PROFILE
+bash build.sh $PROFILE

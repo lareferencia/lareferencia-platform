@@ -83,7 +83,7 @@
 		</dependency>
 
 	</dependencies>
-	
+
 	<modules>
 		<module>lareferencia-oclc-harvester</module>
 		<module>lareferencia-core-lib</module>
