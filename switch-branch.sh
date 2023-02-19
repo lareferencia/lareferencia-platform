@@ -57,7 +57,7 @@ for module in "${modules[@]}"; do
     fi
 
     # if branch does not exist in remote and publish is true, push branch to github
-    if ! ( [[ `git ls-remote --exit-code --heads origin $branch` ]] ) && [ "$publish" = "true" ]; then
+    if ! ( [[ `git ls-remote --exit-code --heads origin $branch` ]] ) && [[ "$publish" = "true" ]]; then
         echo "Module: $module branch $branch does not exist in remote, publishing"
         git push -u origin $branch
     else # if branch exists in remote, pull changes 

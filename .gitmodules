@@ -1,0 +1,36 @@
+[submodule "lareferencia-solr-cores"]
+	path = lareferencia-solr-cores
+	url = https://github.com/lareferencia/lareferencia-solr-cores
+[submodule "lareferencia-oclc-harvester"]
+	path = lareferencia-oclc-harvester
+	url = https://github.com/lareferencia/lareferencia-oclc-harvester
+[submodule "lareferencia-core-lib"]
+	path = lareferencia-core-lib
+	url = https://github.com/lareferencia/lareferencia-core-lib
+[submodule "lareferencia-entity-lib"]
+	path = lareferencia-entity-lib
+	url = https://github.com/lareferencia/lareferencia-entity-lib
+[submodule "lareferencia-contrib-rcaap"]
+	path = lareferencia-contrib-rcaap
+	url = https://github.com/lareferencia/lareferencia-contrib-rcaap
+[submodule "lareferencia-contrib-ibict"]
+	path = lareferencia-contrib-ibict
+	url = https://github.com/lareferencia/lareferencia-contrib-ibict
+[submodule "lareferencia-indexing-filters-lib"]
+	path = lareferencia-indexing-filters-lib
+	url = https://github.com/lareferencia/lareferencia-indexing-filters-lib
+[submodule "lareferencia-shell-entity-plugin"]
+	path = lareferencia-shell-entity-plugin
+	url = https://github.com/lareferencia/lareferencia-shell-entity-plugin
+[submodule "lareferencia-shell"]
+	path = lareferencia-shell
+	url = https://github.com/lareferencia/lareferencia-shell
+[submodule "lareferencia-lrharvester-app"]
+	path = lareferencia-lrharvester-app
+	url = https://github.com/lareferencia/lareferencia-lrharvester-app
+[submodule "lareferencia-entity-rest"]
+	path = lareferencia-entity-rest
+	url = https://github.com/lareferencia/lareferencia-entity-rest
+[submodule "lareferencia-dashboard-rest"]
+	path = lareferencia-dashboard-rest
+	url = https://github.com/lareferencia/lareferencia-dashboard-rest

@@ -83,19 +83,21 @@
 		</dependency>
 
 	</dependencies>
-
-	<!--modules>
+	
+	<modules>
+		<module>lareferencia-oclc-harvester</module>
 		<module>lareferencia-core-lib</module>
 		<module>lareferencia-entity-lib</module>
 		<module>lareferencia-contrib-rcaap</module>
 		<module>lareferencia-contrib-ibict</module>
+		<module>lareferencia-indexing-filters-lib</module>
 		<module>lareferencia-shell-entity-plugin</module>
 		<module>lareferencia-shell</module>
 		<module>lareferencia-lrharvester-app</module>
-	</modules-->
+		<module>lareferencia-entity-rest</module>
+		<module>lareferencia-dashboard-rest</module>
+	</modules>
 
-	
-	
 	<repositories>
 		<repository>
 			<id>spring-milestones</id>
