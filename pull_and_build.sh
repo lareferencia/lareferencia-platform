@@ -1,8 +1,6 @@
 #!/bin/bash
 set -eou pipefail
 
-set -eou pipefail
-
 # check parameters passed to script and print usage
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <profile>"
