@@ -27,8 +27,8 @@ jobs:
         java-version: '11'
         distribution: 'temurin'
         cache: maven
-    - name: Update submodules
-      run: bash sync-modules.sh
+    #- name: Update submodules
+    #  run: bash sync-modules.sh
     - name: Build with Maven
       run: bash build.sh lareferencia
 
