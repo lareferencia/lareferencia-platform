@@ -34,6 +34,13 @@ case $yn in
 esac
 
 
+git checkout main
+git pull
+git checkout $branch
+git merge main
+
+
+
 # load modules from modules.txt
 read -r -a modules <<< $(cat modules.txt)
 
@@ -55,7 +62,7 @@ for module in "${modules[@]}"; do
       git pull
       git checkout $branch
       git merge main
-      git push
+
 
     fi
 
