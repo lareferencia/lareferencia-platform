@@ -91,3 +91,5 @@ for module in "${modules[@]}"; do
     fi
 
 done
+
+bash sync-modules.sh
