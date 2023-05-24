@@ -12,7 +12,5 @@ git submodule foreach --recursive "git checkout -b $branch"
 # switch to branch
 git checkout -b $branch
 
-# load 
-bash sync-modules.sh
 
 
