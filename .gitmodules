@@ -34,6 +34,3 @@
 [submodule "lareferencia-dashboard-rest"]
 	path = lareferencia-dashboard-rest
 	url = git@github.com:lareferencia/lareferencia-dashboard-rest
-[submodule "lareferencia-platform-lite"]
-	path = lareferencia-platform-lite
-	url = git@github.com:lareferencia/lareferencia-platform-lite
