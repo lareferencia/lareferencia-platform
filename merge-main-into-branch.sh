@@ -39,10 +39,14 @@ git pull
 git checkout $branch
 git merge main
 
+# load read_modules function
+source read_modules.sh
 
+# read modules from modules.txt
+modules=($(read_modules))
 
-# load modules from modules.txt
-read -r -a modules <<< $(cat modules.txt)
+# print modules
+echo "Modules: ${modules[@]}"
 
 # print modules
 echo "Modules: ${modules[@]}"

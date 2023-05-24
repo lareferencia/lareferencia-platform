@@ -32,8 +32,14 @@ case $yn in
 esac
 
 
-# load modules from modules.txt
-read -r -a modules <<< $(cat modules.txt)
+# load read_modules function
+source read_modules.sh
+
+# read modules from modules.txt
+modules=($(read_modules))
+
+# print modules
+echo "Modules: ${modules[@]}"
 
 # merge branch into main
 git checkout main
