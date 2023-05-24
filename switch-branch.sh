@@ -17,6 +17,5 @@ git submodule foreach --recursive "git checkout $branch"
 git fetch origin
 git checkout $branch
 
-# sync modules
-bash sync-modules.sh
+
 
