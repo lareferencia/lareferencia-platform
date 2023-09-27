@@ -34,10 +34,15 @@ jobs:
       with:
         ssh-private-key: ${{ secrets.LMATAS_PRIVATE_KEY }}
 
-    - name: get-pom-version
-      id: pom-version
-      uses: CptMokoena/maven-get-version-action@1.0.3
-    
+    - uses: avides/actions-project-version-check@latest
+      id: actions_project_version_check
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        file-to-check: pom.xml
+
+    - name: use-version-from-check
+      run: echo ${{ steps.actions_project_version_check.outputs.version }} 
+      
     - name: Get modules
       run: bash sync-modules.sh
       
@@ -50,8 +55,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
       with:
-        tag_name: ${{ steps.pom-version.outputs.version }}
-        release_name: Release ${{ steps.pom-version.outputs.version }}
+        tag_name: ${{ steps.actions_project_version_check.outputs.version }}
+        release_name: Release ${{ steps.actions_project_version_check.outputs.version }}
         draft: false
         prerelease: false
 
