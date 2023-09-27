@@ -34,11 +34,10 @@ jobs:
       with:
         ssh-private-key: ${{ secrets.LMATAS_PRIVATE_KEY }}
 
-
-    - name: Set Release version env variable
-      run: | 
-        echo "RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
-        
+    - name: get-pom-version
+      id: pom-version
+      uses: CptMokoena/maven-get-version-action@master
+    
     - name: Get modules
       run: bash sync-modules.sh
       
@@ -51,8 +50,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
       with:
-        tag_name: ${{ env.RELEASE_VERSION }}
-        release_name: Release ${{ env.RELEASE_VERSION }}
+        tag_name: ${{ steps.pom-version.outputs.version }}
+        release_name: Release ${{ steps.pom-version.outputs.version }}
         draft: false
         prerelease: false
 
