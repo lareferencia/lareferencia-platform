@@ -36,7 +36,7 @@ jobs:
 
     - name: get-pom-version
       id: pom-version
-      uses: CptMokoena/maven-get-version-action@master
+      uses: CptMokoena/maven-get-version-action@1.0.3
     
     - name: Get modules
       run: bash sync-modules.sh
