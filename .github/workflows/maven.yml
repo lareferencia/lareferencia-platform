@@ -33,7 +33,16 @@ jobs:
       uses: webfactory/ssh-agent@v0.7.0
       with:
         ssh-private-key: ${{ secrets.LMATAS_PRIVATE_KEY }}
-        
+
+    - uses: avides/actions-project-version-check@v1.4.0
+      id: version_check 
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        file-to-check: ./pom.xml
+
+    - name: use-version-from-check
+      run: echo ${{ steps.version_check.outputs.version }} 
+      
     - name: Get modules
       run: bash sync-modules.sh
       
@@ -43,16 +52,31 @@ jobs:
     - name: Clean targets
       run: bash clean-targets.sh
 
+    - name: Compress Build
+      working-directory: .
+      run: zip -r lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip .
+
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: ${{ steps.version_check.outputs.version  }}
+        release_name: Release ${{ steps.version_check.outputs.version  }}
         draft: false
         prerelease: false
+
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip
+        asset_name: lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip
+        asset_content_type: application/zip      
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
