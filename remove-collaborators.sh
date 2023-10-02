@@ -1,0 +1,99 @@
+#!/bin/bash
+
+set -eou pipefail
+
+# read parameters passed to script and print usage
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <user>"
+  echo "  user: user to invite as collaborator"
+  exit 1
+fi
+
+# parameters
+if [ $# -gt 0 ]; then
+   USER="$1"
+else
+   exit 1
+fi
+
+# load configuration from enviroment.sh
+source enviroment.sh
+
+# print configuration
+echo "LAREFERENCIA_PLATFORM_PATH: $LAREFERENCIA_PLATFORM_PATH"
+echo "LAREFERENCIA_HOME: $LAREFERENCIA_HOME"
+echo "LAREFERENCIA_GITHUB_REPO: $LAREFERENCIA_GITHUB_REPO"
+
+# load modules from modules.txt
+read -r -a modules <<< $(cat modules.txt)
+
+# print modules
+echo "Modules: ${modules[@]}"
+
+LAREFERENCIA_PROJECTS=("${modules[@]}")
+
+GITHUB_API_URL="/repos/lareferencia/{PROJECT}/collaborators/{USER}"
+
+msg() {
+  echo -e "\x1B[32m[LAREFERENCIA]\x1B[0m $1"
+}
+
+msg_scoped() {
+  echo -e "\x1B[32m[LAREFERENCIA]\x1B[0m\x1B[33m[$1]\x1B[0m $2"
+}
+
+msg_error() {
+  echo -e "\x1B[32m[LAREFERENCIA]\x1B[0m\x1B[31m[Error]\x1B[0m $1"
+  exit 1
+}
+
+_show_config() {
+  msg "LAREFERENCIA_GITHUB_REPO: $GITHUB_API_URL"
+  msg "LAREFERENCIA_PROJECTS: $(printf '%s ' ${LAREFERENCIA_PROJECTS[@]})"
+}
+
+
+_remove_from_project() {
+  project=$1
+  project_repo=$(echo $GITHUB_API_URL | sed -e 's/{PROJECT}/'$project'/g' | sed -e 's/{USER}/'$USER'/g')
+  
+  (msg_scoped $project "Remove $USER to $project" && gh api --method DELETE -H 'Accept: application/vnd.github.v3+json' $project_repo || msg_error "Failed to build $project") || exit 255
+}
+
+_invite() {
+  projects="$@"
+  printf "%s\0" ${projects[@]} | xargs -0 -I% -n 1 -P1 bash -c '_remove_from_project %'
+}
+
+_configure() {
+  # exports for xargs/parallel runs
+  export -f msg
+  export -f msg_scoped
+  export -f msg_error
+  export -f _remove_from_project
+  export -p GITHUB_API_URL
+  export -p USER
+}
+
+help() {
+  echo "Invite collaborator to selected projects:"
+  echo ""
+  echo "  $0 [user...]"
+  echo ""
+  echo "Show help:"
+  echo ""
+  echo "  $0 help"
+  echo ""
+}
+
+pull() {
+  _configure
+  _show_config
+  _invite ${LAREFERENCIA_PROJECTS[@]}
+  
+  msg "Done."
+}
+
+[ "${1:-}" == "help" ] && help && exit 0
+
+pull

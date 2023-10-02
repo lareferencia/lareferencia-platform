@@ -7,7 +7,7 @@ else
 fi
 
 # push all modules
-git submodule foreach --recursive "git checkout -b $branch"
+git submodule foreach --recursive "git checkout -b $branch || true"
 
 # switch to branch
 git checkout -b $branch

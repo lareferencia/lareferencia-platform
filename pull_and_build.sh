@@ -18,5 +18,6 @@ else
 fi
 
 # pull and build all modules
+bash sync-modules.sh
 bash pull-all.sh
 bash build.sh $PROFILE

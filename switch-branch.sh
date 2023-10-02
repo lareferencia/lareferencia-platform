@@ -10,8 +10,8 @@ else
 fi
 
 # fetch branches and checkout branch
-git submodule foreach --recursive "git fetch origin"
-git submodule foreach --recursive "git checkout $branch"
+git submodule foreach --recursive "git fetch origin || true"
+git submodule foreach --recursive "git checkout $branch || true"
 
 # switch to branch
 git fetch origin

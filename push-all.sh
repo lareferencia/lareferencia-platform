@@ -14,7 +14,7 @@ if [ "$branch" != "main" ]; then
 fi
 
 #set upstream to all submodules
-git submodule foreach --recursive "git push --set-upstream origin $branch"
+git submodule foreach --recursive "git push --set-upstream origin $branch || true"
 
 # push the parent project
 git push --set-upstream origin $branch

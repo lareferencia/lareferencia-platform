@@ -5,7 +5,7 @@ set -eou pipefail
 # pull from the remote
 git pull
 
-# push all modules
-git submodule foreach --recursive "git pull"
+# push all modules, not stop on error
+git submodule foreach --recursive "git pull || true"
 
 
