@@ -1,6 +1,12 @@
 LA Referencia Platform - Changelog
 ----------
 
+4.2.2 / 2023-11-13
+==================
+- Incremental entity indexing by lastUpdate parameter:  
+example: `lareferencia-shell >index-entities --config-file-full-path entity-indexing-config.xml --last-update 2023-10-10T00:00:00  --indexer-name entityIndexerElasticJSON`
+
+
 4.2.1 / 2023-10-10
 ==================
 - Added: Incremental refacting harvest for OAI-PMH
