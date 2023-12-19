@@ -6,6 +6,8 @@ LA Referencia Platform - Changelog
 - Incremental entity indexing by lastUpdate parameter:  
 example: `lareferencia-shell >index-entities --config-file-full-path entity-indexing-config.xml --last-update 2023-10-10T00:00:00  --indexer-name entityIndexerElasticJSON`
 
+**Migration Notes**:
+No migration needed
 
 4.2.1 / 2023-10-10
 ==================
