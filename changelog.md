@@ -1,6 +1,10 @@
 LA Referencia Platform - Changelog
 ----------
 
+4.2.3 / 2024-01-12
+=================
+- Empty incremental harvesting now creates a new snapshopt based on the previous one. 
+
 4.2.2 / 2023-11-13
 ==================
 - Incremental entity indexing by lastUpdate parameter:  
