@@ -4,6 +4,7 @@ LA Referencia Platform - Changelog
 4.2.3 / 2024-01-12
 =================
 - Empty incremental harvesting now creates a new snapshopt based on the previous one. 
+- Elastic Entity Indexing now allows custom elastic parameters using "elastic-param-" prefix in field index-field config xml, please see the [example config file](https://raw.githubusercontent.com/lareferencia/lareferencia-shell/main/config/entity-indexing-config-json-filtered.xml) 
 
 4.2.2 / 2023-11-13
 ==================
