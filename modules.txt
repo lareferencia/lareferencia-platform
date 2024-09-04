@@ -7,6 +7,7 @@ lareferencia-contrib-ibict
 lareferencia-indexing-filters-lib
 lareferencia-shell-entity-plugin
 lareferencia-shell
+lareferencia-dark-lib
 lareferencia-lrharvester-app
 lareferencia-entity-rest
 lareferencia-dashboard-rest
