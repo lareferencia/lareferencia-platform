@@ -1,6 +1,8 @@
 #!/bin/bash
 
-set -eou pipefail
+#set -eou pipefail
+
+bash create-submodules.sh
 
 # pull from the remote
 git pull
