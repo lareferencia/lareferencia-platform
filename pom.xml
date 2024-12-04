@@ -77,6 +77,13 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.apache.solr</groupId>
+			<artifactId>solr-core</artifactId>
+			<version>8.11.2</version>
+		</dependency>
+
+
+		<dependency>
    			<groupId>org.projectlombok</groupId>
     		<artifactId>lombok</artifactId>
     		<version>1.18.26</version>
