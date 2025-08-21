@@ -58,10 +58,12 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 		</dependency>
 
+		<!-- Spring Boot Logging brings conflicting dependencies
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-logging</artifactId>
 		</dependency>
+		-->
 
 		<dependency>
 			<groupId>commons-io</groupId>
@@ -70,16 +72,29 @@
 		</dependency>
 
 		<!-- Logging -->
+		<!-- Commented out to avoid conflicts with Spring Boot Logback
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-core</artifactId>
 			<version>${log4j.version}</version>
 		</dependency>
+		-->
 
 		<dependency>
 			<groupId>org.apache.solr</groupId>
 			<artifactId>solr-core</artifactId>
 			<version>9.3.0</version>
+			<exclusions>
+				<!-- Exclude conflicting logging implementations -->
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-slf4j2-impl</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-core</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<dependency>
@@ -135,7 +150,7 @@
 		<module>lareferencia-shell</module>
 		<module>lareferencia-dark-lib</module>
 		<module>lareferencia-lrharvester-app</module>
-		<module>lareferencia-entity-rest</module>
+		<!--module>lareferencia-entity-rest</module-->
 		<module>lareferencia-dashboard-rest</module>
 	</modules>
 
