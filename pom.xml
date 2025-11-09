@@ -25,7 +25,7 @@
 
 	<groupId>org.lareferencia</groupId>
   	<artifactId>lareferencia-parent</artifactId>
-  	<version>4.2.6</version>
+  	<version>5.0.0-alpha</version>
 	<packaging>pom</packaging>
 
 	<name>LA Referencia Platform</name>
@@ -34,19 +34,27 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.4.9</version>
+		<version>3.5.0</version>
 		<relativePath/>
 	</parent>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		
+		<!-- UPGRADED: Java 21 LTS for Spring Boot 3.5.0 -->
+		<java.version>21</java.version>
+		<maven.compiler.source>21</maven.compiler.source>
+		<maven.compiler.target>21</maven.compiler.target>
 
-		<apache.tika.version>1.17</apache.tika.version>
-		<log4j.version>2.17.1</log4j.version>
-		<logback.version>1.1.3</logback.version>
-
-		<lareferencia.shell.appname>lareferencia-shell</lareferencia.shell.appname>
+	<!-- UPGRADED: Updated library versions for Spring Boot 3.x compatibility -->
+	<apache.tika.version>2.9.2</apache.tika.version>
+	<log4j.version>2.23.1</log4j.version>
+	<logback.version>1.5.15</logback.version>
+	
+	<!-- UPGRADED: Jakarta namespace versions -->
+	<jakarta.persistence.version>3.1.0</jakarta.persistence.version>
+	<jakarta.validation.version>3.0.2</jakarta.validation.version>		<lareferencia.shell.appname>lareferencia-shell</lareferencia.shell.appname>
 		<harvester.appname>harvester</harvester.appname>
 		<dashboard.rest.appname>dashboard-rest</dashboard.rest.appname>
 		<entity.rest.appname>entity-rest</entity.rest.appname>
@@ -58,34 +66,58 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 		</dependency>
 
+		<!-- Spring Boot Logging brings conflicting dependencies
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-logging</artifactId>
 		</dependency>
+		-->
 
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
-			<version>2.11.0</version>
+			<version>2.15.1</version>
 		</dependency>
 
 		<!-- Logging -->
+		<!-- Commented out to avoid conflicts with Spring Boot Logback
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-core</artifactId>
 			<version>${log4j.version}</version>
 		</dependency>
+		-->
 
-		<dependency>
-			<groupId>org.apache.solr</groupId>
-			<artifactId>solr-core</artifactId>
-			<version>9.3.0</version>
-		</dependency>
-
+	<!-- UPGRADED: Solr 9.5.0 compatible with Spring Boot 3.x -->
+	<dependency>
+		<groupId>org.apache.solr</groupId>
+		<artifactId>solr-core</artifactId>
+		<version>9.5.0</version>
+		<exclusions>
+			<!-- Exclude conflicting logging implementations -->
+			<exclusion>
+				<groupId>org.apache.logging.log4j</groupId>
+				<artifactId>log4j-slf4j2-impl</artifactId>
+			</exclusion>
+			<exclusion>
+				<groupId>org.apache.logging.log4j</groupId>
+				<artifactId>log4j-core</artifactId>
+			</exclusion>
+			<exclusion>
+				<groupId>org.slf4j</groupId>
+				<artifactId>slf4j-reload4j</artifactId>
+			</exclusion>
+			<!-- UPGRADED: Exclude old JLine version (3.9.0) that conflicts with Spring Shell 3.x (needs 3.26.x) -->
+			<exclusion>
+				<groupId>org.jline</groupId>
+				<artifactId>jline</artifactId>
+			</exclusion>
+		</exclusions>
+	</dependency>		<!-- UPGRADED: Guava to latest stable version -->
 		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
-			<version>21.0</version>
+			<version>33.0.0-jre</version>
 		</dependency>
 
 		<dependency>
@@ -108,16 +140,28 @@
     		<artifactId>jackson-databind</artifactId>
 		</dependency>
 
+		<!-- ADDED: Jakarta JAXB API and Implementation for Spring Boot 3.x -->
+		<!-- JAXB was removed from JDK 11+ and needs to be explicitly included -->
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jaxb</groupId>
+			<artifactId>jaxb-runtime</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>com.fasterxml.jackson.datatype</groupId>
 			<artifactId>jackson-datatype-guava</artifactId>
 		</dependency>
 
 
+		<!-- UPGRADED: Lombok compatible with Java 17+ -->
 		<dependency>
    			<groupId>org.projectlombok</groupId>
     		<artifactId>lombok</artifactId>
-    		<version>1.18.26</version>
+    		<version>1.18.30</version>
     		<scope>provided</scope>
 		</dependency>
 
@@ -128,8 +172,8 @@
 		<module>lareferencia-oclc-harvester</module>
 		<module>lareferencia-core-lib</module>
 		<module>lareferencia-entity-lib</module>
-		<module>lareferencia-contrib-rcaap</module>
-		<module>lareferencia-contrib-ibict</module>
+		<!--module>lareferencia-contrib-rcaap</module>
+		<module>lareferencia-contrib-ibict</module-->
 		<module>lareferencia-indexing-filters-lib</module>
 		<module>lareferencia-shell-entity-plugin</module>
 		<module>lareferencia-shell</module>
@@ -141,9 +185,8 @@
 
 	<repositories>
 		<repository>
-			<id>spring-milestones</id>
-			<name>Spring Milestones</name>
-			<url>https://repo.spring.io/milestone</url>
+			<id>central</id>
+			<url>https://repo.maven.apache.org/maven2</url>
 		</repository>
 	</repositories>
 	
