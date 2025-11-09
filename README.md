@@ -1,6 +1,6 @@
 # LA Referencia Platform
 
-LA Referencia is a comprehensive platform for harvesting, processing, and indexing scholarly metadata from institutional and thematic repositories across Latin America. The platform provides advanced entity management, metadata validation, and search capabilities through Elasticsearch.
+LA Referencia is a comprehensive platform for harvesting, processing, and indexing scholarly metadata from institutional and thematic repositories across Latin America. The platform provides advanced entity management, metadata validation, and search capabilities through SOLR/Elasticsearch and Vufind integraton.
 
 ## 🚀 Current Status
 
