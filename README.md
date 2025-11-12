@@ -35,6 +35,18 @@ The main branch is actively being developed for version 5.0, which includes sign
 - Improved analytics capabilities with columnar storage format
 - Reduced database load and improved query performance
 
+**Snapshot Logging System Refactoring**
+- **New file-based snapshot logging**: Logs now stored as text files alongside Parquet data instead of database tables
+- **Location**: `{basePath}/{NETWORK}/snapshots/snapshot_{id}/snapshot.log`
+- **Format**: Plain text with timestamps `[2025-11-12 12:45:30.123] message`
+- **Benefits**: 
+  - No database dependency for logs
+  - Easy to read and audit with standard text editors
+  - Automatic directory creation and error handling
+  - Thread-safe append operations
+  - Consistent with filesystem-based storage architecture
+- **API Compatibility**: Fully backward compatible - no changes needed for existing code using `addEntry()` and `deleteSnapshotLog()`
+
 **Metadata Storage Optimization**
 - **Gradual migration** from PostgreSQL to filesystem-based storage
 - Better scalability for large metadata collections
@@ -54,6 +66,27 @@ The main branch is actively being developed for version 5.0, which includes sign
 - Configurable concurrency control with semaphores
 - Automatic resource cleanup on completion
 - Significant performance improvements for large-scale indexing
+
+**Core Library Package Structure Refactoring (v5.0)**
+- **Ultra-simplified organization**: Replaced complex `backend.*` + `core.*` split with clean 7-package structure
+- **New structure** (`org.lareferencia.core.*`):
+  ```
+  ├── domain/       - Domain models and entities
+  ├── repository/   - Data access (JPA + Parquet)
+  ├── service/      - Business logic (harvesting, validation, indexing, management)
+  ├── metadata/     - Metadata storage abstraction
+  ├── worker/       - Async processors (harvesting, validation, indexing, management)
+  ├── task/         - Task scheduling and coordination
+  └── util/         - Shared utilities
+  ```
+- **Benefits**:
+  - ✅ Intuitive navigation (max 2 package levels)
+  - ✅ Functional organization by domain (harvesting, validation, indexing)
+  - ✅ Reduced cognitive load for new developers
+  - ✅ Easier to find related code (all harvesting code together, etc.)
+  - ✅ Zero breaking changes to public APIs
+- **Backward Compatibility**: All external APIs unchanged; migration is import-only for dependent projects
+- **Migration Support**: Automated scripts and detailed migration guide provided in [PACKAGE_MIGRATION_GUIDE.md](docs/PACKAGE_MIGRATION_GUIDE.md)
 
 ## 📋 System Requirements
 
@@ -79,7 +112,27 @@ Core library module providing fundamental domain models, metadata processing, va
 - Worker framework for asynchronous job execution
 - Validation statistics and reporting (Parquet storage in v5.0)
 
-[View detailed documentation](lareferencia-core-lib/README.md)
+**Architecture (v5.0)**:
+- **Simplified package structure**: Reorganized from `backend.*` to `core.*` with 7 core packages:
+  - `domain/` - Domain models (entities, value objects)
+  - `repository/` - Data access layer (JPA + Parquet)
+  - `service/` - Business logic (organized by functionality)
+  - `metadata/` - Metadata storage abstraction
+  - `worker/` - Asynchronous job processing (organized by functionality)
+  - `task/` - Task scheduling and coordination
+  - `util/` - Shared utilities
+- **Ultra-simple navigation**: Maximum 2 levels of package depth
+- **Functional organization**: Workers and services organized by domain (harvesting, validation, indexing, management)
+- **Zero breaking changes**: All public APIs remain identical, only internal package organization changed
+
+**Migration Guide for Dependent Projects:**
+If your project depends on `lareferencia-core-lib`, imports have changed:
+- ❌ Old: `org.lareferencia.backend.*`
+- ✅ New: `org.lareferencia.core.*`
+
+[See detailed migration guide](docs/PACKAGE_MIGRATION_GUIDE.md) with automated scripts.
+
+[View detailed documentation](https://github.com/lareferencia/lareferencia-core-lib)
 
 #### **lareferencia-entity-lib**
 Entity management, relationship processing, and multi-engine indexing library for scholarly metadata.
@@ -100,7 +153,7 @@ Entity management, relationship processing, and multi-engine indexing library fo
 - Automatic resource cleanup
 - Real-time indexing statistics
 
-[View detailed documentation](lareferencia-entity-lib/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-entity-lib)
 
 #### **lareferencia-dark-lib**
 DARK (descentrilized ARK) library for persistent identifier minting and management.
@@ -111,7 +164,7 @@ DARK (descentrilized ARK) library for persistent identifier minting and manageme
 - Credential management for DARK services
 - Worker integration for batch PID assignment
 
-[View detailed documentation](lareferencia-dark-lib/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-dark-lib)
 
 ### Application Modules
 
@@ -130,7 +183,7 @@ Main web application for OAI-PMH metadata harvesting, validation, transformation
 
 **Access:** `http://localhost:8080/harvester`
 
-[View detailed documentation](lareferencia-lrharvester-app/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-lrharvester-app)
 
 #### **lareferencia-entity-rest**
 RESTful API for accessing and searching scholarly entities indexed by LA Referencia.
@@ -145,7 +198,7 @@ RESTful API for accessing and searching scholarly entities indexed by LA Referen
 **Access:** `http://localhost:8081/entity-api`  
 **Swagger UI:** `http://localhost:8081/entity-api/swagger-ui.html`
 
-[View detailed documentation](lareferencia-entity-rest/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-entity-rest)
 
 #### **lareferencia-dashboard-rest**
 RESTful API providing monitoring, statistics, and administrative data for dashboards and reporting.
@@ -160,7 +213,7 @@ RESTful API providing monitoring, statistics, and administrative data for dashbo
 **Access:** `http://localhost:8082/dashboard-api`  
 **Swagger UI:** `http://localhost:8082/dashboard-api/swagger-ui.html`
 
-[View detailed documentation](lareferencia-dashboard-rest/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-dashboard-rest)
 
 ### Infrastructure Modules
 
@@ -173,14 +226,14 @@ Field occurrence filtering library for controlling which metadata field values a
 - Integration with entity indexing pipeline
 - Index size optimization
 
-[View detailed documentation](lareferencia-indexing-filters-lib/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-indexing-filters-lib)
 
 #### **lareferencia-oclc-harvester**
 Modified version of OCLC Harvester2 library (2006 version) adapted for LA Referencia.
 
 **Purpose:** Low-level OAI-PMH protocol support used internally by core-lib.
 
-[View detailed documentation](lareferencia-oclc-harvester/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-oclc-harvester)
 
 #### **lareferencia-shell**
 Interactive command-line shell for administrative and maintenance operations.
@@ -192,7 +245,7 @@ Interactive command-line shell for administrative and maintenance operations.
 - Entity processing tools
 - Non-interactive mode for scripting
 
-[View detailed documentation](lareferencia-shell/README.md)
+[View detailed documentation](https://github.com/lareferencia/lareferencia-shell)
 
 #### **lareferencia-shell-entity-plugin**
 Entity-specific commands plugin for lareferencia-shell.
@@ -206,14 +259,14 @@ IBICT-specific Solr extensions (DISCONTIUED)
 
 **Status:** No longer compiled. Spring Data Solr discontinued. Migrate to `lareferencia-entity-rest`.
 
-[View deprecation notice](lareferencia-contrib-ibict/README.md)
+[View deprecation notice](https://github.com/lareferencia/lareferencia-contrib-ibict)
 
 #### ⚠️ **lareferencia-contrib-rcaap**
 RCAAP-specific Solr extensions (DISCONTINUED)
 
 **Status:** No longer compiled. Spring Data Solr discontinued. Migrate to `lareferencia-entity-rest`.
 
-[View deprecation notice](lareferencia-contrib-rcaap/README.md)
+[View deprecation notice](https://github.com/lareferencia/lareferencia-contrib-rcaap)
 
 
 ## 🚀 Quick Start
