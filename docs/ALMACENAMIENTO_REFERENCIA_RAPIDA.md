@@ -16,7 +16,7 @@
 
 ---
 
-## � Metadata - Estructura Dual-Layer
+## 💾 Metadata - Estructura Dual-Layer
 
 ### Capa 1: PostgreSQL (Metadata Estructural Únicamente)
 ```sql
@@ -121,11 +121,6 @@ Validator
    → Procesa validación
 ```
 
----
-
-## �📂 Estructura de Directorios
-
-```
 ---
 
 ## 📂 Estructura de Directorios
@@ -371,12 +366,6 @@ Contiene solo campos esenciales (sin rule_facts) para queries rápidas:
     └── snapshots/
         └── ... (similar estructura)
 ```
-└── LA_REFERENCIA/                                 ← Otra Network
-    ├── metadata/
-    │   └── ... (similar estructura)
-    └── snapshots/
-        └── ... (similar estructura)
-```
 
 ### 🔗 Relación entre Componentes
 
@@ -421,7 +410,6 @@ Parquet Catálogo OAI (snapshot_101/catalog/oai_records_batch_*.parquet)
 - 28% Validación (JSON stats + índice + records con facts anidados)
 - 3% Logs
 - 1% Metadata estructural (JSON + PostgreSQL)
-- 1% Metadata estructural (JSON + PostgreSQL)
 
 ### 🔧 Sanitización de Network Acronym
 
@@ -444,7 +432,8 @@ El nombre del directorio de red se sanitiza automáticamente:
 ## 🔄 Ciclo de Vida
 
 ### 1️⃣ Harvesting
-```
+
+```text
 1. snapshotStore.createSnapshot(network)
    → BD: INSERT snapshot (status=HARVESTING_IN_PROGRESS)
    
@@ -464,7 +453,8 @@ El nombre del directorio de red se sanitiza automáticamente:
 ```
 
 ### 2️⃣ Validación
-```
+
+```text
 1. validationStatRepository.initializeSnapshot(snapshotMetadata)
    → FS: mkdir validation/
    → FS: Crear metadata inicial (SnapshotValidationStats vacío)
@@ -484,6 +474,7 @@ El nombre del directorio de red se sanitiza automáticamente:
 ```
 
 **Archivos generados**:
+
 - `validation-stats.json` (Layer 1: estadísticas agregadas)
 - `validation_index.parquet` (Índice ligero sin rule_facts)
 - `records_batch_*.parquet` (Layer 2: records con RuleFacts anidados)
@@ -493,6 +484,7 @@ El nombre del directorio de red se sanitiza automáticamente:
 ## 📊 Campos en PostgreSQL
 
 ### `network_snapshot`
+
 ```sql
 id (BIGINT PRIMARY KEY)
 network_id (BIGINT FK)
@@ -522,6 +514,7 @@ Ver sección de Validación arriba para detalles de almacenamiento en Filesystem
 ## 🔒 Thread Safety
 
 ### ✅ SEGURO
+
 ```java
 // Cada thread obtiene NUEVA instancia
 Iterator<OAIRecord> it1 = repository.getIterator(metadata);  // Thread 1
@@ -530,6 +523,7 @@ Iterator<OAIRecord> it2 = repository.getIterator(metadata);  // Thread 2
 ```
 
 ### ❌ INSEGURO
+
 ```java
 // Compartir iterator entre threads
 Iterator<OAIRecord> shared = repository.getIterator(metadata);
@@ -538,6 +532,7 @@ Thread2: shared.hasNext(); // ⚠️ Race condition
 ```
 
 ### Métodos Sincronizados
+
 ```java
 // PostgreSQL - Contadores de snapshot (synchronized)
 snapshotStore.incrementSnapshotSize(snapshotId);        // synchronized
@@ -771,88 +766,6 @@ validOccurrences.forEach((value, count) ->
 ```
 
 ---
-
-## ⚠️ Posibles Problemas
-
-### Problema: Metadata No Encontrada
-**Síntoma**: `MetadataRecordStoreException: Metadata not found for hash`
-**Causa**: 
-- Archivo XML comprimido fue eliminado del FS
-- Hash incorrecto en BD
-- Partición equivocada
-
-**Solución**:
-```bash
-# Verificar si existe el archivo
-ls -la /data/metadata/NETWORK/metadata/A/B/C/ABCDEF123456789.xml.gz
-
-# Recalcular hash
-String newHash = metadataStore.storeAndReturnHash(snapshot, xmlContent);
-
-# Actualizar referencia en BD
-UPDATE oai_record SET metadata_hash = 'newHash' WHERE id = ?
-```
-
-### Problema: Disco Lleno (Metadata)
-**Síntoma**: IOException durante storeAndReturnHash
-**Causa**: Partición del FS sin espacio
-**Solución**:
-```bash
-# Ver uso
-df -h /data/metadata
-
-# Comprimir archivos antiguos (si aplica)
-find /data/metadata -mtime +30 -name "*.xml.gz" -exec gzip -9 {} \;
-
-# O borrar snapshots antiguos
-snapshotStore.deleteSnapshot(oldSnapshotId);
-```
-
-### Problema: Hash Duplicado Incorrecto
-**Síntoma**: Dos records diferentes con mismo hash
-**Causa**: 
-- Datos corruptos
-- Colisión (muy raro con SHA-256)
-
-**Solución**:
-```java
-// Recalcular y verificar
-String xml1 = metadataStore.getMetadata(snap, hash);
-String xml2 = metadataStore.getMetadata(snap, hash);
-
-if (!xml1.equals(xml2)) {
-    logger.error("Hash collision detected!");
-    // Regenerar uno de los hashes
-}
-```
-
-### Problema: Memory Leak en Lectura
-**Síntoma**: Memoria RAM crece leyendo metadata
-**Causa**: Buffer no liberado, String muy grande
-**Solución**:
-```java
-// ✅ BUENO - Stream pequeños chunks
-try (InputStream is = new FileInputStream(file);
-     GZIPInputStream gzis = new GZIPInputStream(is)) {
-    byte[] buffer = new byte[8192];
-    int bytesRead;
-    while ((bytesRead = gzis.read(buffer)) > 0) {
-        process(buffer, bytesRead);
-    }
-}
-
-// ❌ MALO - Carga todo a memoria
-String xml = readCompressed(file); // Si es muy grande
-```
-
----
-
-## 📚 Documentos Relacionados
-
-- `docs/ALMACENAMIENTO_DATOS.md` - Documentación completa
-- `docs/ALMACENAMIENTO_EJEMPLOS.md` - Ejemplos de código
-- `docs/PACKAGE_MIGRATION_GUIDE.md` - Guía de paquetes
-
 ---
 
 **Última actualización**: 12 de noviembre de 2025
