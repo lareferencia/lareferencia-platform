@@ -52,13 +52,71 @@ The main branch is actively being developed for version 5.0, which includes sign
 - Better scalability for large metadata collections
 - Improved backup and recovery processes
 
+#### Storage Architecture Redesign (v5.0)
+
+The platform introduces a hybrid **filesystem + database** storage strategy that dramatically improves performance and scalability:
+
+| Component | Storage | Format | Purpose |
+|-----------|---------|--------|---------|
+| **Metadata XML** | Filesystem | GZIP compressed | Original harvested XML records |
+| **OAI Records Catalog** | Parquet (FS) | Binary columnar | Harvested metadata index |
+| **Validation Records** | Parquet (FS) | Binary with nested RuleFacts | Validation results with rule violations |
+| **Validation Statistics** | JSON (FS) | Text aggregates | Pre-computed validation metrics |
+| **Validation Index** | Parquet (FS) | Lightweight projection | Fast filtering without RuleFacts |
+| **Snapshot Logs** | Text (FS) | Plain text with timestamps | Audit trail and debugging |
+| **Snapshot Metadata** | PostgreSQL | Relational | Structural snapshot info |
+| **Network Configuration** | PostgreSQL | Relational | Networks and repositories |
+| **Entity Data** | PostgreSQL | Relational | Publications, Persons, Organizations |
+
+**Key Benefits:**
+
+- ✅ **88% space reduction**: Nested RuleFacts vs flat fact tables (validation records)
+- ✅ **~30-50% deduplication**: Identical XML metadata stored once (filesystem hashing)
+- ✅ **Ultra-fast statistics**: <1ms queries via pre-computed JSON (vs DB queries)
+- ✅ **Streaming reads**: Iterator pattern for memory-efficient processing
+- ✅ **Thread-safe**: New manager instance per iterator call
+- ✅ **No transaction overhead**: File-based storage avoids DB locks
+- ✅ **Filesystem isolation**: Each network in separate directory (`{basePath}/{NETWORK}/`)
+
+**Directory Structure** (per snapshot):
+
+```text
+{basePath}/{NETWORK}/snapshots/snapshot_{ID}/
+├── metadata.json                          ← Snapshot metadata (structured)
+├── catalog/
+│   ├── oai_records_batch_1.parquet       ← OAI records (10k per file)
+│   └── oai_records_batch_2.parquet
+├── validation/
+│   ├── validation-stats.json              ← Aggregated statistics (<1ms lookup)
+│   ├── validation_index.parquet           ← Lightweight index (no RuleFacts)
+│   ├── records_batch_1.parquet            ← Records with nested RuleFacts
+│   └── records_batch_2.parquet
+└── snapshot.log                           ← Text audit trail
+
+{basePath}/{NETWORK}/metadata/
+├── A/B/C/ABCDEF123456789.xml.gz          ← Partitioned by hash (3 levels)
+├── A/B/D/ABDABC987654321.xml.gz
+└── ... (4,096 partitions for scale)
+```
+
+**Validation Schema** (nested RuleFacts):
+
+- 1 row per record (not per fact)
+- RuleFacts stored as nested list within record
+- Each RuleFact includes: rule_id, is_valid, valid/invalid occurrences
+- Reduces storage from ~1.5GB (flat) to ~180MB (nested) for 100k records
+
+For complete reference, see [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAMIENTO_REFERENCIA_RAPIDA.md).
+
 **Entity Processing Enhancements**
+
 - Simplified transactional model for entity loading and processing
 - Multiple bug fixes in entity relationship management
 - Optimized read-only transactions for better performance
 - Improved lazy loading handling
 
 **Elasticsearch Indexing**
+
 - **New multi-threaded entity indexer** implementation
 - Direct indexing architecture (removed buffer→distributor→writers pipeline)
 - Natural backpressure using database as bottleneck
@@ -68,17 +126,20 @@ The main branch is actively being developed for version 5.0, which includes sign
 - Significant performance improvements for large-scale indexing
 
 **Core Library Package Structure Refactoring (v5.0)**
+
 - **Ultra-simplified organization**: Replaced complex `backend.*` + `core.*` split with clean 7-package structure
 - **New structure** (`org.lareferencia.core.*`):
-  ```
-  ├── domain/       - Domain models and entities
-  ├── repository/   - Data access (JPA + Parquet)
-  ├── service/      - Business logic (harvesting, validation, indexing, management)
-  ├── metadata/     - Metadata storage abstraction
-  ├── worker/       - Async processors (harvesting, validation, indexing, management)
-  ├── task/         - Task scheduling and coordination
-  └── util/         - Shared utilities
-  ```
+
+```text
+├── domain/       - Domain models and entities
+├── repository/   - Data access (JPA + Parquet)
+├── service/      - Business logic (harvesting, validation, indexing, management)
+├── metadata/     - Metadata storage abstraction
+├── worker/       - Async processors (harvesting, validation, indexing, management)
+├── task/         - Task scheduling and coordination
+└── util/         - Shared utilities
+```
+
 - **Benefits**:
   - ✅ Intuitive navigation (max 2 package levels)
   - ✅ Functional organization by domain (harvesting, validation, indexing)
