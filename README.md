@@ -125,6 +125,13 @@ For complete reference, see [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAM
 - Automatic resource cleanup on completion
 - Significant performance improvements for large-scale indexing
 
+**Dynamic Schema Generation & I18n**
+
+- **Dynamic Forms**: Validation and transformation rule forms are now generated dynamically from Java classes using custom annotations (`@ValidatorRuleMeta`, `@SchemaProperty`).
+- **Internationalization (I18n)**: Full support for localized rule titles, descriptions, and help texts (English, Spanish, Portuguese).
+- **Reduced Maintenance**: Eliminated static JSON schema files; frontend stays automatically synchronized with backend code.
+- **Extensibility**: New rules are automatically exposed to the UI simply by implementing the interface and adding annotations.
+
 **Core Library Package Structure Refactoring (v5.0)**
 
 - **Ultra-simplified organization**: Replaced complex `backend.*` + `core.*` split with clean 7-package structure
