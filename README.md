@@ -132,6 +132,19 @@ For complete reference, see [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAM
 - **Reduced Maintenance**: Eliminated static JSON schema files; frontend stays automatically synchronized with backend code.
 - **Extensibility**: New rules are automatically exposed to the UI simply by implementing the interface and adding annotations.
 
+**File-Based Authentication System**
+
+- **Dual Authentication**: Supports both Form Login (web form) and HTTP Basic Auth for API access
+- **File-Based Users**: User credentials stored in `config/users.properties` with BCrypt-encrypted passwords
+- **Auto-Reload**: Automatic user file reload when a user is not found in cache (add users without restart)
+- **Role-Based Access**: All endpoints require `ADMIN` role; configurable per-endpoint access control
+- **Python CLI Tool**: Includes `add-user.py` script for easy user management via command line or interactive mode
+- **Security**: 
+  - BCrypt password hashing with `$2a$` prefix (Java-compatible)
+  - In-memory user cache with copy-on-read to prevent credential corruption
+  - Secure logout with session invalidation
+- **Documentation**: Complete setup guide in [AUTENTICACION_FILE_BASED.md](docs/AUTENTICACION_FILE_BASED.md)
+
 **Core Library Package Structure Refactoring (v5.0)**
 
 - **Ultra-simplified organization**: Replaced complex `backend.*` + `core.*` split with clean 7-package structure
