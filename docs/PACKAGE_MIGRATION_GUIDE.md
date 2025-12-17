@@ -211,7 +211,7 @@ org.lareferencia.core/
 |----------------|--------------|
 | `org.lareferencia.backend.taskmanager.TaskManager` | `org.lareferencia.core.task.TaskManager` |
 | `org.lareferencia.backend.taskmanager.NetworkAction` | `org.lareferencia.core.task.NetworkAction` |
-| `org.lareferencia.backend.taskmanager.NetworkActionkManager` | `org.lareferencia.core.task.NetworkActionkManager` |
+| `org.lareferencia.backend.taskmanager.NetworkActionkManager` | `org.lareferencia.core.task.NetworkActionManager` |
 | `org.lareferencia.backend.taskmanager.NetworkProperty` | `org.lareferencia.core.task.NetworkProperty` |
 | `org.lareferencia.backend.taskmanager.NetworkCleanWorker` | `org.lareferencia.core.worker.management.NetworkCleanWorker` |
 
