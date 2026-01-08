@@ -31,9 +31,9 @@ The main branch is actively being developed for version 5.0, which includes sign
 #### ✨ New Features & Improvements
 
 **Harvesting Statistics Storage**
-- Migration from database to **Parquet files** for better performance and scalability
-- Improved analytics capabilities with columnar storage format
-- Reduced database load and improved query performance
+- Migration from database to **SQLite files** for better performance and manageability
+- Improved analytics capabilities with SQL compatibility while maintaining file-based isolation
+- Reduced central database load and improved query performance with indexes
 
 **Snapshot Logging System Refactoring**
 - **New file-based snapshot logging**: Logs now stored as text files alongside Parquet data instead of database tables
@@ -59,10 +59,9 @@ The platform introduces a hybrid **filesystem + database** storage strategy that
 | Component | Storage | Format | Purpose |
 |-----------|---------|--------|---------|
 | **Metadata XML** | Filesystem | GZIP compressed | Original harvested XML records |
-| **OAI Records Catalog** | Parquet (FS) | Binary columnar | Harvested metadata index |
-| **Validation Records** | Parquet (FS) | Binary with nested RuleFacts | Validation results with rule violations |
+| **OAI Records Catalog** | SQLite (DB) | `catalog.db` | Harvested metadata index with MD5 hashes |
+| **Validation Records** | SQLite (DB) | `validation.db` | Validation results and rule violations |
 | **Validation Statistics** | JSON (FS) | Text aggregates | Pre-computed validation metrics |
-| **Validation Index** | Parquet (FS) | Lightweight projection | Fast filtering without RuleFacts |
 | **Snapshot Logs** | Text (FS) | Plain text with timestamps | Audit trail and debugging |
 | **Snapshot Metadata** | PostgreSQL | Relational | Structural snapshot info |
 | **Network Configuration** | PostgreSQL | Relational | Networks and repositories |
@@ -70,12 +69,13 @@ The platform introduces a hybrid **filesystem + database** storage strategy that
 
 **Key Benefits:**
 
-- ✅ **88% space reduction**: Nested RuleFacts vs flat fact tables (validation records)
+- ✅ **Unified Storage**: Structured data in SQLite files for querying, with raw XML in filesystem
+- ✅ **WAL Concurrency**: Write-Ahead Logging enables simultaneous reading and writing
+- ✅ **Dynamic Validation**: Rule columns created on-the-fly based on validator configuration (no schema constraints)
 - ✅ **~30-50% deduplication**: Identical XML metadata stored once (filesystem hashing)
-- ✅ **Ultra-fast statistics**: <1ms queries via pre-computed JSON (vs DB queries)
-- ✅ **Streaming reads**: Iterator pattern for memory-efficient processing
-- ✅ **Thread-safe**: New manager instance per iterator call
-- ✅ **No transaction overhead**: File-based storage avoids DB locks
+- ✅ **Ultra-fast statistics**: <1ms queries via pre-computed JSON and indexed DB lookups
+- ✅ **Thread-safe**: Connection pooling per database file
+- ✅ **No transaction overhead**: Filesystem isolation avoids central DB locks
 - ✅ **Filesystem isolation**: Each network in separate directory (`{basePath}/{NETWORK}/`)
 
 **Directory Structure** (per snapshot):
@@ -84,13 +84,10 @@ The platform introduces a hybrid **filesystem + database** storage strategy that
 {basePath}/{NETWORK}/snapshots/snapshot_{ID}/
 ├── metadata.json                          ← Snapshot metadata (structured)
 ├── catalog/
-│   ├── oai_records_batch_1.parquet       ← OAI records (10k per file)
-│   └── oai_records_batch_2.parquet
+│   └── catalog.db                         ← OAI records index (SQLite)
 ├── validation/
-│   ├── validation-stats.json              ← Aggregated statistics (<1ms lookup)
-│   ├── validation_index.parquet           ← Lightweight index (no RuleFacts)
-│   ├── records_batch_1.parquet            ← Records with nested RuleFacts
-│   └── records_batch_2.parquet
+│   ├── validation.db                      ← Validation results & stats (SQLite)
+│   └── validation-stats.json              ← Aggregated statistics (<1ms lookup)
 └── snapshot.log                           ← Text audit trail
 
 {basePath}/{NETWORK}/metadata/
@@ -191,12 +188,12 @@ Core library module providing fundamental domain models, metadata processing, va
 - Extensible validation and transformation rule engine
 - Metadata processing framework (XML/JSON support)
 - Worker framework for asynchronous job execution
-- Validation statistics and reporting (Parquet storage in v5.0)
+- Validation statistics and reporting (SQLite storage in v5.0)
 
 **Architecture (v5.0)**:
 - **Simplified package structure**: Reorganized from `backend.*` to `core.*` with 7 core packages:
   - `domain/` - Domain models (entities, value objects)
-  - `repository/` - Data access layer (JPA + Parquet)
+  - `repository/` - Data access layer (JPA + SQLite + Parquet)
   - `service/` - Business logic (organized by functionality)
   - `metadata/` - Metadata storage abstraction
   - `worker/` - Asynchronous job processing (organized by functionality)
@@ -257,7 +254,7 @@ Main web application for OAI-PMH metadata harvesting, validation, transformation
 - National repository network configuration
 - OAI-PMH harvesting (full and incremental)
 - Metadata validation and transformation pipelines
-- **NEW**: Statistics storage in Parquet format (v5.0)
+- **NEW**: Statistics storage in SQLite format (v5.0)
 - Entity extraction and relationship mapping
 - Elasticsearch indexing
 - Multi-language UI (Spanish/English)
@@ -425,7 +422,7 @@ mvn test
 3. **Migrate from javax to jakarta**: Update all imports
 4. **Remove Solr Dependencies**: Migrate to Elasticsearch for entity indexing
 5. **Update Database Schema**: New schema for optimized entity storage
-6. **Configure Parquet Storage**: Set up filesystem storage for harvest statistics
+6. **Configure Storage**: Set up filesystem and SQLite storage for harvest statistics
 
 ### Breaking Changes
 
