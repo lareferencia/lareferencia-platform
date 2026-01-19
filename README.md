@@ -384,22 +384,87 @@ git submodule update --init --recursive
 
 ## 🔧 Configuration
 
-Configuration files are located in each application module under `src/main/resources/` or in external configuration directories.
+### Configuration Directory Structure
 
-Key configuration files:
-- `application.properties`: Main application configuration
-- `application-*.properties`: Environment-specific configurations
-- Entity indexing configurations in XML format
+The platform uses a **flexible configuration system** based on a configurable base directory. Each application module (`lareferencia-lrharvester-app`, `lareferencia-shell`, `lareferencia-dashboard-rest`, `lareferencia-entity-rest`) has its own `config/` directory.
 
-### Elasticsearch Configuration
+**Standard Configuration Directory Structure:**
 
-For version 5.0, configure Elasticsearch settings in `application.properties`:
+```
+config/
+├── application.properties          # Local/Private (gitignored)
+├── application.properties.model    # Template/Reference (versioned)
+├── application.properties.d/       # Deep/Modular configuration (versioned)
+│   ├── 01-database.properties
+│   ├── 02-storage.properties
+│   ├── 03-elasticsearch.properties
+│   └── ...
+├── beans/
+│   ├── mdformats.xml              # Metadata format definitions
+│   └── fingerprint.xml            # Fingerprint configuration
+├── processes/                      # Flowable BPMN process definitions
+│   └── *.bpmn20.xml
+├── i18n/                          # Internationalization files
+│   ├── messages.properties
+│   └── messages_es.properties
+└── users.properties               # File-based authentication (lrharvester-app)
+```
+
+### The Golden Rule
+
+- **`application.properties`**: Local/Private configuration (gitignored, not versioned)
+- **`application.properties.model`**: Template with all available properties and documentation (versioned)
+- **`application.properties.d/*.properties`**: Modular configuration fragments loaded automatically (versioned)
+
+**Action Required**: When adding a new configuration property to `.properties`, you **MUST** also add it to `.properties.model` with documentation.
+
+### Deep Configuration (`application.properties.d/`)
+
+The `.d` directory contains modular, granular configuration files that are automatically loaded by Spring Boot. This allows:
+
+- **Separation of concerns**: Database, storage, indexing configs in separate files
+- **Incremental loading**: Files loaded in alphanumeric order (01-, 02-, etc.)
+- **Version control friendly**: Each module can be tracked independently
+- **Environment overrides**: Local `application.properties` can override any `.d` setting
+
+### Configuration Directory Resolution
+
+You can customize the configuration base directory using the `app.config.dir` system property:
+
+```bash
+# Default: uses ./config directory
+java -jar lareferencia-shell.jar
+
+# Custom relative path
+java -Dapp.config.dir=../shared-config -jar lareferencia-shell.jar
+
+# Absolute path
+java -Dapp.config.dir=/etc/lrharvester/config -jar lareferencia-shell.jar
+
+# Docker example
+java -Dapp.config.dir=/app/config -jar harvester.jar
+```
+
+**See**: [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) for deployment examples (Docker, Kubernetes).
+
+### Elasticsearch Configuration (v5.0)
+
+Configure Elasticsearch in `application.properties` or `application.properties.d/03-elasticsearch.properties`:
 
 ```properties
 elastic.host=localhost
 elastic.port=9200
 elastic.indexer.max.concurrent.tasks=16
 elastic.indexer.circuit.breaker.max.failures=10
+```
+
+### SQLite Storage Configuration (v5.0)
+
+Storage base path for SQLite databases (catalog, validation):
+
+```properties
+store.basepath=/tmp/data/
+catalog.sqlite.wal-mode=true
 ```
 
 ## 🧪 Testing

@@ -1,0 +1,33 @@
+Always check available workflows in `.agent/workflows` before starting complex tasks.
+**ALWAYS** refer to the `lareferencia-architect` skill for project structure and architectural decisions.
+
+## Project Construction
+To build the project use `bash build.sh [profile]`.
+- Profile `lareferencia` for La Referencia version.
+- Profile `ibict` for IBICT version.
+
+## Module Management
+## Configuration Management
+- Configuration files for apps are located in the `config/` directory.
+- `config/application.properties.d/` contains deep/internal configurations.
+- `config/application.properties` contains local/private installation parameters and is **NOT versioned**.
+- `config/application.properties.model` IS the versioned template.
+- **CRITICAL**: Any change to keys in `application.properties` MUST be reflected in `application.properties.model`.
+
+## Module Architecture & Responsibilities
+
+### Core Libraries (Base Dependencies)
+- `lareferencia-core-lib`: **THE HEART**. Contains domain models, OAI-PMH harvesting logic, validation/transformation engine, and async workers. **CAUTION**: Changes here affect ALL applications.
+- `lareferencia-entity-lib`: Manages scholarly entities (Publications, Persons, Orgs) and Elasticsearch indexing logic.
+- `lareferencia-dark-lib`: Handles Persistent Identifiers (DARK) minting and management.
+- `lareferencia-indexing-filters-lib`: Logic for filtering field occurrences before indexing.
+- `lareferencia-oclc-harvester`: Low-level OAI-PMH protocol implementation (legacy wrapper).
+
+### Applications (Runnables)
+- `lareferencia-lrharvester-app`: **Main Web App**. Harvester UI, Validation dashboard, Network management. Depends on almost all libs.
+- `lareferencia-shell`: **CLI Admin Tool**. Spring Shell based. Used for maintenance, direct database access, and scripts.
+- `lareferencia-entity-rest`: **Public API**. REST interface for searching and querying Entities (Elasticsearch).
+- `lareferencia-dashboard-rest`: **Stats API**. REST interface for dashboard statistics and monitoring.
+
+### Deprecated
+- `lareferencia-contrib-ibict`, `lareferencia-contrib-rcaap`: Old Solr contribs. Generally ignored in v5.0 builds.
