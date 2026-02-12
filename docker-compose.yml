@@ -1,0 +1,179 @@
+services:
+  vufind-web:
+    build:
+      context: .
+      dockerfile: Docker/vufind/Dockerfile
+    container_name: lr-vufind-web
+    depends_on:
+      - vufind-db
+      - solr
+    environment:
+      VUFIND_LOCAL_DIR: /usr/local/vufind/local/docker
+      VUFIND_BASEPATH: /
+      VUFIND_SITE_URL: http://localhost:8080
+      VUFIND_THEME: ${VUFIND_THEME:-bootstrap5}
+      VUFIND_NOILS_MODE: ils-none
+      VUFIND_ENV: ${VUFIND_ENV:-production}
+      VUFIND_SYSTEM_DEBUG: ${VUFIND_SYSTEM_DEBUG:-false}
+      VUFIND_PHP_DISPLAY_ERRORS: ${VUFIND_PHP_DISPLAY_ERRORS:-0}
+      VUFIND_PHP_DISPLAY_STARTUP_ERRORS: ${VUFIND_PHP_DISPLAY_STARTUP_ERRORS:-0}
+      VUFIND_PHP_ERROR_REPORTING: ${VUFIND_PHP_ERROR_REPORTING:-E_ALL}
+      VUFIND_PHP_HTML_ERRORS: ${VUFIND_PHP_HTML_ERRORS:-0}
+      VUFIND_DB_HOST: vufind-db
+      VUFIND_DB_PORT: 3306
+      VUFIND_DB_NAME: vufind
+      VUFIND_DB_USER: vufind
+      VUFIND_DB_PASSWORD: vufind
+      VUFIND_DB_ROOT_USER: root
+      VUFIND_DB_ROOT_PASSWORD: root
+      VUFIND_SOLR_URL: http://solr:8983/solr
+    ports:
+      - "8080:80"
+    volumes:
+      - ./vufind:/usr/local/vufind
+      - ./Docker/data/vufind/vendor:/usr/local/vufind/vendor
+    restart: unless-stopped
+
+  vufind-db:
+    image: mariadb:11.4
+    container_name: lr-vufind-db
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./Docker/data/vufind-mariadb:/var/lib/mysql
+    restart: unless-stopped
+
+  solr:
+    build:
+      context: .
+      dockerfile: Docker/solr/Dockerfile
+    container_name: lr-solr
+    ports:
+      - "8983:8983"
+    volumes:
+      - ./Docker/data/solr:/var/solr/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:14
+    container_name: lr-postgres
+    environment:
+      POSTGRES_PASSWORD: lrharvester
+      POSTGRES_USER: lrharvester
+      POSTGRES_DB: lrharvester
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./Docker/data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  harvester:
+    build:
+      context: .
+      dockerfile: Docker/apps/Dockerfile
+    container_name: lr-harvester
+    depends_on:
+      - postgres
+      - solr
+    environment:
+      APP_MODULE: lareferencia-lrharvester-app
+      APP_JAR: harvester.jar
+      APP_CONFIG_DIR: /workspace/lareferencia-lrharvester-app/config
+      LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+      BUILD_ON_START: ${BUILD_ON_START:-true}
+    ports:
+      - "8090:8090"
+    volumes:
+      - .:/workspace
+      - ./Docker/data/m2:/root/.m2
+      - ./Docker/config-overrides:/docker-overrides:ro
+    restart: unless-stopped
+
+  dashboard-rest:
+    build:
+      context: .
+      dockerfile: Docker/apps/Dockerfile
+    container_name: lr-dashboard-rest
+    depends_on:
+      - postgres
+      - solr
+    environment:
+      APP_MODULE: lareferencia-dashboard-rest
+      APP_JAR: dashboard-rest.jar
+      APP_CONFIG_DIR: /workspace/lareferencia-dashboard-rest/config
+      LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+      BUILD_ON_START: ${BUILD_ON_START:-true}
+    ports:
+      - "8092:8092"
+    volumes:
+      - .:/workspace
+      - ./Docker/data/m2:/root/.m2
+      - ./Docker/config-overrides:/docker-overrides:ro
+    restart: unless-stopped
+
+  shell:
+    build:
+      context: .
+      dockerfile: Docker/apps/Dockerfile
+    container_name: lr-shell
+    depends_on:
+      - postgres
+      - solr
+    environment:
+      APP_MODULE: lareferencia-shell
+      APP_JAR: lareferencia-shell.jar
+      APP_CONFIG_DIR: /workspace/lareferencia-shell/config
+      LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+      BUILD_ON_START: ${BUILD_ON_START:-true}
+    volumes:
+      - .:/workspace
+      - ./Docker/data/m2:/root/.m2
+      - ./Docker/config-overrides:/docker-overrides:ro
+    profiles:
+      - tools
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.12.0
+    container_name: lr-elasticsearch
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./Docker/data/elasticsearch:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    profiles:
+      - elastic
+    restart: unless-stopped
+
+  vufind-scss-watch:
+    image: node:20-alpine
+    container_name: lr-vufind-scss-watch
+    working_dir: /usr/local/vufind
+    command: >
+      sh -lc '
+      if [ ! -d node_modules/grunt ]; then npm install --no-audit; fi &&
+      npm run watch:scss
+      '
+    volumes:
+      - ./vufind:/usr/local/vufind
+      - ./Docker/data/vufind/node_modules:/usr/local/vufind/node_modules
+      - ./Docker/data/vufind/bootstrap5-node_modules:/usr/local/vufind/themes/bootstrap5/node_modules
+    profiles:
+      - watch
+    restart: unless-stopped

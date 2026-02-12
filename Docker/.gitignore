@@ -1,0 +1,23 @@
+# macOS / editor noise
+.DS_Store
+
+# Local-only environment overrides
+.env
+.env.local
+
+# Runtime bind-mounted data (keep directory placeholders)
+data/**
+!data/**/
+!data/**/.gitkeep
+
+# Solr assets synced from VuFind at runtime (keep placeholders)
+solr/import/**
+!solr/import/**/
+!solr/import/**/.gitkeep
+solr/jars/**
+!solr/jars/**/
+!solr/jars/**/.gitkeep
+
+# Runtime logs and pid files
+*.log
+*.pid
