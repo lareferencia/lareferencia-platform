@@ -1,0 +1,513 @@
+#!/usr/bin/env python3
+"""githelper: unified Git/submodule workflow CLI for lareferencia-platform."""
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, List, Optional, Sequence
+
+
+@dataclass
+class CommandResult:
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+def run_git(args: Sequence[str], cwd: Path) -> CommandResult:
+    try:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError as exc:
+        return CommandResult(127, "", str(exc))
+    return CommandResult(proc.returncode, proc.stdout.strip(), proc.stderr.strip())
+
+
+def fail(message: str, code: int = 1) -> int:
+    print(f"ERROR: {message}", file=sys.stderr)
+    return code
+
+
+def warn(message: str) -> None:
+    print(f"WARN: {message}")
+
+
+def info(message: str) -> None:
+    print(message)
+
+
+def get_repo_root() -> Path:
+    result = run_git(["rev-parse", "--show-toplevel"], Path.cwd())
+    if result.returncode != 0 or not result.stdout:
+        raise RuntimeError("This command must run inside a git repository.")
+    return Path(result.stdout)
+
+
+def get_current_branch(repo: Path) -> Optional[str]:
+    result = run_git(["symbolic-ref", "--quiet", "--short", "HEAD"], repo)
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def local_branch_exists(repo: Path, branch: str) -> bool:
+    result = run_git(["show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], repo)
+    return result.returncode == 0
+
+
+def remote_branch_exists(repo: Path, branch: str) -> bool:
+    result = run_git(["show-ref", "--verify", "--quiet", f"refs/remotes/origin/{branch}"], repo)
+    return result.returncode == 0
+
+
+def submodule_paths(root: Path) -> List[str]:
+    result = run_git(["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"], root)
+    if result.returncode != 0:
+        return []
+
+    paths: List[str] = []
+    for line in result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2:
+            paths.append(parts[1].strip())
+    return paths
+
+
+def parse_modules_arg(raw_modules: Optional[str]) -> List[str]:
+    if not raw_modules:
+        return []
+
+    parsed: List[str] = []
+    for token in raw_modules.replace(",", " ").split():
+        token = token.strip()
+        if token:
+            parsed.append(token)
+
+    # Keep insertion order while deduplicating
+    deduped: List[str] = []
+    seen = set()
+    for module in parsed:
+        if module not in seen:
+            seen.add(module)
+            deduped.append(module)
+    return deduped
+
+
+def resolve_modules(root: Path, raw_modules: Optional[str]) -> List[str]:
+    available = submodule_paths(root)
+    requested = parse_modules_arg(raw_modules)
+    if not requested:
+        return available
+
+    missing = [m for m in requested if m not in available]
+    if missing:
+        raise RuntimeError(
+            "Unknown modules: "
+            + ", ".join(missing)
+            + ". Available: "
+            + ", ".join(available)
+        )
+    return requested
+
+
+def ensure_remote_refs(repo: Path) -> None:
+    run_git(["fetch", "--prune", "origin"], repo)
+
+
+def working_tree_dirty(repo: Path) -> bool:
+    result = run_git(["status", "--porcelain"], repo)
+    if result.returncode != 0:
+        return False
+    return bool(result.stdout.strip())
+
+
+def prompt_changes_policy(module: str) -> str:
+    while True:
+        try:
+            answer = input(
+                f"{module}: hay cambios sin commit. "
+                "¿Qué quieres hacer? [l]levar a la nueva branch / [d]ejar en la branch actual: "
+            ).strip().lower()
+        except EOFError as exc:
+            raise RuntimeError(
+                f"{module}: no se pudo leer respuesta interactiva para resolver cambios locales."
+            ) from exc
+        if answer in ("l", "llevar"):
+            return "carry"
+        if answer in ("d", "dejar"):
+            return "keep"
+        print("Respuesta no válida. Usa 'l' (llevar) o 'd' (dejar).")
+
+
+def switch_to_branch(repo: Path, branch: str) -> CommandResult:
+    current = get_current_branch(repo)
+    if current == branch:
+        return CommandResult(0, f"Already on '{branch}'", "")
+
+    if local_branch_exists(repo, branch):
+        return run_git(["switch", branch], repo)
+
+    if remote_branch_exists(repo, branch):
+        return run_git(["switch", "-c", branch, "--track", f"origin/{branch}"], repo)
+
+    return CommandResult(2, "", f"Branch '{branch}' not found locally or in origin")
+
+
+def pull_repo(repo: Path) -> CommandResult:
+    return run_git(["pull"], repo)
+
+
+def format_branch(repo: Path) -> str:
+    if not repo.exists():
+        return "MISSING"
+    branch = get_current_branch(repo)
+    return branch if branch else "DETACHED"
+
+
+def print_status(root: Path, modules: Iterable[str]) -> int:
+    head = run_git(["rev-parse", "--short", "HEAD"], root)
+    parent_branch = format_branch(root)
+    parent_sha = head.stdout if head.returncode == 0 else "?"
+    info(f"parent | {parent_branch} | {parent_sha}")
+
+    for module in modules:
+        repo = root / module
+        if not repo.exists():
+            info(f"{module} | MISSING | ?")
+            continue
+        sha = run_git(["rev-parse", "--short", "HEAD"], repo)
+        info(f"{module} | {format_branch(repo)} | {sha.stdout if sha.returncode == 0 else '?'}")
+
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        modules = resolve_modules(root, args.modules)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    return print_status(root, modules)
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        modules = resolve_modules(root, args.modules)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    branch = args.branch or get_current_branch(root)
+    if not branch:
+        return fail("Parent repository is in detached HEAD; pass --branch explicitly.")
+
+    switched = 0
+    skipped = 0
+    errors = 0
+
+    for module in modules:
+        repo = root / module
+        if not repo.exists():
+            warn(f"{module}: submodule path not found; skipping.")
+            errors += 1
+            continue
+        ensure_remote_refs(repo)
+
+        has_target = local_branch_exists(repo, branch) or remote_branch_exists(repo, branch)
+        if not has_target:
+            info(f"SKIP {module}: branch '{branch}' does not exist, keeping '{format_branch(repo)}'.")
+            skipped += 1
+            continue
+
+        result = switch_to_branch(repo, branch)
+        if result.returncode == 0:
+            info(f"OK   {module}: now on '{branch}'.")
+            switched += 1
+        else:
+            warn(f"{module}: could not switch to '{branch}': {result.stderr or result.stdout}")
+            errors += 1
+
+    info(f"Summary: switched={switched} skipped={skipped} errors={errors}")
+    return 1 if errors else 0
+
+
+def cmd_switch(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        modules = resolve_modules(root, args.modules)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    target = args.branch
+    ensure_remote_refs(root)
+
+    parent_result = switch_to_branch(root, target)
+    if parent_result.returncode != 0:
+        return fail(f"Could not switch parent to '{target}': {parent_result.stderr or parent_result.stdout}")
+
+    info(f"OK   parent: now on '{target}'.")
+    # Apply the exact rule requested for submodules.
+    sync_ns = argparse.Namespace(branch=target, modules=args.modules)
+    return cmd_sync(sync_ns)
+
+
+def cmd_branch_create(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        modules = resolve_modules(root, args.modules)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    if not modules:
+        return fail("No modules selected. Use --modules <m1,m2,...>.")
+
+    branch = args.branch or get_current_branch(root)
+    if not branch:
+        return fail("Parent repository is in detached HEAD; pass --branch explicitly.")
+
+    created = 0
+    existing = 0
+    kept_changes = 0
+    errors = 0
+
+    for module in modules:
+        repo = root / module
+        if not repo.exists():
+            warn(f"{module}: submodule path not found; skipping.")
+            errors += 1
+            continue
+        ensure_remote_refs(repo)
+
+        dirty = working_tree_dirty(repo)
+        if dirty:
+            try:
+                policy = prompt_changes_policy(module)
+            except RuntimeError as err:
+                return fail(str(err))
+            if policy == "keep":
+                if local_branch_exists(repo, branch):
+                    info(
+                        f"OK   {module}: branch '{branch}' ya existía. "
+                        "Se mantienen cambios en la branch actual."
+                    )
+                    existing += 1
+                    kept_changes += 1
+                    continue
+
+                if remote_branch_exists(repo, branch):
+                    result = run_git(["branch", "--track", branch, f"origin/{branch}"], repo)
+                    if result.returncode == 0:
+                        info(
+                            f"OK   {module}: branch local '{branch}' creada desde 'origin/{branch}'. "
+                            "Cambios permanecen en la branch actual."
+                        )
+                        created += 1
+                        kept_changes += 1
+                    else:
+                        warn(
+                            f"{module}: no se pudo crear branch local '{branch}' "
+                            f"sin cambiar de branch: {result.stderr or result.stdout}"
+                        )
+                        errors += 1
+                    continue
+
+                result = run_git(["branch", branch], repo)
+                if result.returncode == 0:
+                    info(
+                        f"OK   {module}: branch '{branch}' creada desde HEAD actual. "
+                        "Cambios permanecen en la branch actual."
+                    )
+                    created += 1
+                    kept_changes += 1
+                else:
+                    warn(
+                        f"{module}: no se pudo crear branch '{branch}' "
+                        f"sin cambiar de branch: {result.stderr or result.stdout}"
+                    )
+                    errors += 1
+                continue
+
+        if local_branch_exists(repo, branch):
+            result = run_git(["switch", branch], repo)
+            if result.returncode == 0:
+                info(f"OK   {module}: branch '{branch}' already existed, switched to it.")
+                existing += 1
+            else:
+                warn(f"{module}: branch '{branch}' exists but switch failed: {result.stderr or result.stdout}")
+                errors += 1
+            continue
+
+        if remote_branch_exists(repo, branch):
+            result = run_git(["switch", "-c", branch, "--track", f"origin/{branch}"], repo)
+            if result.returncode == 0:
+                info(f"OK   {module}: created local tracking branch '{branch}'.")
+                created += 1
+            else:
+                warn(f"{module}: could not create tracking branch '{branch}': {result.stderr or result.stdout}")
+                errors += 1
+            continue
+
+        result = run_git(["switch", "-c", branch], repo)
+        if result.returncode == 0:
+            info(f"OK   {module}: created new branch '{branch}' from current HEAD.")
+            created += 1
+        else:
+            warn(f"{module}: could not create branch '{branch}': {result.stderr or result.stdout}")
+            errors += 1
+
+    info(f"Summary: created={created} existing={existing} kept_changes={kept_changes} errors={errors}")
+    return 1 if errors else 0
+
+
+def cmd_pull(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        modules = resolve_modules(root, args.modules)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    parent_branch = get_current_branch(root)
+    if not parent_branch:
+        return fail("Parent repository is in detached HEAD; checkout a branch first.")
+
+    parent_pull = pull_repo(root)
+    if parent_pull.returncode != 0:
+        return fail(f"Parent pull failed on '{parent_branch}': {parent_pull.stderr or parent_pull.stdout}")
+
+    info(f"OK   parent: pulled branch '{parent_branch}'.")
+
+    pulled_on_parent_branch = 0
+    pulled_on_current_branch = 0
+    detached_fetched = 0
+    errors = 0
+
+    for module in modules:
+        repo = root / module
+        if not repo.exists():
+            warn(f"{module}: submodule path not found; skipping.")
+            errors += 1
+            continue
+        ensure_remote_refs(repo)
+
+        has_parent_branch = local_branch_exists(repo, parent_branch) or remote_branch_exists(repo, parent_branch)
+        if has_parent_branch:
+            switch_result = switch_to_branch(repo, parent_branch)
+            if switch_result.returncode != 0:
+                warn(
+                    f"{module}: has branch '{parent_branch}' but could not switch: "
+                    f"{switch_result.stderr or switch_result.stdout}"
+                )
+                errors += 1
+                continue
+
+            pull_result = pull_repo(repo)
+            if pull_result.returncode == 0:
+                info(f"OK   {module}: pulled '{parent_branch}'.")
+                pulled_on_parent_branch += 1
+            else:
+                warn(f"{module}: pull failed on '{parent_branch}': {pull_result.stderr or pull_result.stdout}")
+                errors += 1
+            continue
+
+        current = get_current_branch(repo)
+        if not current:
+            fetch_result = run_git(["fetch", "--prune", "origin"], repo)
+            if fetch_result.returncode == 0:
+                info(f"SKIP {module}: detached HEAD, no parent branch; fetched only.")
+                detached_fetched += 1
+            else:
+                warn(f"{module}: detached HEAD and fetch failed: {fetch_result.stderr or fetch_result.stdout}")
+                errors += 1
+            continue
+
+        pull_result = pull_repo(repo)
+        if pull_result.returncode == 0:
+            info(f"OK   {module}: parent branch missing, pulled current '{current}'.")
+            pulled_on_current_branch += 1
+        else:
+            warn(f"{module}: pull failed on current '{current}': {pull_result.stderr or pull_result.stdout}")
+            errors += 1
+
+    info(
+        "Summary: "
+        f"parent_branch_pulls={pulled_on_parent_branch} "
+        f"current_branch_pulls={pulled_on_current_branch} "
+        f"detached_fetches={detached_fetched} "
+        f"errors={errors}"
+    )
+    return 1 if errors else 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="githelper",
+        description="Unified helper for parent repo + submodule branch workflows.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    p_status = subparsers.add_parser("status", help="Show parent and submodule branch/HEAD status.")
+    p_status.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_status.set_defaults(func=cmd_status)
+
+    p_sync = subparsers.add_parser(
+        "sync",
+        help="Sync submodules to target branch when that branch exists; otherwise keep current branch.",
+    )
+    p_sync.add_argument("--branch", help="Target branch. Defaults to parent current branch.")
+    p_sync.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_sync.set_defaults(func=cmd_sync)
+
+    p_switch = subparsers.add_parser(
+        "switch",
+        help="Switch parent branch and then sync submodules if they contain that branch.",
+    )
+    p_switch.add_argument("branch", help="Target branch for the parent repository.")
+    p_switch.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_switch.set_defaults(func=cmd_switch)
+
+    p_pull = subparsers.add_parser(
+        "pull",
+        help="Pull parent branch, then pull submodules on parent branch if available, else their current branch.",
+    )
+    p_pull.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_pull.set_defaults(func=cmd_pull)
+
+    p_branch = subparsers.add_parser("branch", help="Branch management for submodules.")
+    branch_subparsers = p_branch.add_subparsers(dest="branch_command", required=True)
+
+    p_branch_create = branch_subparsers.add_parser(
+        "create",
+        help="Create/switch branch in selected modules (defaults to current parent branch name).",
+    )
+    p_branch_create.add_argument(
+        "--modules",
+        required=True,
+        help="Comma-separated module list (required).",
+    )
+    p_branch_create.add_argument(
+        "--branch",
+        help="Branch name. Defaults to parent current branch.",
+    )
+    p_branch_create.set_defaults(func=cmd_branch_create)
+
+    return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return int(args.func(args))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

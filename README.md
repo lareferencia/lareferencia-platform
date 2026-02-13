@@ -367,14 +367,27 @@ cd lareferencia-platform
 
 This project uses Git submodules for modular development. All submodules are tracked separately and can be developed independently.
 
+### Unified CLI: `githelper`
 
-### Update All Submodules
+The repository includes a single integrated CLI in the project root: `./githelper`.
 
 ```bash
-git submodule update --remote --merge
+# Show parent/submodule status
+./githelper status
+
+# Switch parent branch and move each submodule only if that branch exists there
+./githelper switch v5-semantic-indexing
+
+# Pull parent branch and then submodules:
+# - same parent branch if it exists in the submodule
+# - otherwise the submodule current branch
+./githelper pull
+
+# Create the parent branch name in specific modules
+./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-### Checkout Specific Version
+### Checkout Specific Tagged Version (release workflow)
 
 ```bash
 # Checkout stable version 4.2.6
