@@ -1,6 +1,6 @@
 # githelper
 
-CLI unificado para gestionar ramas y `pull` del repositorio padre y sus submodules en `lareferencia-platform`.
+CLI unificado para gestionar ramas y `pull` del repositorio padre y sus submodules.
 
 ## Ejecucion
 
@@ -18,7 +18,7 @@ Opcionalmente puedes agregarlo al `PATH`.
 
 ```bash
 ./githelper status
-./githelper status --modules lareferencia-core-lib,lareferencia-shell
+./githelper status --modules module-a,module-b
 ```
 
 Muestra: `parent|branch|sha` y para cada submodule: `module|branch|sha`.
@@ -27,7 +27,7 @@ Muestra: `parent|branch|sha` y para cada submodule: `module|branch|sha`.
 
 ```bash
 ./githelper switch <branch>
-./githelper switch <branch> --modules lareferencia-core-lib,lareferencia-shell
+./githelper switch <branch> --modules module-a,module-b
 ```
 
 Regla en submodules:
@@ -39,7 +39,7 @@ Regla en submodules:
 ```bash
 ./githelper sync
 ./githelper sync --branch <branch>
-./githelper sync --modules lareferencia-core-lib,lareferencia-shell
+./githelper sync --modules module-a,module-b
 ```
 
 - Sin `--branch`, usa la branch actual del padre.
@@ -49,7 +49,7 @@ Regla en submodules:
 
 ```bash
 ./githelper pull
-./githelper pull --modules lareferencia-core-lib,lareferencia-shell
+./githelper pull --modules module-a,module-b
 ```
 
 Flujo:
@@ -62,12 +62,32 @@ Flujo:
 ### 5) Crear branch en modulos especificos
 
 ```bash
-./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
-./githelper branch create --modules lareferencia-core-lib --branch feature/x
+./githelper branch create --modules module-a,module-b
+./githelper branch create --modules module-a --branch feature/x
 ```
 
 - Sin `--branch`, usa el nombre de la branch actual del padre.
 - Opera modulo por modulo.
+
+### 6) Convertir URLs de submodules (SSH/HTTPS)
+
+```bash
+# Vista previa de conversion SSH -> HTTPS en todos los submodules
+./githelper url rewrite --to https --dry-run
+
+# Aplicar conversion SSH -> HTTPS en todos los submodules
+./githelper url rewrite --to https
+
+# Aplicar solo en algunos modulos
+./githelper url rewrite --to https --modules module-a,module-b
+```
+
+Este comando:
+- actualiza `origin` del repo padre
+- actualiza `submodule.<name>.url` en `.gitmodules`
+- actualiza `submodule.<name>.url` en `.git/config` del repo padre
+- actualiza `origin` en submodules existentes en disco
+- ejecuta `git submodule sync --recursive` al final (cuando no es `--dry-run`)
 
 ## Manejo de cambios locales al crear branch
 
@@ -89,7 +109,7 @@ Si eliges `[l]`:
 `--modules` acepta lista separada por comas:
 
 ```bash
---modules lareferencia-core-lib,lareferencia-shell,lareferencia-entity-lib
+--modules module-a,module-b,module-c
 ```
 
 Si no se indica `--modules` en comandos que lo permiten, se usan todos los submodules de `.gitmodules`.
@@ -121,5 +141,5 @@ Si no se indica `--modules` en comandos que lo permiten, se usan todos los submo
 3. Crear la misma branch del padre en modulos puntuales:
 
 ```bash
-./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
+./githelper branch create --modules module-a,module-b
 ```

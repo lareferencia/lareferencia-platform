@@ -1,0 +1,3 @@
+interface:
+  display_name: "Docker Similar Environments"
+  short_description: "Build docker-compose + dev.sh local stacks"

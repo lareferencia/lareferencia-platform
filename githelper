@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""githelper: unified Git/submodule workflow CLI for lareferencia-platform."""
+"""githelper: unified Git/submodule workflow CLI."""
 
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -16,6 +17,13 @@ class CommandResult:
     returncode: int
     stdout: str
     stderr: str
+
+
+@dataclass
+class SubmoduleMeta:
+    name: str
+    path: str
+    url: str
 
 
 def run_git(args: Sequence[str], cwd: Path) -> CommandResult:
@@ -69,6 +77,17 @@ def remote_branch_exists(repo: Path, branch: str) -> bool:
     return result.returncode == 0
 
 
+def _submodule_name_from_key(key: str, suffix: str) -> Optional[str]:
+    # Expected key shape: submodule.<name>.<suffix>
+    prefix = "submodule."
+    if not key.startswith(prefix):
+        return None
+    tail = f".{suffix}"
+    if not key.endswith(tail):
+        return None
+    return key[len(prefix) : -len(tail)]
+
+
 def submodule_paths(root: Path) -> List[str]:
     result = run_git(["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"], root)
     if result.returncode != 0:
@@ -80,6 +99,38 @@ def submodule_paths(root: Path) -> List[str]:
         if len(parts) == 2:
             paths.append(parts[1].strip())
     return paths
+
+
+def get_submodule_metadata(root: Path) -> List[SubmoduleMeta]:
+    paths_result = run_git(["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"], root)
+    urls_result = run_git(["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.url$"], root)
+    if paths_result.returncode != 0 or urls_result.returncode != 0:
+        return []
+
+    path_by_name = {}
+    for line in paths_result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) != 2:
+            continue
+        name = _submodule_name_from_key(parts[0].strip(), "path")
+        if name:
+            path_by_name[name] = parts[1].strip()
+
+    url_by_name = {}
+    for line in urls_result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) != 2:
+            continue
+        name = _submodule_name_from_key(parts[0].strip(), "url")
+        if name:
+            url_by_name[name] = parts[1].strip()
+
+    modules: List[SubmoduleMeta] = []
+    for name, path in path_by_name.items():
+        url = url_by_name.get(name)
+        if url:
+            modules.append(SubmoduleMeta(name=name, path=path, url=url))
+    return modules
 
 
 def parse_modules_arg(raw_modules: Optional[str]) -> List[str]:
@@ -146,6 +197,53 @@ def prompt_changes_policy(module: str) -> str:
         if answer in ("d", "dejar"):
             return "keep"
         print("Respuesta no válida. Usa 'l' (llevar) o 'd' (dejar).")
+
+
+def url_to_https(url: str) -> Optional[str]:
+    if url.startswith("https://"):
+        return url
+
+    scp_style = re.match(r"^[^@]+@([^:]+):(.+)$", url)
+    if scp_style:
+        host = scp_style.group(1)
+        path = scp_style.group(2)
+        return f"https://{host}/{path}"
+
+    ssh_style = re.match(r"^ssh://(?:[^@/]+@)?([^/]+)/(.+)$", url)
+    if ssh_style:
+        host = ssh_style.group(1)
+        path = ssh_style.group(2)
+        return f"https://{host}/{path}"
+
+    return None
+
+
+def url_to_ssh(url: str) -> Optional[str]:
+    scp_style = re.match(r"^[^@]+@([^:]+):(.+)$", url)
+    if scp_style:
+        return url
+
+    ssh_style = re.match(r"^ssh://(?:[^@/]+@)?([^/]+)/(.+)$", url)
+    if ssh_style:
+        host = ssh_style.group(1)
+        path = ssh_style.group(2)
+        return f"git@{host}:{path}"
+
+    https_style = re.match(r"^https://([^/]+)/(.+)$", url)
+    if https_style:
+        host = https_style.group(1)
+        path = https_style.group(2)
+        return f"git@{host}:{path}"
+
+    return None
+
+
+def rewrite_url(url: str, target: str) -> Optional[str]:
+    if target == "https":
+        return url_to_https(url)
+    if target == "ssh":
+        return url_to_ssh(url)
+    return None
 
 
 def switch_to_branch(repo: Path, branch: str) -> CommandResult:
@@ -448,6 +546,119 @@ def cmd_pull(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+def cmd_url_rewrite(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        selected_modules = resolve_modules(root, args.modules)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    parent_changed = 0
+    parent_unchanged = 0
+    parent_skipped = 0
+
+    parent_url_result = run_git(["remote", "get-url", "origin"], root)
+    if parent_url_result.returncode != 0 or not parent_url_result.stdout:
+        warn("parent: could not read 'origin' URL, skipping parent remote rewrite.")
+        parent_skipped += 1
+    else:
+        parent_url = parent_url_result.stdout.strip()
+        new_parent_url = rewrite_url(parent_url, args.to)
+        if not new_parent_url:
+            warn(f"parent: unsupported URL format '{parent_url}', skipping parent remote rewrite.")
+            parent_skipped += 1
+        elif new_parent_url == parent_url:
+            info(f"OK   parent: already {args.to} ({parent_url})")
+            parent_unchanged += 1
+        else:
+            info(f"PLAN parent: {parent_url} -> {new_parent_url}")
+            if args.dry_run:
+                parent_changed += 1
+            else:
+                parent_set = run_git(["remote", "set-url", "origin", new_parent_url], root)
+                if parent_set.returncode != 0:
+                    warn(f"parent: failed updating origin URL: {parent_set.stderr or parent_set.stdout}")
+                    parent_skipped += 1
+                else:
+                    parent_changed += 1
+
+    submodules = get_submodule_metadata(root)
+    if not submodules:
+        warn("No submodule metadata found in .gitmodules; only parent remote was processed.")
+    by_path = {sm.path: sm for sm in submodules}
+    targets: List[SubmoduleMeta] = []
+    for module in selected_modules:
+        sm = by_path.get(module)
+        if sm:
+            targets.append(sm)
+        else:
+            warn(f"{module}: no metadata entry found in .gitmodules; skipping.")
+
+    changed = 0
+    unchanged = 0
+    skipped = 0
+    errors = 0
+
+    for sm in targets:
+        new_url = rewrite_url(sm.url, args.to)
+
+        if not new_url:
+            warn(f"{sm.path}: unsupported URL format '{sm.url}', skipping.")
+            skipped += 1
+            continue
+
+        if new_url == sm.url:
+            info(f"OK   {sm.path}: already {args.to} ({sm.url})")
+            unchanged += 1
+            continue
+
+        info(f"PLAN {sm.path}: {sm.url} -> {new_url}")
+        if args.dry_run:
+            changed += 1
+            continue
+
+        write_modules = run_git(["config", "--file", ".gitmodules", f"submodule.{sm.name}.url", new_url], root)
+        if write_modules.returncode != 0:
+            warn(f"{sm.path}: failed updating .gitmodules URL: {write_modules.stderr or write_modules.stdout}")
+            errors += 1
+            continue
+
+        write_local = run_git(["config", f"submodule.{sm.name}.url", new_url], root)
+        if write_local.returncode != 0:
+            warn(f"{sm.path}: failed updating local git config URL: {write_local.stderr or write_local.stdout}")
+            errors += 1
+            continue
+
+        module_repo = root / sm.path
+        if module_repo.exists():
+            remote_set = run_git(["remote", "set-url", "origin", new_url], module_repo)
+            if remote_set.returncode != 0:
+                warn(f"{sm.path}: failed updating submodule origin URL: {remote_set.stderr or remote_set.stdout}")
+                errors += 1
+                continue
+
+        changed += 1
+
+    if not args.dry_run:
+        sync_result = run_git(["submodule", "sync", "--recursive"], root)
+        if sync_result.returncode != 0:
+            warn(f"submodule sync failed: {sync_result.stderr or sync_result.stdout}")
+            errors += 1
+
+    info(
+        "Summary: "
+        f"parent_changed={parent_changed} "
+        f"parent_unchanged={parent_unchanged} "
+        f"parent_skipped={parent_skipped} "
+        f"modules_changed={changed} "
+        f"modules_unchanged={unchanged} "
+        f"modules_skipped={skipped} "
+        f"errors={errors}"
+        + (" (dry-run)" if args.dry_run else "")
+    )
+    return 1 if errors else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="githelper",
@@ -481,6 +692,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_pull.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
     p_pull.set_defaults(func=cmd_pull)
+
+    p_url = subparsers.add_parser("url", help="Rewrite parent/submodule URLs between SSH and HTTPS.")
+    url_subparsers = p_url.add_subparsers(dest="url_command", required=True)
+    p_url_rewrite = url_subparsers.add_parser("rewrite", help="Rewrite parent origin and selected submodule URLs.")
+    p_url_rewrite.add_argument("--to", choices=("https", "ssh"), required=True, help="Target URL format.")
+    p_url_rewrite.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_url_rewrite.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview changes without writing .gitmodules or git config.",
+    )
+    p_url_rewrite.set_defaults(func=cmd_url_rewrite)
 
     p_branch = subparsers.add_parser("branch", help="Branch management for submodules.")
     branch_subparsers = p_branch.add_subparsers(dest="branch_command", required=True)
