@@ -23,6 +23,11 @@ Opcionalmente puedes agregarlo al `PATH`.
 
 Muestra: `parent|branch|sha` y para cada submodule: `module|branch|sha`.
 
+Estados de branch posibles en submodules:
+- `MISSING`: no existe el path del submodule en disco.
+- `UNINITIALIZED`: existe el path pero no es repo git inicializado.
+- `DETACHED`: repo inicializado en detached HEAD.
+
 ### 2) Cambiar branch en el padre y sincronizar submodules
 
 ```bash
@@ -49,12 +54,15 @@ Regla en submodules:
 
 ```bash
 ./githelper pull
+./githelper pull --branch <branch>
 ./githelper pull --modules module-a,module-b
 ```
 
 Flujo:
-1. Hace `pull` del repositorio padre en su branch actual.
-2. Para cada submodule:
+1. Opcional: con `--branch`, cambia el repo padre a esa branch.
+2. Hace `pull` del repositorio padre en su branch actual.
+3. Ejecuta `git submodule update --init --recursive` (o solo sobre `--modules`).
+4. Para cada submodule:
 - Si existe la branch del padre, cambia a esa branch y hace `pull`.
 - Si no existe la branch del padre, hace `pull` de la branch actual del submodule.
 - Si esta en `detached HEAD` y no hay branch del padre, hace `fetch` y reporta `SKIP`.
