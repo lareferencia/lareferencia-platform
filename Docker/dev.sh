@@ -26,6 +26,7 @@ JAVA_PARENT_MODULES=(
 
 COLLECTED_SERVICES=()
 COLLECTED_PROFILES=()
+FILTERED_SERVICES=()
 
 
 dc() {
@@ -346,6 +347,35 @@ ensure_vufind_for_services() {
   done
 }
 
+filter_vufind_services_if_checkout_missing() {
+  local explicit_vufind="$1"
+  shift || true
+
+  local services_in=("$@")
+  local skipped=()
+  local service
+
+  FILTERED_SERVICES=()
+
+  if [ "${explicit_vufind}" = true ] || [ -d "${ROOT_DIR}/vufind" ]; then
+    FILTERED_SERVICES=("${services_in[@]}")
+    return 0
+  fi
+
+  for service in "${services_in[@]}"; do
+    if service_requires_vufind "${service}"; then
+      skipped+=("${service}")
+    else
+      FILTERED_SERVICES+=("${service}")
+    fi
+  done
+
+  if [ "${#skipped[@]}" -gt 0 ]; then
+    echo "VuFind no está clonado; se omiten servicios: ${skipped[*]}."
+    echo "Para incluirlos explícitamente: ./Docker/dev.sh vufind up  (o ./Docker/dev.sh up --vufind)"
+  fi
+}
+
 dir_has_non_gitkeep_content() {
   local dir="$1"
   find "${dir}" -mindepth 1 ! -name '.gitkeep' -print -quit 2>/dev/null | grep -q .
@@ -418,11 +448,7 @@ run_init_db() {
 
   ensure_java_parent_modules_ready
 
-  dc up -d postgres
-  if ! wait_postgres_ready; then
-    echo "PostgreSQL no quedó listo a tiempo; no se pudo ejecutar init-db." >&2
-    return 1
-  fi
+  ensure_shell_service_running "${build_mode}"
 
   if database_exists; then
     echo "BD lrharvester ya existe; ejecutando init-db para asegurar schema actualizado."
@@ -430,7 +456,44 @@ run_init_db() {
     echo "BD lrharvester no existe; ejecutando init-db."
   fi
 
-  BUILD_ON_START="${build_mode}" dc --profile tools run --rm shell database_migrate
+  exec_shell_command_noninteractive "${build_mode}" database_migrate
+}
+
+ensure_shell_service_running() {
+  local build_mode="$1"
+
+  ensure_m2_cache_dir
+  dc up -d postgres solr
+  if ! wait_postgres_ready; then
+    echo "PostgreSQL no quedó listo a tiempo; no se pudo iniciar shell." >&2
+    return 1
+  fi
+
+  if ! dc --profile tools ps --status running --services 2>/dev/null | grep -Fxq shell; then
+    BUILD_ON_START="${build_mode}" SHELL_IDLE=true dc --profile tools up -d shell
+  fi
+}
+
+exec_shell_command_noninteractive() {
+  local build_mode="$1"
+  shift || true
+  local cmd=("$@")
+
+  dc --profile tools exec -T \
+    -e BUILD_ON_START="${build_mode}" \
+    -e SHELL_IDLE=false \
+    shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
+}
+
+exec_shell_command_interactive() {
+  local build_mode="$1"
+  shift || true
+  local cmd=("$@")
+
+  dc --profile tools exec \
+    -e BUILD_ON_START="${build_mode}" \
+    -e SHELL_IDLE=false \
+    shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
 }
 
 is_git_repo_available() {
@@ -674,6 +737,7 @@ case "${cmd}" in
 
   up)
     build_flag=false
+    explicit_vufind_request=false
     requested_modules=()
     services=()
 
@@ -689,18 +753,26 @@ case "${cmd}" in
             exit 1
           fi
           requested_modules+=("$1")
+          if [ "$1" = "vufind" ] || [ "$1" = "watch" ]; then
+            explicit_vufind_request=true
+          fi
           ;;
         --vufind)
           requested_modules+=(vufind)
+          explicit_vufind_request=true
           ;;
         --elastic)
           requested_modules+=(elastic)
           ;;
         --watch)
           requested_modules+=(watch)
+          explicit_vufind_request=true
           ;;
         *)
           services+=("$1")
+          if service_requires_vufind "$1"; then
+            explicit_vufind_request=true
+          fi
           ;;
       esac
       shift
@@ -732,6 +804,15 @@ case "${cmd}" in
 
     if [ "${#services[@]}" -eq 0 ]; then
       echo "No hay servicios seleccionados para levantar." >&2
+      exit 1
+    fi
+
+    filter_vufind_services_if_checkout_missing "${explicit_vufind_request}" "${services[@]}"
+    services=("${FILTERED_SERVICES[@]}")
+    collect_profiles_for_services "${services[@]}"
+
+    if [ "${#services[@]}" -eq 0 ]; then
+      echo "No hay servicios seleccionados para levantar después de omitir VuFind." >&2
       exit 1
     fi
 
@@ -769,7 +850,7 @@ case "${cmd}" in
     fi
 
     if [ "${build_flag}" = true ]; then
-      run_init_db always
+      run_init_db smart
     fi
     ;;
 
@@ -778,13 +859,28 @@ case "${cmd}" in
     ;;
 
   start)
+    explicit_vufind_request=false
     services=()
     if [ "$#" -eq 0 ]; then
       collect_from_modules $(enabled_modules)
       services=("${COLLECTED_SERVICES[@]}")
     else
       services=("$@")
+      for service in "${services[@]}"; do
+        if service_requires_vufind "${service}"; then
+          explicit_vufind_request=true
+        fi
+      done
       collect_profiles_for_services "${services[@]}"
+    fi
+
+    filter_vufind_services_if_checkout_missing "${explicit_vufind_request}" "${services[@]}"
+    services=("${FILTERED_SERVICES[@]}")
+    collect_profiles_for_services "${services[@]}"
+
+    if [ "${#services[@]}" -eq 0 ]; then
+      echo "No hay servicios para iniciar después de omitir VuFind." >&2
+      exit 1
     fi
 
     ensure_m2_cache_dir
@@ -826,13 +922,28 @@ case "${cmd}" in
     ;;
 
   restart)
+    explicit_vufind_request=false
     services=()
     if [ "$#" -eq 0 ]; then
       collect_from_modules $(enabled_modules)
       services=("${COLLECTED_SERVICES[@]}")
     else
       services=("$@")
+      for service in "${services[@]}"; do
+        if service_requires_vufind "${service}"; then
+          explicit_vufind_request=true
+        fi
+      done
       collect_profiles_for_services "${services[@]}"
+    fi
+
+    filter_vufind_services_if_checkout_missing "${explicit_vufind_request}" "${services[@]}"
+    services=("${FILTERED_SERVICES[@]}")
+    collect_profiles_for_services "${services[@]}"
+
+    if [ "${#services[@]}" -eq 0 ]; then
+      echo "No hay servicios para reiniciar después de omitir VuFind." >&2
+      exit 1
     fi
 
     ensure_m2_cache_dir
@@ -850,6 +961,7 @@ case "${cmd}" in
     ;;
 
   build)
+    explicit_vufind_request=false
     services=()
     if [ "$#" -eq 0 ]; then
       collect_from_modules $(enabled_modules)
@@ -859,7 +971,21 @@ case "${cmd}" in
       fi
     else
       services=("$@")
+      for service in "${services[@]}"; do
+        if service_requires_vufind "${service}"; then
+          explicit_vufind_request=true
+        fi
+      done
       collect_profiles_for_services "${services[@]}"
+    fi
+
+    filter_vufind_services_if_checkout_missing "${explicit_vufind_request}" "${services[@]}"
+    services=("${FILTERED_SERVICES[@]}")
+    collect_profiles_for_services "${services[@]}"
+
+    if [ "${#services[@]}" -eq 0 ]; then
+      echo "No hay servicios para build después de omitir VuFind." >&2
+      exit 1
     fi
 
     ensure_m2_cache_dir
@@ -986,26 +1112,18 @@ case "${cmd}" in
       shell_cmd=(database_migrate)
     fi
 
-    ensure_m2_cache_dir
     ensure_java_parent_modules_ready
-
-    dc up -d postgres
-    if ! wait_postgres_ready; then
-      echo "PostgreSQL no quedó listo a tiempo; no se pudo ejecutar init-db." >&2
-      exit 1
-    fi
-
-    BUILD_ON_START=smart dc --profile tools run --rm shell "${shell_cmd[@]}"
+    ensure_shell_service_running smart
+    exec_shell_command_noninteractive smart "${shell_cmd[@]}"
     ;;
 
   shell-interactive)
-    ensure_m2_cache_dir
     ensure_java_parent_modules_ready
-    dc up -d postgres solr
+    ensure_shell_service_running smart
     if [ "$#" -eq 0 ]; then
-      BUILD_ON_START=smart dc --profile tools run --rm shell
+      exec_shell_command_interactive smart
     else
-      BUILD_ON_START=smart dc --profile tools run --rm shell "$@"
+      exec_shell_command_interactive smart "$@"
     fi
     ;;
 

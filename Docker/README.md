@@ -80,6 +80,8 @@ Variables relevantes:
 - `./Docker/dev.sh vufind ...`
 - `./Docker/dev.sh solr sync-from-vufind`
 
+`./Docker/dev.sh up` (y `start/restart/build` sin flags/servicios VuFind explícitos) no dispara clone de `vufind/` si falta el checkout.
+
 Si `vufind/` no existe, el script pide repo/ref (o usa defaults de `.env`) y luego sincroniza:
 
 - `vufind/import` -> `Docker/solr/import`
@@ -118,6 +120,8 @@ Al ejecutar `./Docker/dev.sh vufind up` (o `modules on vufind`), también se sin
 ./Docker/dev.sh shell-interactive
 ./Docker/dev.sh shell-interactive database_migrate
 ```
+
+`init-db` y `shell-interactive` usan el contenedor `lr-shell` existente (via `docker compose exec`) y no crean contenedores temporales `shell-run-*`.
 
 ## VuFind
 

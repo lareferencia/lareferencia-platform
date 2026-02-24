@@ -5,6 +5,7 @@ APP_MODULE="${APP_MODULE:?APP_MODULE is required}"
 APP_JAR="${APP_JAR:?APP_JAR is required}"
 LR_BUILD_PROFILE="${LR_BUILD_PROFILE:-lareferencia}"
 BUILD_ON_START="${BUILD_ON_START:-smart}"
+SHELL_IDLE="${SHELL_IDLE:-false}"
 DOCKER_OVERRIDES_DIR="${DOCKER_OVERRIDES_DIR:-/docker-overrides}"
 APP_RUN_CONFIG_DIR="${APP_RUN_CONFIG_DIR:-/tmp/lr-config/${APP_MODULE}}"
 M2_DIR="${M2_DIR:-/root/.m2}"
@@ -18,6 +19,18 @@ JAR_PATH="${APP_DIR}/${APP_JAR}"
 if [ ! -d "${APP_DIR}" ]; then
   echo "Module directory not found: ${APP_DIR}" >&2
   exit 1
+fi
+
+is_truthy() {
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    1|true|on|yes) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if [ "${APP_MODULE}" = "lareferencia-shell" ] && [ "$#" -eq 0 ] && is_truthy "${SHELL_IDLE}"; then
+  echo "Starting ${APP_MODULE} in idle mode (SHELL_IDLE=true)."
+  exec tail -f /dev/null
 fi
 
 should_build=false

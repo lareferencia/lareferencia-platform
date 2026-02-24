@@ -137,6 +137,7 @@ services:
       APP_CONFIG_DIR: /workspace/lareferencia-shell/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       BUILD_ON_START: ${BUILD_ON_START:-smart}
+      SHELL_IDLE: ${SHELL_IDLE:-true}
     volumes:
       - .:/workspace
       - ./Docker/data/m2:/root/.m2
