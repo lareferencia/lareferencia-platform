@@ -31,3 +31,4 @@ config/application.properties
 harvester.jar
 pom.xml.versionsBackup
 .DS_Store
+vufind/
