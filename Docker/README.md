@@ -1,39 +1,41 @@
 # Entorno Docker de Desarrollo
 
-Este entorno levanta la plataforma completa desde la raíz del repositorio usando `docker-compose.yml` y el helper `Docker/dev.sh`.
+Este entorno levanta la plataforma desde la raíz del repositorio usando `docker-compose.yml` y `Docker/dev.sh`.
 
-## Componentes
+## Módulos (Docker/dev.sh)
 
-- VuFind Web (`vufind-web`)
-- MariaDB para VuFind (`vufind-db`)
-- Solr con cores `biblio` y `oai` (`solr`)
-- PostgreSQL para servicios Java (`postgres`)
-- Harvester (`harvester`)
-- Dashboard REST (`dashboard-rest`)
-- Shell de administración (`shell`, bajo perfil `tools`)
-- Elasticsearch opcional (`elasticsearch`, bajo perfil `elastic`)
-- Watcher de SCSS opcional (`vufind-scss-watch`, bajo perfil `watch`)
+- `core` (activo por defecto): `postgres`, `solr`, `harvester`, `dashboard-rest`, `shell`
+- `vufind` (opcional, on-demand): `vufind-db`, `vufind-web`
+- `elastic` (opcional): `elasticsearch`
+- `watch` (opcional): `vufind-scss-watch`
+
+Comando de estado:
+
+```bash
+./Docker/dev.sh modules status
+```
+
+Activar/desactivar módulos:
+
+```bash
+./Docker/dev.sh modules on vufind
+./Docker/dev.sh modules off vufind
+./Docker/dev.sh modules on elastic
+./Docker/dev.sh modules off elastic
+```
+
+Los toggles se guardan en `./.env`:
+- `DEV_MODULE_VUFIND`
+- `DEV_MODULE_ELASTIC`
+- `DEV_MODULE_WATCH`
 
 ## Requisitos
 
 - Docker Engine
 - Docker Compose plugin (`docker compose`)
-- Git (para clonado automático de `vufind/` cuando no exista)
-
-## Estructura relevante
-
-- `docker-compose.yml`
-- `Docker/dev.sh`
-- `Docker/.env.example`
-- `Docker/apps/`
-- `Docker/solr/`
-- `Docker/vufind/`
-- `Docker/config-overrides/`
-- `Docker/data/`
+- Git (para clonado automático de `vufind/` cuando se use ese módulo)
 
 ## Configuración
-
-El script usa el archivo `./.env` en la raíz del repositorio.
 
 Inicialización sugerida:
 
@@ -42,157 +44,128 @@ cp Docker/.env.example .env
 chmod +x Docker/dev.sh
 ```
 
-Variables principales:
+Variables relevantes:
 
 - `LR_BUILD_PROFILE` (default `lareferencia`)
-- `BUILD_ON_START` (default `true`)
-- `VUFIND_THEME` (default `bootstrap5`)
-- `VUFIND_ENV` (default `production`)
-- `VUFIND_SYSTEM_DEBUG` (default `false`)
-- `VUFIND_PHP_DISPLAY_ERRORS` (default `0`)
+- `BUILD_ON_START` (default `smart`, valores: `smart|always|false`)
 - `VUFIND_REPO_URL` (default `https://github.com/vufind-org/vufind`)
 - `VUFIND_REF` (default `v11.0.1`)
+- `VUFIND_THEME` (default `bootstrap5`)
 
 ## Arranque rápido
 
 ```bash
-# 1) Levantar stack principal
+# 1) Inicializar submódulos de platform (importante para build Java)
+./githelper pull
+
+# 2) Levantar stack activo (por módulos)
+./Docker/dev.sh up
+
+# 3) Levantar forzando rebuild de imágenes + recompilación Java + migrate DB
 ./Docker/dev.sh up --build
-
-# 2) Inicializar/migrar base PostgreSQL usando lareferencia-shell
-./Docker/dev.sh init-db
-
-# 3) Verificar estado
-./Docker/dev.sh health
 ```
 
-Endpoints locales:
+`up --build` ejecuta:
+- `docker compose up -d --build ...`
+- `BUILD_ON_START=always` para recompilar Java contra el filesystem actual
+- `init-db` (`database_migrate`) al finalizar, para dejar schema actualizado
 
-- VuFind: `http://localhost:8080`
-- Harvester: `http://localhost:8090`
-- Dashboard REST: `http://localhost:8092`
-- Solr Admin: `http://localhost:8983/solr`
+## VuFind on-demand
 
-## Clonado automático de VuFind
+`vufind/` se clona solo si realmente se necesita (módulo/servicios VuFind):
 
-Si el directorio `vufind/` no existe, `Docker/dev.sh` hace lo siguiente antes de ejecutar el comando solicitado:
+- `./Docker/dev.sh modules on vufind`
+- `./Docker/dev.sh vufind up`
+- `./Docker/dev.sh up --vufind`
+- `./Docker/dev.sh vufind ...`
+- `./Docker/dev.sh solr sync-from-vufind`
 
-- pregunta repositorio GitHub (con default `VUFIND_REPO_URL`)
-- pregunta branch/tag (con default `VUFIND_REF`)
-- ejecuta `git clone --branch <ref> --single-branch <repo> vufind/`
-- sincroniza `vufind/import` -> `Docker/solr/import`
-- sincroniza `vufind/solr/vufind/jars` -> `Docker/solr/jars`
+`./Docker/dev.sh up` (y `start/restart/build` sin flags/servicios VuFind explícitos) no dispara clone de `vufind/` si falta el checkout.
 
-## Operación diaria
+Si `vufind/` no existe, el script pide repo/ref (o usa defaults de `.env`) y luego sincroniza:
+
+- `vufind/import` -> `Docker/solr/import`
+- `vufind/solr/vufind/jars` -> `Docker/solr/jars`
+
+Al ejecutar `./Docker/dev.sh solr sync-from-vufind`, el servicio `solr` se recrea automáticamente para aplicar esos assets.
+Al ejecutar `./Docker/dev.sh vufind up` (o `modules on vufind`), también se sincronizan assets de Solr y se recrea `solr`.
+
+## Comandos principales
 
 ```bash
-# levantar / bajar
 ./Docker/dev.sh up
+./Docker/dev.sh up --build
+./Docker/dev.sh up --module vufind
 ./Docker/dev.sh down
-
-# iniciar / detener / reiniciar
 ./Docker/dev.sh start
 ./Docker/dev.sh stop
 ./Docker/dev.sh restart
-
-# build / pull
-./Docker/dev.sh build
-./Docker/dev.sh pull
-
-# estado y logs
 ./Docker/dev.sh ps
 ./Docker/dev.sh logs
-./Docker/dev.sh logs solr -f
 ./Docker/dev.sh health
 ```
 
-## Comandos de plataforma
+## Core
 
 ```bash
-# migración no interactiva (default: database_migrate)
+./Docker/dev.sh core status
+./Docker/dev.sh core up
+./Docker/dev.sh core down
+```
+
+## DB y shell
+
+```bash
 ./Docker/dev.sh init-db
-./Docker/dev.sh init-db <comando-shell>
-
-# shell interactivo de lareferencia-shell
 ./Docker/dev.sh shell-interactive
-./Docker/dev.sh shell-interactive <comando-shell>
-
-# shell interactivo dentro de un servicio
-./Docker/dev.sh shell vufind-web
-./Docker/dev.sh shell postgres
-
-# ejecutar comando directo dentro de un servicio
-./Docker/dev.sh exec harvester <cmd>
-
-# pasar argumentos crudos a docker compose
-./Docker/dev.sh compose <args...>
+./Docker/dev.sh shell-interactive database_migrate
 ```
 
-## Solr
-
-```bash
-# sincronización manual de import/jars desde vufind
-./Docker/dev.sh solr sync-from-vufind
-
-# estado rápido de fuentes/destinos
-./Docker/dev.sh solr status
-```
+`init-db` y `shell-interactive` usan el contenedor `lr-shell` existente (via `docker compose exec`) y no crean contenedores temporales `shell-run-*`.
 
 ## VuFind
 
 ```bash
-# debug
+./Docker/dev.sh vufind status
+./Docker/dev.sh vufind up
+./Docker/dev.sh vufind down
 ./Docker/dev.sh vufind debug show
 ./Docker/dev.sh vufind debug on
 ./Docker/dev.sh vufind debug off
-
-# theme
 ./Docker/dev.sh vufind theme show
 ./Docker/dev.sh vufind theme set bootstrap5
-
-# DB VuFind
 ./Docker/dev.sh vufind db
-
-# CLI VuFind
 ./Docker/dev.sh vufind cli <args...>
-
-# shells de servicios VuFind
 ./Docker/dev.sh vufind shell web
-./Docker/dev.sh vufind shell db
-./Docker/dev.sh vufind shell solr
 ```
 
-## Perfiles opcionales
+## Elastic y Watch
 
 ```bash
-# elasticsearch
-./Docker/dev.sh elastic on
-./Docker/dev.sh elastic off
-./Docker/dev.sh elastic logs
 ./Docker/dev.sh elastic status
+./Docker/dev.sh elastic up
+./Docker/dev.sh elastic down
+./Docker/dev.sh elastic logs
 
-# watcher SCSS
-./Docker/dev.sh watch start
-./Docker/dev.sh watch stop
-./Docker/dev.sh watch logs
 ./Docker/dev.sh watch status
-
-# levantar con perfiles al inicio
-./Docker/dev.sh up --elastic
-./Docker/dev.sh up --watch
+./Docker/dev.sh watch up
+./Docker/dev.sh watch down
+./Docker/dev.sh watch logs
 ```
 
-## Datos persistentes
-
-- Toda la persistencia usa bind mounts en `Docker/data/*`.
-- El reset completo se hace con:
+## Limpieza de datos
 
 ```bash
 ./Docker/dev.sh reset-data
 ./Docker/dev.sh reset-data --yes
 ```
 
-## Notas de versionado
+`reset-data` limpia solo data persistida no versionada en `Docker/data`.
+Los archivos trackeados por git dentro de esa carpeta se conservan.
 
-- `Docker/data/**` se ignora en git, excepto `*.gitkeep`.
-- `Docker/solr/import/**` y `Docker/solr/jars/**` se ignoran en git, excepto `*.gitkeep`.
+## Endpoints locales
+
+- VuFind: `http://localhost:8080`
+- Harvester: `http://localhost:8090`
+- Dashboard REST: `http://localhost:8092`
+- Solr Admin: `http://localhost:8983/solr`

@@ -385,6 +385,9 @@ The repository includes a single integrated CLI in the project root: `./githelpe
 
 # Create the parent branch name in specific modules
 ./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
+
+# Convert submodule URLs from SSH to HTTPS (for users without SSH access)
+./githelper url rewrite --to https
 ```
 
 ### Checkout Specific Tagged Version (release workflow)
