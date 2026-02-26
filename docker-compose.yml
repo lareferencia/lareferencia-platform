@@ -51,10 +51,18 @@ services:
       context: .
       dockerfile: Docker/solr/Dockerfile
     container_name: lr-solr
+    environment:
+      SOLR_ULIMIT_CHECKS: "false"
     ports:
       - "8983:8983"
     volumes:
       - ./Docker/data/solr:/var/solr/data
+      - ./Docker/solr/jars:/opt/lr-solr-jars:ro
+      - ./Docker/solr/import:/opt/lr-solr-import:ro
+    ulimits:
+      nofile:
+        soft: 65000
+        hard: 65000
     restart: unless-stopped
 
   postgres:
@@ -84,7 +92,7 @@ services:
       APP_JAR: harvester.jar
       APP_CONFIG_DIR: /workspace/lareferencia-lrharvester-app/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      BUILD_ON_START: ${BUILD_ON_START:-true}
+      BUILD_ON_START: ${BUILD_ON_START:-smart}
     ports:
       - "8090:8090"
     volumes:
@@ -106,7 +114,7 @@ services:
       APP_JAR: dashboard-rest.jar
       APP_CONFIG_DIR: /workspace/lareferencia-dashboard-rest/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      BUILD_ON_START: ${BUILD_ON_START:-true}
+      BUILD_ON_START: ${BUILD_ON_START:-smart}
     ports:
       - "8092:8092"
     volumes:
@@ -128,7 +136,8 @@ services:
       APP_JAR: lareferencia-shell.jar
       APP_CONFIG_DIR: /workspace/lareferencia-shell/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      BUILD_ON_START: ${BUILD_ON_START:-true}
+      BUILD_ON_START: ${BUILD_ON_START:-smart}
+      SHELL_IDLE: ${SHELL_IDLE:-true}
     volumes:
       - .:/workspace
       - ./Docker/data/m2:/root/.m2
