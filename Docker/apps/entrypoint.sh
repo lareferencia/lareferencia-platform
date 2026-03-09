@@ -10,6 +10,7 @@ DOCKER_OVERRIDES_DIR="${DOCKER_OVERRIDES_DIR:-/docker-overrides}"
 APP_RUN_CONFIG_DIR="${APP_RUN_CONFIG_DIR:-/tmp/lr-config/${APP_MODULE}}"
 M2_DIR="${M2_DIR:-/root/.m2}"
 BUILD_LOCK_DIR="${M2_DIR}/.lr-build-lock"
+BUILD_LOCK_PID_FILE="${BUILD_LOCK_DIR}/pid"
 BUILD_LOCK_HELD=false
 
 APP_DIR="/workspace/${APP_MODULE}"
@@ -73,13 +74,41 @@ cleanup_build_lock() {
   fi
 }
 
+lock_owner_is_alive() {
+  local lock_pid
+
+  if [ ! -f "${BUILD_LOCK_PID_FILE}" ]; then
+    return 1
+  fi
+
+  lock_pid="$(cat "${BUILD_LOCK_PID_FILE}" 2>/dev/null || true)"
+  if [ -z "${lock_pid}" ]; then
+    return 1
+  fi
+
+  kill -0 "${lock_pid}" 2>/dev/null
+}
+
 acquire_build_lock() {
+  local wait_announced=false
+
   mkdir -p "${M2_DIR}"
 
   while ! mkdir "${BUILD_LOCK_DIR}" 2>/dev/null; do
+    if ! lock_owner_is_alive; then
+      echo "Found stale build lock at ${BUILD_LOCK_DIR}; removing it."
+      rm -rf "${BUILD_LOCK_DIR}" || true
+      continue
+    fi
+
+    if [ "${wait_announced}" = false ]; then
+      echo "Waiting for build lock at ${BUILD_LOCK_DIR}..."
+      wait_announced=true
+    fi
     sleep 1
   done
 
+  printf '%s\n' "$$" > "${BUILD_LOCK_PID_FILE}"
   BUILD_LOCK_HELD=true
 }
 

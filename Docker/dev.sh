@@ -456,6 +456,7 @@ run_init_db() {
     echo "BD lrharvester no existe; ejecutando init-db."
   fi
 
+  echo "Ejecutando database_migrate via lr-shell..."
   exec_shell_command_noninteractive "${build_mode}" database_migrate
 }
 
@@ -479,10 +480,17 @@ exec_shell_command_noninteractive() {
   shift || true
   local cmd=("$@")
 
-  dc --profile tools exec -T \
-    -e BUILD_ON_START="${build_mode}" \
-    -e SHELL_IDLE=false \
-    shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
+  if [ "${#cmd[@]}" -eq 0 ]; then
+    dc --profile tools exec -T \
+      -e BUILD_ON_START="${build_mode}" \
+      -e SHELL_IDLE=false \
+      shell /usr/local/bin/lr-app-entrypoint.sh
+  else
+    dc --profile tools exec -T \
+      -e BUILD_ON_START="${build_mode}" \
+      -e SHELL_IDLE=false \
+      shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
+  fi
 }
 
 exec_shell_command_interactive() {
@@ -490,10 +498,30 @@ exec_shell_command_interactive() {
   shift || true
   local cmd=("$@")
 
-  dc --profile tools exec \
-    -e BUILD_ON_START="${build_mode}" \
-    -e SHELL_IDLE=false \
-    shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
+  if [ "${#cmd[@]}" -eq 0 ]; then
+    dc --profile tools exec \
+      -e BUILD_ON_START="${build_mode}" \
+      -e SHELL_IDLE=false \
+      shell /usr/local/bin/lr-app-entrypoint.sh
+  else
+    dc --profile tools exec \
+      -e BUILD_ON_START="${build_mode}" \
+      -e SHELL_IDLE=false \
+      shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
+  fi
+}
+
+build_java_workspace_once() {
+  local build_profile
+
+  build_profile="$(get_env_var LR_BUILD_PROFILE lareferencia)"
+
+  ensure_java_parent_modules_ready
+  ensure_shell_service_running false
+
+  echo "Compilando workspace Java una sola vez via lr-shell..."
+  dc --profile tools exec -T shell sh -lc \
+    "cd /workspace && mvn clean package install -DskipTests -Dmaven.test.skip=true -Dmaven.javadoc.skip=true -P${build_profile}"
 }
 
 is_git_repo_available() {
@@ -666,8 +694,8 @@ Módulos (organización de servicios):
 Comandos principales:
   up [--build] [--module <modulo>] [--vufind] [--elastic] [--watch] [servicios...]
       - Sin servicios explícitos: usa módulos activos.
-      - --build: rebuild de imágenes + recompilación Java (BUILD_ON_START=always)
-        y luego ejecuta init-db (database_migrate).
+      - --build: rebuild de imágenes + compilación Java única via lr-shell,
+        luego arranca servicios con BUILD_ON_START=false y ejecuta init-db.
   down
   start [servicios...]
   stop [servicios...]
@@ -837,20 +865,22 @@ case "${cmd}" in
         profile_args+=(--profile "${profile}")
       done
       if [ "${build_flag}" = true ]; then
-        BUILD_ON_START=always dc "${profile_args[@]}" "${args[@]}" "${services[@]}"
+        build_java_workspace_once
+        BUILD_ON_START=false dc "${profile_args[@]}" "${args[@]}" "${services[@]}"
       else
         dc "${profile_args[@]}" "${args[@]}" "${services[@]}"
       fi
     else
       if [ "${build_flag}" = true ]; then
-        BUILD_ON_START=always dc "${args[@]}" "${services[@]}"
+        build_java_workspace_once
+        BUILD_ON_START=false dc "${args[@]}" "${services[@]}"
       else
         dc "${args[@]}" "${services[@]}"
       fi
     fi
 
     if [ "${build_flag}" = true ]; then
-      run_init_db smart
+      run_init_db false
     fi
     ;;
 

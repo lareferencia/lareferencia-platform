@@ -67,7 +67,8 @@ Variables relevantes:
 
 `up --build` ejecuta:
 - `docker compose up -d --build ...`
-- `BUILD_ON_START=always` para recompilar Java contra el filesystem actual
+- compilación Java una sola vez vía `lr-shell`
+- arranque de `harvester` / `dashboard-rest` / `shell` con `BUILD_ON_START=false`
 - `init-db` (`database_migrate`) al finalizar, para dejar schema actualizado
 
 ## VuFind on-demand
