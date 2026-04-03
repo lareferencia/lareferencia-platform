@@ -2,10 +2,30 @@ FROM solr:9.8
 
 USER root
 
+# Install wget
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+
+# Copy local assets from Docker context (synced by docker.sh)
 COPY Docker/solr/cores /opt/lr-solr-cores
 COPY Docker/solr/jars /opt/lr-solr-jars
 COPY Docker/solr/import /opt/lr-solr-import
 COPY Docker/solr/entrypoint.sh /usr/local/bin/lr-solr-entrypoint.sh
+
+# Ensure folders exist
+RUN mkdir -p /opt/lr-solr-jars /opt/lr-solr-import /opt/lr-solr-vendor
+
+# Download VuFind specific jars from official master branch
+RUN wget -O /opt/lr-solr-jars/MarcImporter.jar https://raw.githubusercontent.com/vufind-org/vufind/master/solr/vufind/jars/MarcImporter.jar && \
+    wget -O /opt/lr-solr-jars/browse-handler.jar https://raw.githubusercontent.com/vufind-org/vufind/master/solr/vufind/jars/browse-handler.jar && \
+    wget -O /opt/lr-solr-jars/sqlite-jdbc-3.39.3.0.jar https://raw.githubusercontent.com/vufind-org/vufind/master/solr/vufind/jars/sqlite-jdbc-3.39.3.0.jar
+
+# Copy ICU jars from local context if they exist (needed for analysis-extras)
+COPY . /tmp/build-context
+RUN if [ -d /tmp/build-context/vufind/solr/vendor/modules/analysis-extras/lib ]; then \
+        cp /tmp/build-context/vufind/solr/vendor/modules/analysis-extras/lib/icu4j-*.jar /opt/lr-solr-vendor/ 2>/dev/null || true; \
+        cp /tmp/build-context/vufind/solr/vendor/modules/analysis-extras/lib/lucene-analysis-icu-*.jar /opt/lr-solr-vendor/ 2>/dev/null || true; \
+    fi && \
+    rm -rf /tmp/build-context
 
 RUN chmod +x /usr/local/bin/lr-solr-entrypoint.sh
 

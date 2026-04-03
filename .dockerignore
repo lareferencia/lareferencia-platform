@@ -1,0 +1,22 @@
+# Ignorar dados persistidos (causa do build lento/pesado)
+Docker/data
+Docker/vufind/data
+
+# Ignorar controle de versão
+.git
+.gitmodules
+
+# Ignorar artefatos de build locais
+**/target
+**/*.jar
+.idea
+*.iml
+*.swp
+*.log
+
+# Ignorar o checkout do VuFind (já é baixado se necessário)
+vufind/
+
+# Ignorar caches de pacotes
+.m2/repository
+node_modules/

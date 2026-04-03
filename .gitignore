@@ -31,3 +31,12 @@ config/application.properties
 harvester.jar
 pom.xml.versionsBackup
 .DS_Store
+
+### Docker Data and Backups ###
+/Docker/data/*
+!/Docker/data/**/.gitkeep
+/Docker_pre_restoration/
+/*.bak
+/*.patch
+/dependencias/
+/staged_bundle/

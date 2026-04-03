@@ -3,14 +3,20 @@ services:
     build:
       context: .
       dockerfile: Docker/vufind/Dockerfile
-    container_name: lr-vufind-web
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-vufind-web
     depends_on:
-      - vufind-db
-      - solr
+      vufind-db:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - vufind-web
     environment:
       VUFIND_LOCAL_DIR: /usr/local/vufind/local/docker
       VUFIND_BASEPATH: /
-      VUFIND_SITE_URL: http://localhost:8080
+      VUFIND_SITE_URL: http://localhost:${LR_PORT_VUFIND_WEB:-8080}
       VUFIND_THEME: ${VUFIND_THEME:-bootstrap5}
       VUFIND_NOILS_MODE: ils-none
       VUFIND_ENV: ${VUFIND_ENV:-production}
@@ -28,130 +34,218 @@ services:
       VUFIND_DB_ROOT_PASSWORD: root
       VUFIND_SOLR_URL: http://solr:8983/solr
     ports:
-      - "8080:80"
+      - "${LR_PORT_VUFIND_WEB:-8080}:80"
     volumes:
       - ./vufind:/usr/local/vufind
       - ./Docker/data/vufind/vendor:/usr/local/vufind/vendor
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
 
   vufind-db:
     image: mariadb:11.4
-    container_name: lr-vufind-db
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-vufind-db
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      default:
+        aliases:
+          - vufind-db
     environment:
       MARIADB_ROOT_PASSWORD: root
     ports:
-      - "3307:3306"
+      - "${LR_PORT_VUFIND_DB:-3307}:3306"
     volumes:
       - ./Docker/data/vufind-mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     restart: unless-stopped
 
   solr:
     build:
       context: .
       dockerfile: Docker/solr/Dockerfile
-    container_name: lr-solr
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-solr
+    networks:
+      default:
+        aliases:
+          - solr
     environment:
       SOLR_ULIMIT_CHECKS: "false"
+      SOLR_JAVA_MEM: "-Xms1g -Xmx2g"
     ports:
-      - "8983:8983"
+      - "${LR_PORT_SOLR:-8983}:8983"
     volumes:
       - ./Docker/data/solr:/var/solr/data
-      - ./Docker/solr/jars:/opt/lr-solr-jars:ro
-      - ./Docker/solr/import:/opt/lr-solr-import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8983/solr/admin/info/system | grep -q '\"status\":0' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
     ulimits:
       nofile:
         soft: 65000
         hard: 65000
+    deploy:
+      resources:
+        limits:
+          memory: 3G
     restart: unless-stopped
 
   postgres:
-    image: postgres:14
-    container_name: lr-postgres
+    image: postgres:14-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-postgres
+    networks:
+      default:
+        aliases:
+          - postgres
     environment:
       POSTGRES_PASSWORD: lrharvester
       POSTGRES_USER: lrharvester
       POSTGRES_DB: lrharvester
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${LR_PORT_POSTGRES:-5432}:5432"
     volumes:
       - ./Docker/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lrharvester -d lrharvester"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
 
   harvester:
     build:
       context: .
       dockerfile: Docker/apps/Dockerfile
-    container_name: lr-harvester
+      args:
+        APP_MODULE: lareferencia-lrharvester-app
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-harvester
     depends_on:
-      - postgres
-      - solr
+      postgres:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - harvester
     environment:
       APP_MODULE: lareferencia-lrharvester-app
-      APP_JAR: harvester.jar
+      APP_JAR: lareferencia-lrharvester-app-5.0.0-beta.jar
       APP_CONFIG_DIR: /workspace/lareferencia-lrharvester-app/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      BUILD_ON_START: ${BUILD_ON_START:-smart}
+      ACTIONS_BEANS_FILENAME: ${ACTIONS_BEANS_FILENAME:-actions.xml}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
+      DEFAULT_SOLR_SERVER: http://solr:8983/solr
+      FRONTEND_SOLR_URL: http://solr:8983/solr/biblio
+      XOAI_SOLR_URL: http://solr:8983/solr/oai
     ports:
-      - "8090:8090"
+      - "${LR_PORT_HARVESTER:-8090}:8090"
     volumes:
-      - .:/workspace
-      - ./Docker/data/m2:/root/.m2
       - ./Docker/config-overrides:/docker-overrides:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     restart: unless-stopped
 
   dashboard-rest:
     build:
       context: .
       dockerfile: Docker/apps/Dockerfile
-    container_name: lr-dashboard-rest
+      args:
+        APP_MODULE: lareferencia-dashboard-rest
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-dashboard-rest
     depends_on:
-      - postgres
-      - solr
+      postgres:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - dashboard-rest
     environment:
       APP_MODULE: lareferencia-dashboard-rest
-      APP_JAR: dashboard-rest.jar
+      APP_JAR: lareferencia-dashboard-rest-5.0.0-beta.jar
       APP_CONFIG_DIR: /workspace/lareferencia-dashboard-rest/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      BUILD_ON_START: ${BUILD_ON_START:-smart}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SOLR_HOST: http://solr:8983/solr
+      ELASTIC_HOST: elasticsearch
     ports:
-      - "8092:8092"
+      - "${LR_PORT_DASHBOARD:-8092}:8092"
     volumes:
-      - .:/workspace
-      - ./Docker/data/m2:/root/.m2
       - ./Docker/config-overrides:/docker-overrides:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     restart: unless-stopped
 
   shell:
     build:
       context: .
       dockerfile: Docker/apps/Dockerfile
-    container_name: lr-shell
+      args:
+        APP_MODULE: lareferencia-shell
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-shell
     depends_on:
-      - postgres
-      - solr
+      postgres:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - shell
     environment:
       APP_MODULE: lareferencia-shell
-      APP_JAR: lareferencia-shell.jar
+      APP_JAR: lareferencia-shell-5.0.0-beta.jar
       APP_CONFIG_DIR: /workspace/lareferencia-shell/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      BUILD_ON_START: ${BUILD_ON_START:-smart}
       SHELL_IDLE: ${SHELL_IDLE:-true}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SOLR_HOST: http://solr:8983/solr
+      ELASTIC_HOST: elasticsearch
     volumes:
-      - .:/workspace
-      - ./Docker/data/m2:/root/.m2
       - ./Docker/config-overrides:/docker-overrides:ro
     profiles:
       - tools
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.12.0
-    container_name: lr-elasticsearch
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-elasticsearch
+    networks:
+      default:
+        aliases:
+          - elasticsearch
     environment:
       - xpack.security.enabled=false
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     ulimits:
       memlock:
         soft: -1
@@ -164,15 +258,23 @@ services:
     volumes:
       - ./Docker/data/elasticsearch:/usr/share/elasticsearch/data
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "${LR_PORT_ELASTIC_9200:-9200}:9200"
+      - "${LR_PORT_ELASTIC_9300:-9300}:9300"
     profiles:
       - elastic
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     restart: unless-stopped
 
   vufind-scss-watch:
     image: node:20-alpine
-    container_name: lr-vufind-scss-watch
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-vufind-scss-watch
+    networks:
+      default:
+        aliases:
+          - vufind-scss-watch
     working_dir: /usr/local/vufind
     command: >
       sh -lc '
@@ -186,3 +288,11 @@ services:
     profiles:
       - watch
     restart: unless-stopped
+
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-lr}-network
+
+volumes:
+  maven-repo:
+    name: ${COMPOSE_PROJECT_NAME:-lr}-maven-repo

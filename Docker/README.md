@@ -1,8 +1,8 @@
 # Entorno Docker de Desarrollo
 
-Este entorno levanta la plataforma desde la raíz del repositorio usando `docker-compose.yml` y `Docker/dev.sh`.
+Este entorno levanta la plataforma desde la raíz del repositorio usando `docker-compose.yml` y `Docker/docker.sh`.
 
-## Módulos (Docker/dev.sh)
+## Módulos (Docker/docker.sh)
 
 - `core` (activo por defecto): `postgres`, `solr`, `harvester`, `dashboard-rest`, `shell`
 - `vufind` (opcional, on-demand): `vufind-db`, `vufind-web`
@@ -12,16 +12,16 @@ Este entorno levanta la plataforma desde la raíz del repositorio usando `docker
 Comando de estado:
 
 ```bash
-./Docker/dev.sh modules status
+./Docker/docker.sh modules status
 ```
 
 Activar/desactivar módulos:
 
 ```bash
-./Docker/dev.sh modules on vufind
-./Docker/dev.sh modules off vufind
-./Docker/dev.sh modules on elastic
-./Docker/dev.sh modules off elastic
+./Docker/docker.sh modules on vufind
+./Docker/docker.sh modules off vufind
+./Docker/docker.sh modules on elastic
+./Docker/docker.sh modules off elastic
 ```
 
 Los toggles se guardan en `./.env`:
@@ -41,7 +41,7 @@ Inicialización sugerida:
 
 ```bash
 cp Docker/.env.example .env
-chmod +x Docker/dev.sh
+chmod +x Docker/docker.sh
 ```
 
 Variables relevantes:
@@ -59,67 +59,66 @@ Variables relevantes:
 ./githelper pull
 
 # 2) Levantar stack activo (por módulos)
-./Docker/dev.sh up
+./Docker/docker.sh up
 
 # 3) Levantar forzando rebuild de imágenes + recompilación Java + migrate DB
-./Docker/dev.sh up --build
+./Docker/docker.sh up --build
 ```
 
 `up --build` ejecuta:
 - `docker compose up -d --build ...`
-- compilación Java una sola vez vía `lr-shell`
-- arranque de `harvester` / `dashboard-rest` / `shell` con `BUILD_ON_START=false`
+- `BUILD_ON_START=always` para recompilar Java contra el filesystem actual
 - `init-db` (`database_migrate`) al finalizar, para dejar schema actualizado
 
 ## VuFind on-demand
 
 `vufind/` se clona solo si realmente se necesita (módulo/servicios VuFind):
 
-- `./Docker/dev.sh modules on vufind`
-- `./Docker/dev.sh vufind up`
-- `./Docker/dev.sh up --vufind`
-- `./Docker/dev.sh vufind ...`
-- `./Docker/dev.sh solr sync-from-vufind`
+- `./Docker/docker.sh modules on vufind`
+- `./Docker/docker.sh vufind up`
+- `./Docker/docker.sh up --vufind`
+- `./Docker/docker.sh vufind ...`
+- `./Docker/docker.sh solr sync-from-vufind`
 
-`./Docker/dev.sh up` (y `start/restart/build` sin flags/servicios VuFind explícitos) no dispara clone de `vufind/` si falta el checkout.
+`./Docker/docker.sh up` (y `start/restart/build` sin flags/servicios VuFind explícitos) no dispara clone de `vufind/` si falta el checkout.
 
 Si `vufind/` no existe, el script pide repo/ref (o usa defaults de `.env`) y luego sincroniza:
 
 - `vufind/import` -> `Docker/solr/import`
 - `vufind/solr/vufind/jars` -> `Docker/solr/jars`
 
-Al ejecutar `./Docker/dev.sh solr sync-from-vufind`, el servicio `solr` se recrea automáticamente para aplicar esos assets.
-Al ejecutar `./Docker/dev.sh vufind up` (o `modules on vufind`), también se sincronizan assets de Solr y se recrea `solr`.
+Al ejecutar `./Docker/docker.sh solr sync-from-vufind`, el servicio `solr` se recrea automáticamente para aplicar esos assets.
+Al ejecutar `./Docker/docker.sh vufind up` (o `modules on vufind`), también se sincronizan assets de Solr y se recrea `solr`.
 
 ## Comandos principales
 
 ```bash
-./Docker/dev.sh up
-./Docker/dev.sh up --build
-./Docker/dev.sh up --module vufind
-./Docker/dev.sh down
-./Docker/dev.sh start
-./Docker/dev.sh stop
-./Docker/dev.sh restart
-./Docker/dev.sh ps
-./Docker/dev.sh logs
-./Docker/dev.sh health
+./Docker/docker.sh up
+./Docker/docker.sh up --build
+./Docker/docker.sh up --module vufind
+./Docker/docker.sh down
+./Docker/docker.sh start
+./Docker/docker.sh stop
+./Docker/docker.sh restart
+./Docker/docker.sh ps
+./Docker/docker.sh logs
+./Docker/docker.sh health
 ```
 
 ## Core
 
 ```bash
-./Docker/dev.sh core status
-./Docker/dev.sh core up
-./Docker/dev.sh core down
+./Docker/docker.sh core status
+./Docker/docker.sh core up
+./Docker/docker.sh core down
 ```
 
 ## DB y shell
 
 ```bash
-./Docker/dev.sh init-db
-./Docker/dev.sh shell-interactive
-./Docker/dev.sh shell-interactive database_migrate
+./Docker/docker.sh init-db
+./Docker/docker.sh shell-interactive
+./Docker/docker.sh shell-interactive database_migrate
 ```
 
 `init-db` y `shell-interactive` usan el contenedor `lr-shell` existente (via `docker compose exec`) y no crean contenedores temporales `shell-run-*`.
@@ -127,38 +126,38 @@ Al ejecutar `./Docker/dev.sh vufind up` (o `modules on vufind`), también se sin
 ## VuFind
 
 ```bash
-./Docker/dev.sh vufind status
-./Docker/dev.sh vufind up
-./Docker/dev.sh vufind down
-./Docker/dev.sh vufind debug show
-./Docker/dev.sh vufind debug on
-./Docker/dev.sh vufind debug off
-./Docker/dev.sh vufind theme show
-./Docker/dev.sh vufind theme set bootstrap5
-./Docker/dev.sh vufind db
-./Docker/dev.sh vufind cli <args...>
-./Docker/dev.sh vufind shell web
+./Docker/docker.sh vufind status
+./Docker/docker.sh vufind up
+./Docker/docker.sh vufind down
+./Docker/docker.sh vufind debug show
+./Docker/docker.sh vufind debug on
+./Docker/docker.sh vufind debug off
+./Docker/docker.sh vufind theme show
+./Docker/docker.sh vufind theme set bootstrap5
+./Docker/docker.sh vufind db
+./Docker/docker.sh vufind cli <args...>
+./Docker/docker.sh vufind shell web
 ```
 
 ## Elastic y Watch
 
 ```bash
-./Docker/dev.sh elastic status
-./Docker/dev.sh elastic up
-./Docker/dev.sh elastic down
-./Docker/dev.sh elastic logs
+./Docker/docker.sh elastic status
+./Docker/docker.sh elastic up
+./Docker/docker.sh elastic down
+./Docker/docker.sh elastic logs
 
-./Docker/dev.sh watch status
-./Docker/dev.sh watch up
-./Docker/dev.sh watch down
-./Docker/dev.sh watch logs
+./Docker/docker.sh watch status
+./Docker/docker.sh watch up
+./Docker/docker.sh watch down
+./Docker/docker.sh watch logs
 ```
 
 ## Limpieza de datos
 
 ```bash
-./Docker/dev.sh reset-data
-./Docker/dev.sh reset-data --yes
+./Docker/docker.sh reset-data
+./Docker/docker.sh reset-data --yes
 ```
 
 `reset-data` limpia solo data persistida no versionada en `Docker/data`.
