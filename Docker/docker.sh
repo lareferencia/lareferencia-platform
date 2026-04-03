@@ -344,30 +344,24 @@ enabled_modules() {
 sync_solr_assets_from_vufind() {
   local src_import="${ROOT_DIR}/vufind/import"
   local src_jars="${ROOT_DIR}/vufind/solr/vufind/jars"
+  local src_vendor="${ROOT_DIR}/vufind/solr/vendor/modules/analysis-extras/lib"
   local dst_import="${ROOT_DIR}/Docker/solr/import"
   local dst_jars="${ROOT_DIR}/Docker/solr/jars"
+  local dst_vendor="${ROOT_DIR}/Docker/solr/vendor"
 
-  if [ ! -d "${src_import}" ]; then
-    echo "No existe fuente de import en ${src_import}" >&2
-    exit 1
+  echo "Sincronizando Docker/solr/assets desde vufind/..."
+  
+  rm -rf "${dst_import}" "${dst_jars}" "${dst_vendor}"
+  mkdir -p "${dst_import}" "${dst_jars}" "${dst_vendor}"
+
+  if [ -d "${src_import}" ]; then cp -a "${src_import}/." "${dst_import}/"; fi
+  if [ -d "${src_jars}" ]; then cp -a "${src_jars}/." "${dst_jars}/"; fi
+  if [ -d "${src_vendor}" ]; then 
+    cp "${src_vendor}"/icu4j-*.jar "${dst_vendor}/" 2>/dev/null || true
+    cp "${src_vendor}"/lucene-analysis-icu-*.jar "${dst_vendor}/" 2>/dev/null || true
   fi
 
-  if [ ! -d "${src_jars}" ]; then
-    echo "No existe fuente de jars en ${src_jars}" >&2
-    exit 1
-  fi
-
-  echo "Sincronizando Docker/solr/import desde vufind/import..."
-  rm -rf "${dst_import}"
-  mkdir -p "${dst_import}"
-  cp -a "${src_import}/." "${dst_import}/"
-
-  echo "Sincronizando Docker/solr/jars desde vufind/solr/vufind/jars..."
-  rm -rf "${dst_jars}"
-  mkdir -p "${dst_jars}"
-  cp -a "${src_jars}/." "${dst_jars}/"
-
-  echo "Sync Solr completado."
+  echo "Sync Solr assets completado."
 }
 
 ensure_vufind_checkout() {

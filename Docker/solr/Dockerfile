@@ -19,13 +19,11 @@ RUN wget -O /opt/lr-solr-jars/MarcImporter.jar https://raw.githubusercontent.com
     wget -O /opt/lr-solr-jars/browse-handler.jar https://raw.githubusercontent.com/vufind-org/vufind/master/solr/vufind/jars/browse-handler.jar && \
     wget -O /opt/lr-solr-jars/sqlite-jdbc-3.39.3.0.jar https://raw.githubusercontent.com/vufind-org/vufind/master/solr/vufind/jars/sqlite-jdbc-3.39.3.0.jar
 
-# Copy ICU jars from local context if they exist (needed for analysis-extras)
-COPY . /tmp/build-context
-RUN if [ -d /tmp/build-context/vufind/solr/vendor/modules/analysis-extras/lib ]; then \
-        cp /tmp/build-context/vufind/solr/vendor/modules/analysis-extras/lib/icu4j-*.jar /opt/lr-solr-vendor/ 2>/dev/null || true; \
-        cp /tmp/build-context/vufind/solr/vendor/modules/analysis-extras/lib/lucene-analysis-icu-*.jar /opt/lr-solr-vendor/ 2>/dev/null || true; \
-    fi && \
-    rm -rf /tmp/build-context
+# If ICU jars are available in the host, they should be in Docker/solr/vendor/ 
+# Using wildcards directly in COPY is valid. 
+# We copy them into a temporary folder first to avoid build failure if they don't exist
+COPY Docker/solr/ven[d]or/icu4j-*.jar /opt/lr-solr-vendor/
+COPY Docker/solr/ven[d]or/lucene-analysis-icu-*.jar /opt/lr-solr-vendor/
 
 RUN chmod +x /usr/local/bin/lr-solr-entrypoint.sh
 

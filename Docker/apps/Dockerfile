@@ -32,6 +32,7 @@ RUN \
 # --- Stage 2: Runtime ---
 FROM bellsoft/liberica-openjre-debian:17
 
+# Minimal tools
 RUN apt-get update && apt-get install -y bash sed curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
@@ -41,13 +42,11 @@ ENV APP_MODULE=${APP_MODULE}
 # 4. Copiar as camadas extraídas ou o JAR de fallback
 COPY --from=builder /build/extracted/ /workspace/${APP_MODULE}/
 
-# 5. Copiar recursos externos (Configurações e Estáticos)
-COPY --from=builder /build/${APP_MODULE}/ /tmp/module-files/
-RUN mkdir -p /workspace/${APP_MODULE} && \
-    if [ -d /tmp/module-files/config ]; then cp -r /tmp/module-files/config /workspace/${APP_MODULE}/; fi && \
-    if [ -d /tmp/module-files/static ]; then cp -r /tmp/module-files/static /workspace/${APP_MODULE}/; fi && \
-    if [ -d /tmp/module-files/static_en ]; then cp -r /tmp/module-files/static_en /workspace/${APP_MODULE}/; fi && \
-    rm -rf /tmp/module-files
+# 5. Copiar apenas recursos externos necessários (opcionalmente)
+# Usamos wildcards para que o build não falhe se as pastas não existirem (ex: dashboard-rest)
+COPY --from=builder /build/${APP_MODULE}/confi[g]/ /workspace/${APP_MODULE}/config/
+COPY --from=builder /build/${APP_MODULE}/stati[c]/ /workspace/${APP_MODULE}/static/
+COPY --from=builder /build/${APP_MODULE}/static_e[n]/ /workspace/${APP_MODULE}/static_en/
 
 # Entrypoint
 COPY Docker/apps/entrypoint.sh /usr/local/bin/lr-app-entrypoint.sh
