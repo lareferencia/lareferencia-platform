@@ -133,6 +133,7 @@ services:
       dockerfile: Docker/apps/Dockerfile
       args:
         APP_MODULE: lareferencia-lrharvester-app
+        LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-harvester
     depends_on:
       postgres:
@@ -148,8 +149,6 @@ services:
       APP_JAR: lareferencia-lrharvester-app-5.0.0-beta.jar
       APP_CONFIG_DIR: /workspace/lareferencia-lrharvester-app/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      ACTIONS_BEANS_FILENAME: ${ACTIONS_BEANS_FILENAME:-actions.xml}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
       DEFAULT_SOLR_SERVER: http://solr:8983/solr
       FRONTEND_SOLR_URL: http://solr:8983/solr/biblio
@@ -170,6 +169,7 @@ services:
       dockerfile: Docker/apps/Dockerfile
       args:
         APP_MODULE: lareferencia-dashboard-rest
+        LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-dashboard-rest
     depends_on:
       postgres:
@@ -185,7 +185,6 @@ services:
       APP_JAR: lareferencia-dashboard-rest-5.0.0-beta.jar
       APP_CONFIG_DIR: /workspace/lareferencia-dashboard-rest/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
       SOLR_HOST: http://solr:8983/solr
       ELASTIC_HOST: elasticsearch

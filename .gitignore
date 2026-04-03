@@ -40,3 +40,7 @@ pom.xml.versionsBackup
 /*.patch
 /dependencias/
 /staged_bundle/
+
+# Ignore custom beans overrides but keep the directory
+/Docker/config-overrides/lareferencia-lrharvester-app/beans/*
+!/Docker/config-overrides/lareferencia-lrharvester-app/beans/.gitkeep

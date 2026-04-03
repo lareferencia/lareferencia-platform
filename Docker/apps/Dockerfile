@@ -19,10 +19,10 @@ RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -B
 
 # 2. Build - Forçamos o JAR a NÃO ser executável para permitir a extração de camadas
 COPY . .
-RUN --mount=type=cache,target=/root/.m2 mvn clean package -DskipTests -Dspring-boot.repackage.executable=false
+ARG LR_BUILD_PROFILE
+RUN --mount=type=cache,target=/root/.m2 mvn clean package -DskipTests -Dspring-boot.repackage.executable=false -P${LR_BUILD_PROFILE:-lareferencia}
 
 # 3. Extração das camadas (Modern Spring Boot 3.x)
-# Se a extração falhar, usamos o JAR inteiro como fallback no próximo estágio
 ARG APP_MODULE
 RUN \
     JAR_FILE=$(ls ${APP_MODULE}/target/${APP_MODULE}-*.jar | grep -v ".original" | head -n 1) && \
@@ -30,18 +30,24 @@ RUN \
     (mkdir -p extracted/application && cp "${JAR_FILE}" extracted/application/app.jar)
 
 # --- Stage 2: Runtime ---
-FROM bellsoft/liberica-openjre-alpine:17
+FROM bellsoft/liberica-openjre-debian:17
 
-RUN apk add --no-cache bash sed
+RUN apt-get update && apt-get install -y bash sed curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 ARG APP_MODULE
 ENV APP_MODULE=${APP_MODULE}
 
 # 4. Copiar as camadas extraídas ou o JAR de fallback
-# Usamos o comando 'cp' condicional caso as camadas não existam
 COPY --from=builder /build/extracted/ /workspace/${APP_MODULE}/
-COPY --from=builder /build/${APP_MODULE}/config /workspace/${APP_MODULE}/config
+
+# 5. Copiar recursos externos (Configurações e Estáticos)
+COPY --from=builder /build/${APP_MODULE}/ /tmp/module-files/
+RUN mkdir -p /workspace/${APP_MODULE} && \
+    if [ -d /tmp/module-files/config ]; then cp -r /tmp/module-files/config /workspace/${APP_MODULE}/; fi && \
+    if [ -d /tmp/module-files/static ]; then cp -r /tmp/module-files/static /workspace/${APP_MODULE}/; fi && \
+    if [ -d /tmp/module-files/static_en ]; then cp -r /tmp/module-files/static_en /workspace/${APP_MODULE}/; fi && \
+    rm -rf /tmp/module-files
 
 # Entrypoint
 COPY Docker/apps/entrypoint.sh /usr/local/bin/lr-app-entrypoint.sh
