@@ -654,10 +654,12 @@ execute_with_progress() {
     if [ $status -eq 0 ]; then
         printf "\r  ${C_GREEN}✅ ${label} Completed!%-60s${C_RESET}\n" " "
     else
-        printf "\r  ${C_RED}❌ ${label} Failed! (Check logs at: $log_file)%-60s${C_RESET}\n" " "
-        # Optionally show last lines of log on failure
-        echo -e "${C_GRAY}Last 5 lines of log:${C_RESET}"
-        tail -n 5 "$log_file"
+        printf "\r  ${C_RED}❌ ${label} Failed! (See details below)%-60s${C_RESET}\n" " "
+        echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+        echo -e "${C_RED}${C_BOLD}ERROR LOG (Last 20 lines):${C_RESET}"
+        tail -n 20 "$log_file"
+        echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+        echo -e "${C_YELLOW}Full log available at: $log_file${C_RESET}\n"
     fi
     return $status
 }

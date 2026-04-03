@@ -8,6 +8,11 @@ Choose your language: [English](#english) | [Español](#español) | [Português]
 
 This environment sets up the platform from the repository root using `docker-compose.yml` and `Docker/docker.sh`.
 
+### 📋 Prerequisites
+- **Docker Engine**: 24.0.0 or later
+- **Docker Compose**: 2.20.0 or later (v2 plugin required)
+- **Git**: 2.30.0 or later
+
 ### 🧙‍♂️ Docker Management Wizard (Recommended)
 
 The easiest way to manage your environment is using the interactive Wizard. It provides real-time status, configuration management, and one-click actions with progress bars.
@@ -16,7 +21,42 @@ The easiest way to manage your environment is using the interactive Wizard. It p
 ./Docker/docker.sh wizard
 ```
 
-![Docker Wizard](wizard.png)
+```bash
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐳 LA REFERENCIA PLATFORM - Docker Management Wizard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️  CURRENT CONFIGURATION:
+  🆔 Project: laref
+  🏷️  Prefix:  laref_
+  🔌 Offset:  400
+  🏗️  Profile: lareferencia
+
+📦 Platform Modules:
+  core       [on ] 🟢
+    └─ postgres        [⚡running]
+    └─ solr            [⚡running]
+    └─ harvester       [⚡running]
+    └─ dashboard-rest  [⚡running]
+    └─ shell           [⚡running]
+  vufind     [off] ⚪
+    └─ vufind-db       [⭕off]
+    └─ vufind-web      [⭕off]
+  elastic    [off] ⚪
+    └─ elasticsearch   [⭕off]
+  watch      [off] ⚪
+    └─ vufind-scss-watch [⭕off]
+
+🛠️  GENERAL OPTIONS:
+  1) 🚀 Start Platform (up --build)    5) 🏷️  Change SERVICE_PREFIX
+  2) 🛑 Stop Platform (down)           6) 🔌 Change PORT_OFFSET
+  3) 📦 Manage Modules (on/off)        7) 🏗️  Change BUILD_PROFILE
+  4) 📝 View Logs (follow)             0) 🚪 Exit
+
+🧪 MAINTENANCE OPTIONS:
+  8) 🛠️  Run Init-DB (migrations)      9) 🧹 Reset Data (CLEAN ALL)
+
+Select an option:
+```
 
 ### 🚀 Key Features (v5.0)
 
@@ -37,6 +77,11 @@ Run multiple isolated instances on the same server by configuring `SERVICE_PREFI
 ## Español
 
 Este entorno levanta la plataforma desde la raíz del repositorio usando `docker-compose.yml` y `Docker/docker.sh`.
+
+### 📋 Requisitos Previos
+- **Docker Engine**: 24.0.0 o superior
+- **Docker Compose**: 2.20.0 o superior (se requiere plugin v2)
+- **Git**: 2.30.0 o superior
 
 ### 🧙‍♂️ Asistente de Gestión Docker (Recomendado)
 
@@ -65,6 +110,11 @@ Ejecute múltiples instancias aisladas configurando `SERVICE_PREFIX` y `SERVICES
 ## Português
 
 Este ambiente levanta a plataforma a partir da raiz do repositório usando `docker-compose.yml` e `Docker/docker.sh`.
+
+### 📋 Pré-requisitos
+- **Docker Engine**: 24.0.0 ou superior
+- **Docker Compose**: 2.20.0 ou superior (necessário plugin v2)
+- **Git**: 2.30.0 ou superior
 
 ### 🧙‍♂️ Assistente de Gerenciamento Docker (Recomendado)
 
