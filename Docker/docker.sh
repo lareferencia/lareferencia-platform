@@ -40,44 +40,69 @@ C_RED=$(printf '\033[38;5;204m')    # Flat red
 C_MAGENTA=$(printf '\033[38;5;176m') # Flat magenta
 C_GRAY=$(printf '\033[38;5;245m')   # Gray
 
-# --- Gum Wrapper (Local or Docker) ---
+# --- Gum Wrapper (Like mvnw) ---
+
+ensure_gum_binary() {
+  local bin_dir="${SCRIPT_DIR}/.bin"
+  local gum_bin="${bin_dir}/gum"
+  local version="0.15.0" # Stable version
+
+  if [ -x "${gum_bin}" ]; then
+    printf "%s" "${gum_bin}"
+    return 0
+  fi
+
+  # Detect OS and Arch
+  local os
+  case "$(uname -s)" in
+    Darwin) os="Darwin" ;;
+    Linux)  os="Linux" ;;
+    *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+  esac
+
+  local arch
+  case "$(uname -m)" in
+    x86_64) arch="x86_64" ;;
+    arm64|aarch64) arch="arm64" ;;
+    *) echo "Unsupported Arch: $(uname -m)" >&2; exit 1 ;;
+  esac
+
+  # Build download URL (Official GitHub Releases)
+  local filename="gum_${version}_${os}_${arch}.tar.gz"
+  local url="https://github.com/charmbracelet/gum/releases/download/v${version}/${filename}"
+
+  echo -e "${C_CYAN}Downloading gum wrapper v${version} for ${os}-${arch}...${C_RESET}" >&2
+  mkdir -p "${bin_dir}"
+  
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "Error: curl is required to download the gum wrapper." >&2; exit 1
+  fi
+
+  if ! curl -sSL "${url}" -o "${bin_dir}/${filename}"; then
+    echo "Error: Failed to download gum from ${url}" >&2; exit 1
+  fi
+
+  # Extract the binary. Most gum releases have the binary inside a folder.
+  # We extract everything and move the binary to the root of .bin/
+  (
+    cd "${bin_dir}"
+    tar -xzf "${filename}"
+    # Move binary if it's inside a subfolder (standard GitHub release format)
+    find . -name "gum" -type f -exec mv {} . \;
+    # Clean up any leftover directories or files from the tar
+    find . -maxdepth 1 -type d -name "gum_*" -exec rm -rf {} \;
+  )
+  
+  chmod +x "${gum_bin}"
+  rm -f "${bin_dir}/${filename}"
+  
+  printf "%s" "${gum_bin}"
+}
 
 gum() {
-  if command -v gum >/dev/null 2>&1; then
-    # Use the local gum binary if available
-    "$(command -v gum)" "$@"
-  elif command -v docker >/dev/null 2>&1; then
-    # Fallback to Docker if local gum is missing
-    # We use -it for interactive commands to ensure TTY works.
-    # We also use tr -d '\r' to clean up Docker's TTY output for captures.
-    local interactive_cmds=("choose" "input" "confirm" "filter" "write")
-    local is_interactive=false
-    for cmd in "${interactive_cmds[@]}"; do
-      if [[ "$1" == "$cmd" ]]; then is_interactive=true; break; fi
-    done
-
-    # Run as current user to ensure any files created/modified (like via gum write) 
-    # have the correct ownership on the host.
-    local docker_args=(
-      --rm 
-      -e TERM="$TERM" 
-      -e CLICOLOR_FORCE=1
-      --user "$(id -u):$(id -g)"
-      -v "/etc/passwd:/etc/passwd:ro"
-      -v "/etc/group:/etc/group:ro"
-      -v "$PWD:$PWD"
-      -w "$PWD"
-    )
-
-    if [ "$is_interactive" = true ]; then
-      docker run -it "${docker_args[@]}" charmbracelet/gum "$@" | tr -d '\r'
-    else
-      docker run -i "${docker_args[@]}" charmbracelet/gum "$@"
-    fi
-  else
-    echo -e "${C_RED}Error: Neither 'gum' nor 'docker' were found.${C_RESET}" >&2
-    return 1
-  fi
+  local gum_path
+  gum_path="$(ensure_gum_binary)"
+  "${gum_path}" "$@"
 }
 
 # --- Helpers ---
@@ -425,20 +450,8 @@ ensure_vufind_checkout() {
   echo "Directory ${ROOT_DIR}/vufind not found."
 
   if [ -t 0 ]; then
-    if command -v gum >/dev/null 2>&1; then
-      repo_url=$(gum input --placeholder "VuFind GitHub Repository" --value "${repo_url}")
-      repo_ref=$(gum input --placeholder "VuFind Branch/tag" --value "${repo_ref}")
-    else
-      read -r -p "VuFind GitHub Repository [${repo_url}]: " input_repo
-      if [ -n "${input_repo}" ]; then
-        repo_url="${input_repo}"
-      fi
-
-      read -r -p "VuFind Branch/tag [${repo_ref}]: " input_ref
-      if [ -n "${input_ref}" ]; then
-        repo_ref="${input_ref}"
-      fi
-    fi
+    repo_url=$(gum input --placeholder "VuFind GitHub Repository" --value "${repo_url}")
+    repo_ref=$(gum input --placeholder "VuFind Branch/tag" --value "${repo_ref}")
   else
     echo "Non-interactive terminal; using defaults:"
     echo "  repo=${repo_url}"
@@ -797,6 +810,43 @@ print_module_status_columns() {
   gum join --horizontal "${blocks[@]}"
 }
 
+wizard_modules() {
+  clear_screen
+  draw_header
+  
+  local optional_modules=("vufind" "elastic" "watch")
+  local pre_selected=()
+  for m in "${optional_modules[@]}"; do
+    if [ "$(get_module_state "${m}")" = "on" ]; then
+      pre_selected+=("${m}")
+    fi
+  done
+
+  local pre_selected_joined
+  pre_selected_joined=$(IFS=,; echo "${pre_selected[*]}")
+
+  echo -e "${C_BOLD}📦 MODULE MANAGEMENT${C_RESET}"
+  echo -e "${C_GRAY}The 'core' module is always active.${C_RESET}\n"
+  
+  local choices
+  choices=$(gum choose --no-limit --selected="${pre_selected_joined}" \
+    --item.foreground 245 --selected.foreground 114 --cursor.foreground 80 \
+    "${optional_modules[@]}")
+
+  # Reset all optional modules to off
+  for m in "${optional_modules[@]}"; do
+    set_module_state "${m}" off
+  done
+
+  # Activate selected ones
+  for m in ${choices}; do
+    set_module_state "${m}" on
+  done
+  
+  echo -e "\n${C_CYAN}Configuration updated.${C_RESET}"
+  sleep 1
+}
+
 wizard_main() {
   while true; do
     clear_screen
@@ -857,22 +907,24 @@ wizard_main() {
         "${BASH_SOURCE[0]}" logs -f
         gum input --placeholder "Logs stopped. Press Enter to return to menu..." > /dev/null
         ;;
-      "🏷️  Change SERVICE_PREFIX")
+      "🏷️ Change SERVICE_PREFIX")
         if is_any_service_running; then
-          gum style --foreground 204 "⚠️  ERROR: Cannot change prefix while containers are running."
-          gum style --foreground 245 "Stop the platform first to avoid conflicts."
-          gum input --placeholder "Press Enter to continue..." > /dev/null
-        else
-          local val
-          val=$(gum input --placeholder "New SERVICE_PREFIX" --value "$prefix")
-          if [[ -n "$val" ]]; then
-            if [[ $val =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
-              set_env_var "SERVICE_PREFIX" "${val}"
-              export_service_prefix
-            else
-              gum style --foreground 204 "❌ Invalid prefix. Must be lowercase alphanumeric, hyphens or underscores."
-              sleep 2
-            fi
+          gum style --foreground 222 "⚠️  WARNING: Containers are currently running."
+          if gum confirm "Do you want to stop them now to change the service prefix?"; then
+            execute_with_progress "\"${BASH_SOURCE[0]}\" down" "Stopping Platform"
+          else
+            continue
+          fi
+        fi
+        local val
+        val=$(gum input --placeholder "New SERVICE_PREFIX" --value "$prefix")
+        if [[ -n "$val" ]]; then
+          if [[ $val =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+            set_env_var "SERVICE_PREFIX" "${val}"
+            export_service_prefix
+          else
+            gum style --foreground 204 "❌ Invalid prefix. Must be lowercase alphanumeric, hyphens or underscores."
+            sleep 2
           fi
         fi
         ;;
@@ -891,12 +943,12 @@ wizard_main() {
           set_env_var "SERVICES_PORT_OFFSET" "${val}"
         fi
         ;;
-      "🏗️  Change BUILD_PROFILE")
+      "🏗️ Change BUILD_PROFILE")
         local val
         val=$(gum choose "lareferencia" "ibict" "rcaap" "lite")
         set_env_var "LR_BUILD_PROFILE" "${val}"
         ;;
-      "🛠️  Run Init-DB (migrations)")
+      "🛠️ Run Init-DB (migrations)")
         echo -e "\n${C_MAGENTA}🛠️  Running database migrations...${C_RESET}"
         execute_with_progress "\"${BASH_SOURCE[0]}\" init-db" "Database Migrations"
         gum input --placeholder "Press Enter to continue..." > /dev/null
