@@ -44,8 +44,10 @@ C_GRAY=$(printf '\033[38;5;245m')   # Gray
 
 gum() {
   if command -v gum >/dev/null 2>&1; then
-    command gum "$@"
+    # Use the local gum binary if available
+    "$(command -v gum)" "$@"
   elif command -v docker >/dev/null 2>&1; then
+    # Fallback to Docker if local gum is missing
     # We use -it for interactive commands to ensure TTY works.
     # We also use tr -d '\r' to clean up Docker's TTY output for captures.
     local interactive_cmds=("choose" "input" "confirm" "filter" "write")
