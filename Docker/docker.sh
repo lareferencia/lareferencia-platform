@@ -30,15 +30,15 @@ COLLECTED_PROFILES=()
 FILTERED_SERVICES=()
 
 # --- Visual Theme (Flat ANSI) ---
-C_RESET="\033[0m"
-C_BOLD="\033[1m"
-C_BLUE="\033[38;5;75m"    # Soft blue
-C_CYAN="\033[38;5;80m"    # Flat cyan
-C_GREEN="\033[38;5;114m"  # Soft green
-C_YELLOW="\033[38;5;222m" # Flat yellow
-C_RED="\033[38;5;204m"    # Flat red
-C_MAGENTA="\033[38;5;176m" # Flat magenta
-C_GRAY="\033[38;5;245m"   # Gray
+C_RESET=$(printf '\033[0m')
+C_BOLD=$(printf '\033[1m')
+C_BLUE=$(printf '\033[38;5;75m')    # Soft blue
+C_CYAN=$(printf '\033[38;5;80m')    # Flat cyan
+C_GREEN=$(printf '\033[38;5;114m')  # Soft green
+C_YELLOW=$(printf '\033[38;5;222m') # Flat yellow
+C_RED=$(printf '\033[38;5;204m')    # Flat red
+C_MAGENTA=$(printf '\033[38;5;176m') # Flat magenta
+C_GRAY=$(printf '\033[38;5;245m')   # Gray
 
 # --- Helpers ---
 
@@ -385,14 +385,19 @@ ensure_vufind_checkout() {
   echo "Directory ${ROOT_DIR}/vufind not found."
 
   if [ -t 0 ]; then
-    read -r -p "VuFind GitHub Repository [${repo_url}]: " input_repo
-    if [ -n "${input_repo}" ]; then
-      repo_url="${input_repo}"
-    fi
+    if command -v gum >/dev/null 2>&1; then
+      repo_url=$(gum input --placeholder "VuFind GitHub Repository" --value "${repo_url}")
+      repo_ref=$(gum input --placeholder "VuFind Branch/tag" --value "${repo_ref}")
+    else
+      read -r -p "VuFind GitHub Repository [${repo_url}]: " input_repo
+      if [ -n "${input_repo}" ]; then
+        repo_url="${input_repo}"
+      fi
 
-    read -r -p "VuFind Branch/tag [${repo_ref}]: " input_ref
-    if [ -n "${input_ref}" ]; then
-      repo_ref="${input_ref}"
+      read -r -p "VuFind Branch/tag [${repo_ref}]: " input_ref
+      if [ -n "${input_ref}" ]; then
+        repo_ref="${input_ref}"
+      fi
     fi
   else
     echo "Non-interactive terminal; using defaults:"
@@ -664,123 +669,248 @@ execute_with_progress() {
     return $status
 }
 
+# --- Gum Wrapper (Local or Docker) ---
+
+gum() {
+  if command -v gum >/dev/null 2>&1; then
+    command gum "$@"
+  elif command -v docker >/dev/null 2>&1; then
+    # We use -it for interactive commands to ensure TTY works.
+    # We also use tr -d '\r' to clean up Docker's TTY output for captures.
+    local interactive_cmds=("choose" "input" "confirm" "filter" "write")
+    local is_interactive=false
+    for cmd in "${interactive_cmds[@]}"; do
+      if [[ "$1" == "$cmd" ]]; then is_interactive=true; break; fi
+    done
+
+    # Run as current user to ensure any files created/modified (like via gum write) 
+    # have the correct ownership on the host.
+    local docker_args=(
+      --rm 
+      -e TERM="$TERM" 
+      -e CLICOLOR_FORCE=1
+      --user "$(id -u):$(id -g)"
+      -v "/etc/passwd:/etc/passwd:ro"
+      -v "/etc/group:/etc/group:ro"
+      -v "$PWD:$PWD"
+      -w "$PWD"
+    )
+
+    if [ "$is_interactive" = true ]; then
+      docker run -it "${docker_args[@]}" charmbracelet/gum "$@" | tr -d '\r'
+    else
+      docker run -i "${docker_args[@]}" charmbracelet/gum "$@"
+    fi
+  else
+    echo -e "${C_RED}Error: Neither 'gum' nor 'docker' were found.${C_RESET}" >&2
+    return 1
+  fi
+}
+
+ensure_docker_installed() {
+  local missing=()
+  if ! command -v docker >/dev/null 2>&1; then
+    missing+=("docker (Engine)")
+  fi
+  if ! docker compose version >/dev/null 2>&1; then
+    missing+=("docker compose (Plugin V2)")
+  fi
+
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo -e "${C_RED}${C_BOLD}❌ FATAL ERROR: Missing required tools:${C_RESET}"
+    for tool in "${missing[@]}"; do
+      echo -e "  - ${tool}"
+    done
+    echo -e "\nPlease install Docker and the Docker Compose plugin to use this wizard."
+    echo -e "Documentation: https://docs.docker.com/get-docker/"
+    exit 1
+  fi
+}
+
+check_prerequisites() {
+  local docker_ok="${C_GREEN}✓${C_RESET}"
+  local compose_ok="${C_GREEN}✓${C_RESET}"
+  local daemon_ok="${C_GREEN}✓${C_RESET}"
+  local errors=0
+
+  if ! command -v docker >/dev/null 2>&1; then
+    docker_ok="${C_RED}✗${C_RESET}"
+    errors=$((errors + 1))
+  fi
+
+  if ! docker compose version >/dev/null 2>&1; then
+    compose_ok="${C_RED}✗${C_RESET}"
+    errors=$((errors + 1))
+  fi
+
+  if ! docker info >/dev/null 2>&1; then
+    daemon_ok="${C_RED}✗${C_RESET}"
+    errors=$((errors + 1))
+  fi
+
+  gum style --foreground 212 --border normal --border-foreground 212 --margin "0 2" --padding "0 1" \
+    "System Checks:" \
+    "  $docker_ok Docker Engine" \
+    "  $compose_ok Docker Compose V2" \
+    "  $daemon_ok Docker Daemon Running"
+
+  if [ $errors -gt 0 ]; then
+    gum style --foreground 204 "⚠️  Some prerequisites are missing. The platform might not start correctly."
+    echo
+  fi
+}
+
+print_module_status_columns() {
+  local running_services
+  running_services="$(dc ps --status running --services 2>/dev/null || true)"
+  local blocks=()
+
+  for module in "${ALL_MODULES[@]}"; do
+    local state="$(get_module_state "${module}")"
+    local color="245"
+    local state_icon="○"
+    [ "${state}" = "on" ] && { color="114"; state_icon="●"; }
+    
+    local module_upper
+    module_upper=$(echo "$module" | tr '[:lower:]' '[:upper:]')
+
+    # Build internal content using Bash newline literals
+    local content="${state_icon} ${module_upper}"
+    content="${content}"$'\n'"──────────────"
+    
+    for service in $(module_services "${module}"); do
+      local s_icon="○"
+      if printf "%s\n" "${running_services}" | grep -Fxq "${service}"; then
+        s_icon="${C_GREEN}⚡${C_RESET}"
+      else
+        s_icon="${C_GRAY}○${C_RESET}"
+      fi
+      content="${content}"$'\n'" ${s_icon} ${service}"
+    done
+    
+    # Single gum style call per module
+    blocks+=("$(gum style --border normal --border-foreground 240 --padding "0 1" --margin "0 1" --width 20 --foreground "$color" "$content")")
+  done
+
+  gum join --horizontal "${blocks[@]}"
+}
+
 wizard_main() {
   while true; do
     clear_screen
-    draw_header
-    show_current_config
     
-    echo -e "${C_CYAN}${C_BOLD}🛠️  GENERAL OPTIONS:${C_RESET}"
-    echo -e "  ${C_YELLOW}1)${C_RESET} 🚀 Start Platform (up --build)    ${C_YELLOW}5)${C_RESET} 🏷️  Change SERVICE_PREFIX"
-    echo -e "  ${C_YELLOW}2)${C_RESET} 🛑 Stop Platform (down)           ${C_YELLOW}6)${C_RESET} 🔌 Change PORT_OFFSET"
-    echo -e "  ${C_YELLOW}3)${C_RESET} 📦 Manage Modules (on/off)        ${C_YELLOW}7)${C_RESET} 🏗️  Change BUILD_PROFILE"
-    echo -e "  ${C_YELLOW}4)${C_RESET} 📝 View Logs (follow)             ${C_YELLOW}0)${C_RESET} 🚪 Exit"
-    echo
-    echo -e "${C_CYAN}${C_BOLD}🧪 MAINTENANCE OPTIONS:${C_RESET}"
-    echo -e "  ${C_YELLOW}8)${C_RESET} 🛠️  Run Init-DB (migrations)      ${C_YELLOW}9)${C_RESET} 🧹 Reset Data (CLEAN ALL)"
-    echo
-    read -p "Select an option: " opt
+    gum style \
+      --foreground 80 --border-foreground 80 --border double \
+      --align center --width 80 --margin "1 2" --padding "1 2" \
+      "🐳 LA REFERENCIA PLATFORM" "Docker Management Wizard"
+
+    check_prerequisites
+
+    local prefix="$(get_env_var SERVICE_PREFIX "lareferencia")"
+    local offset="$(get_env_var SERVICES_PORT_OFFSET "0")"
+    local profile="$(get_env_var LR_BUILD_PROFILE "lareferencia")"
     
-    case $opt in
-      1)
+    # Status Table
+    local status_text="Project: ${COMPOSE_PROJECT_NAME:-lareferencia} | Prefix: ${prefix} | Offset: ${offset} | Profile: ${profile}"
+    gum style --foreground 176 "$status_text"
+    echo
+
+    print_module_status_columns
+    echo
+
+    gum style --foreground 80 --bold --underline "⚡ SELECT ACTION"
+    echo
+
+    local choice
+    choice=$(gum choose \
+      --item.bold --selected.bold --selected.background 80 --selected.foreground 232 \
+      --cursor.bold --cursor.foreground 80 --height 15 \
+      "🚀 Start Platform (up --build)" \
+      "🛑 Stop Platform (down)" \
+      "📦 Manage Modules (on/off)" \
+      "📝 View Logs (follow)" \
+      "🏷️ Change SERVICE_PREFIX" \
+      "🔌 Change PORT_OFFSET" \
+      "🏗️ Change BUILD_PROFILE" \
+      "🛠️ Run Init-DB (migrations)" \
+      "🧹 Reset Data (CLEAN ALL)" \
+      "🚪 Exit")
+
+    case "$choice" in
+      "🚀 Start Platform (up --build)")
         echo -e "\n${C_GREEN}🚀 Starting the platform...${C_RESET}"
-        # We call the up --build command through our progress wrapper
         execute_with_progress "\"${BASH_SOURCE[0]}\" up --build" "Platform Build & Start"
-        read -p "Press Enter to continue..."
+        gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
-      2)
+      "🛑 Stop Platform (down)")
         echo -e "\n${C_RED}🛑 Stopping the platform...${C_RESET}"
         execute_with_progress "\"${BASH_SOURCE[0]}\" down" "Stopping Platform"
-        read -p "Press Enter to continue..."
+        gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
-      3)
+      "📦 Manage Modules (on/off)")
         wizard_modules
         ;;
-      4)
+      "📝 View Logs (follow)")
         echo -e "\n${C_CYAN}📝 Showing logs (Ctrl+C to stop)...${C_RESET}"
         "${BASH_SOURCE[0]}" logs -f
+        gum input --placeholder "Logs stopped. Press Enter to return to menu..." > /dev/null
         ;;
-      5)
+      "🏷️  Change SERVICE_PREFIX")
         if is_any_service_running; then
-          echo -e "\n${C_RED}⚠️  ERROR: Cannot change prefix while containers are running.${C_RESET}"
-          echo -e "Stop the platform (Option 2) first to avoid conflicts."
-          read -p "Press Enter to continue..."
+          gum style --foreground 204 "⚠️  ERROR: Cannot change prefix while containers are running."
+          gum style --foreground 245 "Stop the platform first to avoid conflicts."
+          gum input --placeholder "Press Enter to continue..." > /dev/null
         else
-          while true; do
-            read -p "🏷️  New SERVICE_PREFIX: " val
+          local val
+          val=$(gum input --placeholder "New SERVICE_PREFIX" --value "$prefix")
+          if [[ -n "$val" ]]; then
             if [[ $val =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
               set_env_var "SERVICE_PREFIX" "${val}"
               export_service_prefix
-              break
             else
-              echo -e "${C_RED}❌ Invalid prefix. Must be lowercase alphanumeric, hyphens or underscores, and start with a letter/number.${C_RESET}"
+              gum style --foreground 204 "❌ Invalid prefix. Must be lowercase alphanumeric, hyphens or underscores."
+              sleep 2
             fi
-          done
+          fi
         fi
         ;;
-      6)
+      "🔌 Change PORT_OFFSET")
         if is_any_service_running; then
-          echo -e "\n${C_YELLOW}⚠️  WARNING: Containers are currently running.${C_RESET}"
-          echo -e "They must be stopped to change the port offset."
-          read -p "Do you want to stop them now? (y/N): " confirm
-          if [[ $confirm =~ ^[Yy]$ ]]; then
-            echo -e "\n${C_RED}🛑 Stopping platform...${C_RESET}"
+          gum style --foreground 222 "⚠️  WARNING: Containers are currently running."
+          if gum confirm "Do you want to stop them now to change the port offset?"; then
             execute_with_progress "\"${BASH_SOURCE[0]}\" down" "Stopping Platform"
           else
-            echo -e "\n${C_RED}Change cancelled.${C_RESET}"
-            sleep 1
             continue
           fi
         fi
-        read -p "🔌 New PORT_OFFSET (number): " val
-        set_env_var "SERVICES_PORT_OFFSET" "${val}"
+        local val
+        val=$(gum input --placeholder "New PORT_OFFSET (number)" --value "$offset")
+        if [[ -n "$val" && $val =~ ^[0-9]+$ ]]; then
+          set_env_var "SERVICES_PORT_OFFSET" "${val}"
+        fi
         ;;
-      7)
-        echo -e "\nAvailable profiles: ${C_BLUE}lareferencia, ibict, rcaap, lite${C_RESET}"
-        read -p "🏗️  New LR_BUILD_PROFILE: " val
+      "🏗️  Change BUILD_PROFILE")
+        local val
+        val=$(gum choose "lareferencia" "ibict" "rcaap" "lite")
         set_env_var "LR_BUILD_PROFILE" "${val}"
         ;;
-      8)
+      "🛠️  Run Init-DB (migrations)")
         echo -e "\n${C_MAGENTA}🛠️  Running database migrations...${C_RESET}"
         execute_with_progress "\"${BASH_SOURCE[0]}\" init-db" "Database Migrations"
-        read -p "Press Enter to continue..."
+        gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
-      9)
-        echo -e "\n${C_RED}🧹 Resetting all persistent data...${C_RESET}"
-        "${BASH_SOURCE[0]}" reset-data
-        read -p "Press Enter to continue..."
+      "🧹 Reset Data (CLEAN ALL)")
+        echo
+        gum style --foreground 204 --border double --border-foreground 204 --padding "0 1" "⚠️  DANGER ZONE: ALL DATA IN Docker/data WILL BE PERMANENTLY DELETED"
+        if gum confirm "Are you absolutely sure you want to reset all persistent data?"; then
+          "${BASH_SOURCE[0]}" reset-data --yes
+          gum input --placeholder "Data reset completed. Press Enter to continue..." > /dev/null
+        fi
         ;;
-      0)
+      "🚪 Exit")
         echo -e "\n${C_CYAN}Goodbye! 👋${C_RESET}"
         exit 0
         ;;
-    esac
-  done
-}
-
-wizard_modules() {
-  while true; do
-    clear_screen
-    draw_header
-    echo -e "${C_MAGENTA}${C_BOLD}📦 MANAGE MODULES:${C_RESET}\n"
-    print_module_status
-    echo
-    echo -e "  ${C_YELLOW}1)${C_RESET} ✅ Activate Module        ${C_YELLOW}2)${C_RESET} ❌ Deactivate Module"
-    echo -e "  ${C_YELLOW}0)${C_RESET} ⬅️  Back"
-    echo
-    read -p "Selection: " mopt
-    case $mopt in
-      1)
-        read -p "Module name: " mname
-        "${BASH_SOURCE[0]}" modules on "${mname}"
-        sleep 1
-        ;;
-      2)
-        read -p "Module name: " mname
-        "${BASH_SOURCE[0]}" modules off "${mname}"
-        sleep 1
-        ;;
-      0) return ;;
     esac
   done
 }
@@ -819,6 +949,7 @@ case "${cmd}" in
     ;;
 
   wizard)
+    ensure_docker_installed
     ensure_env_file
     export_service_prefix
     wizard_main
