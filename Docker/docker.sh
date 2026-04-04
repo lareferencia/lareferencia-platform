@@ -742,37 +742,43 @@ ensure_docker_installed() {
   fi
 }
 
-check_prerequisites() {
-  local docker_ok="${C_GREEN}✓${C_RESET}"
-  local compose_ok="${C_GREEN}✓${C_RESET}"
-  local daemon_ok="${C_GREEN}✓${C_RESET}"
-  local errors=0
+get_check_status() {
+  local docker_ok="${C_GREEN}✓${C_RESET} Docker"
+  local compose_ok="${C_GREEN}✓${C_RESET} Compose"
+  local daemon_ok="${C_GREEN}✓${C_RESET} Daemon"
 
   if ! command -v docker >/dev/null 2>&1; then
-    docker_ok="${C_RED}✗${C_RESET}"
-    errors=$((errors + 1))
+    docker_ok="${C_RED}✗${C_RESET} Docker"
   fi
 
   if ! docker compose version >/dev/null 2>&1; then
-    compose_ok="${C_RED}✗${C_RESET}"
-    errors=$((errors + 1))
+    compose_ok="${C_RED}✗${C_RESET} Compose"
   fi
 
   if ! docker info >/dev/null 2>&1; then
-    daemon_ok="${C_RED}✗${C_RESET}"
-    errors=$((errors + 1))
+    daemon_ok="${C_RED}✗${C_RESET} Daemon"
   fi
 
-  gum style --foreground 212 --border normal --border-foreground 212 --margin "0 2" --padding "0 1" \
-    "System Checks:" \
-    "  $docker_ok Docker Engine" \
-    "  $compose_ok Docker Compose V2" \
-    "  $daemon_ok Docker Daemon Running"
+  printf "%s|%s|%s" "$docker_ok" "$compose_ok" "$daemon_ok"
+}
 
-  if [ $errors -gt 0 ]; then
-    gum style --foreground 204 "⚠️  Some prerequisites are missing. The platform might not start correctly."
-    echo
-  fi
+get_service_port() {
+  local service="$1"
+  local salt
+  salt="$(get_env_var SERVICES_PORT_OFFSET 0)"
+  salt="${salt//[^0-9]/}"
+  [ -z "${salt}" ] && salt=0
+
+  case "${service}" in
+    vufind-web)     printf " port: %s" $((8080 + salt)) ;;
+    vufind-db)      printf " port: %s" $((3307 + salt)) ;;
+    solr)           printf " port: %s" $((8983 + salt)) ;;
+    postgres)       printf " port: %s" $((5432 + salt)) ;;
+    harvester)      printf " port: %s" $((8090 + salt)) ;;
+    dashboard-rest) printf " port: %s" $((8092 + salt)) ;;
+    elasticsearch)  printf " port: %s" $((9200 + salt)) ;;
+    *)              printf "" ;;
+  esac
 }
 
 print_module_status_columns() {
@@ -795,16 +801,18 @@ print_module_status_columns() {
     
     for service in $(module_services "${module}"); do
       local s_icon="○"
+      local port_info=""
       if printf "%s\n" "${running_services}" | grep -Fxq "${service}"; then
         s_icon="${C_GREEN}⚡${C_RESET}"
+        port_info="${C_YELLOW}$(get_service_port "${service}")${C_RESET}"
       else
         s_icon="${C_GRAY}○${C_RESET}"
       fi
-      content="${content}"$'\n'" ${s_icon} ${service}"
+      content="${content}"$'\n'" ${s_icon} ${service}${port_info}"
     done
     
     # Single gum style call per module
-    blocks+=("$(gum style --border normal --border-foreground 240 --padding "0 1" --margin "0 1" --width 20 --foreground "$color" "$content")")
+    blocks+=("$(gum style --border normal --border-foreground 240 --padding "0 1" --margin "0 1" --width 30 --foreground "$color" "$content")")
   done
 
   gum join --horizontal "${blocks[@]}"
@@ -848,15 +856,23 @@ wizard_modules() {
 }
 
 wizard_main() {
+  # Set terminal title
+  printf "\033]0;Lareferencia Docker Wizard\007"
+
   while true; do
     clear_screen
     
+    local checks
+    checks=$(get_check_status)
+    IFS='|' read -r c1 c2 c3 <<< "$checks"
+
     gum style \
       --foreground 80 --border-foreground 80 --border double \
       --align center --width 80 --margin "1 2" --padding "1 2" \
-      "🐳 LA REFERENCIA PLATFORM" "Docker Management Wizard"
-
-    check_prerequisites
+      "🐳 LA REFERENCIA PLATFORM" \
+      "Docker Management Wizard" \
+      "" \
+      "$(gum join --horizontal --align center "$c1   " "$c2   " "$c3")"
 
     local prefix="$(get_env_var SERVICE_PREFIX "lareferencia")"
     local offset="$(get_env_var SERVICES_PORT_OFFSET "0")"
