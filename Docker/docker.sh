@@ -40,6 +40,44 @@ C_RED=$(printf '\033[38;5;204m')    # Flat red
 C_MAGENTA=$(printf '\033[38;5;176m') # Flat magenta
 C_GRAY=$(printf '\033[38;5;245m')   # Gray
 
+# --- Gum Wrapper (Local or Docker) ---
+
+gum() {
+  if command -v gum >/dev/null 2>&1; then
+    command gum "$@"
+  elif command -v docker >/dev/null 2>&1; then
+    # We use -it for interactive commands to ensure TTY works.
+    # We also use tr -d '\r' to clean up Docker's TTY output for captures.
+    local interactive_cmds=("choose" "input" "confirm" "filter" "write")
+    local is_interactive=false
+    for cmd in "${interactive_cmds[@]}"; do
+      if [[ "$1" == "$cmd" ]]; then is_interactive=true; break; fi
+    done
+
+    # Run as current user to ensure any files created/modified (like via gum write) 
+    # have the correct ownership on the host.
+    local docker_args=(
+      --rm 
+      -e TERM="$TERM" 
+      -e CLICOLOR_FORCE=1
+      --user "$(id -u):$(id -g)"
+      -v "/etc/passwd:/etc/passwd:ro"
+      -v "/etc/group:/etc/group:ro"
+      -v "$PWD:$PWD"
+      -w "$PWD"
+    )
+
+    if [ "$is_interactive" = true ]; then
+      docker run -it "${docker_args[@]}" charmbracelet/gum "$@" | tr -d '\r'
+    else
+      docker run -i "${docker_args[@]}" charmbracelet/gum "$@"
+    fi
+  else
+    echo -e "${C_RED}Error: Neither 'gum' nor 'docker' were found.${C_RESET}" >&2
+    return 1
+  fi
+}
+
 # --- Helpers ---
 
 ensure_env_file() {
@@ -667,44 +705,6 @@ execute_with_progress() {
         echo -e "${C_YELLOW}Full log available at: $log_file${C_RESET}\n"
     fi
     return $status
-}
-
-# --- Gum Wrapper (Local or Docker) ---
-
-gum() {
-  if command -v gum >/dev/null 2>&1; then
-    command gum "$@"
-  elif command -v docker >/dev/null 2>&1; then
-    # We use -it for interactive commands to ensure TTY works.
-    # We also use tr -d '\r' to clean up Docker's TTY output for captures.
-    local interactive_cmds=("choose" "input" "confirm" "filter" "write")
-    local is_interactive=false
-    for cmd in "${interactive_cmds[@]}"; do
-      if [[ "$1" == "$cmd" ]]; then is_interactive=true; break; fi
-    done
-
-    # Run as current user to ensure any files created/modified (like via gum write) 
-    # have the correct ownership on the host.
-    local docker_args=(
-      --rm 
-      -e TERM="$TERM" 
-      -e CLICOLOR_FORCE=1
-      --user "$(id -u):$(id -g)"
-      -v "/etc/passwd:/etc/passwd:ro"
-      -v "/etc/group:/etc/group:ro"
-      -v "$PWD:$PWD"
-      -w "$PWD"
-    )
-
-    if [ "$is_interactive" = true ]; then
-      docker run -it "${docker_args[@]}" charmbracelet/gum "$@" | tr -d '\r'
-    else
-      docker run -i "${docker_args[@]}" charmbracelet/gum "$@"
-    fi
-  else
-    echo -e "${C_RED}Error: Neither 'gum' nor 'docker' were found.${C_RESET}" >&2
-    return 1
-  fi
 }
 
 ensure_docker_installed() {
