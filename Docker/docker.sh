@@ -11,7 +11,7 @@ ENV_EXAMPLE="${SCRIPT_DIR}/.env.example"
 DEFAULT_VUFIND_REPO_URL="https://github.com/vufind-org/vufind"
 DEFAULT_VUFIND_REF="v11.0.1"
 
-ALL_MODULES=(core vufind elastic watch)
+ALL_MODULES=(core harvester dashboard entity-rest shell vufind elastic watch)
 JAVA_PARENT_MODULES=(
   lareferencia-oclc-harvester
   lareferencia-core-lib
@@ -143,9 +143,10 @@ set_env_var() {
 
   ensure_env_file
   
+  local tmp_file="${file}.tmp"
   if grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "${file}"; then
-    sed -i.bak -E "s|^[[:space:]]*${key}[[:space:]]*=.*$|${key}=${value}|g" "${file}"
-    rm -f "${file}.bak"
+    sed -E "s|^([[:space:]]*${key}[[:space:]]*=).*$|\1${value}|g" "${file}" > "${tmp_file}"
+    mv "${tmp_file}" "${file}"
   else
     printf "%s=%s\n" "${key}" "${value}" >> "${file}"
   fi
@@ -167,7 +168,7 @@ export_service_prefix() {
 }
 
 export_salted_ports() {
-  unset LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300
+  unset LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300
 
   local salt
   salt="$(get_env_var SERVICES_PORT_OFFSET 0)"
@@ -183,6 +184,7 @@ export_salted_ports() {
   local base_postgres=5432
   local base_harvester=8090
   local base_dashboard=8092
+  local base_entity_rest=8094
   local base_elastic_9200=9200
   local base_elastic_9300=9300
 
@@ -192,6 +194,7 @@ export_salted_ports() {
   export LR_PORT_POSTGRES=$((base_postgres + salt))
   export LR_PORT_HARVESTER=$((base_harvester + salt))
   export LR_PORT_DASHBOARD=$((base_dashboard + salt))
+  export LR_PORT_ENTITY_REST=$((base_entity_rest + salt))
   export LR_PORT_ELASTIC_9200=$((base_elastic_9200 + salt))
   export LR_PORT_ELASTIC_9300=$((base_elastic_9300 + salt))
 }
@@ -254,6 +257,10 @@ module_env_key() {
   local module="$1"
   case "${module}" in
     core) printf "DEV_MODULE_CORE\n" ;;
+    harvester) printf "DEV_MODULE_HARVESTER\n" ;;
+    dashboard) printf "DEV_MODULE_DASHBOARD\n" ;;
+    entity-rest) printf "DEV_MODULE_ENTITY_REST\n" ;;
+    shell) printf "DEV_MODULE_SHELL\n" ;;
     vufind) printf "DEV_MODULE_VUFIND\n" ;;
     elastic) printf "DEV_MODULE_ELASTIC\n" ;;
     watch) printf "DEV_MODULE_WATCH\n" ;;
@@ -264,7 +271,7 @@ module_env_key() {
 module_default_state() {
   local module="$1"
   case "${module}" in
-    core) printf "on\n" ;;
+    core|harvester|dashboard|shell) printf "on\n" ;;
     *) printf "off\n" ;;
   esac
 }
@@ -316,7 +323,19 @@ module_services() {
   local module="$1"
   case "${module}" in
     core)
-      printf "postgres solr harvester dashboard-rest shell\n"
+      printf "postgres solr\n"
+      ;;
+    harvester)
+      printf "harvester\n"
+      ;;
+    dashboard)
+      printf "dashboard-rest\n"
+      ;;
+    entity-rest)
+      printf "entity-rest\n"
+      ;;
+    shell)
+      printf "shell\n"
       ;;
     vufind)
       printf "vufind-db vufind-web\n"
@@ -336,7 +355,7 @@ module_services() {
 module_profiles() {
   local module="$1"
   case "${module}" in
-    core)
+    shell)
       printf "tools\n"
       ;;
     elastic)
@@ -686,6 +705,8 @@ execute_with_progress() {
     
     local width=40
     local i=0
+    # Disable exit on error temporarily to handle the wait manually
+    set +e
     while kill -0 $pid 2>/dev/null; do
         local progress=$(( (i % width) + 1 ))
         local remaining=$(( width - progress ))
@@ -706,8 +727,10 @@ execute_with_progress() {
         i=$((i + 1))
         sleep 0.1
     done
+    
     wait $pid
     local status=$?
+    set -e # Re-enable exit on error
     
     if [ $status -eq 0 ]; then
         printf "\r  ${C_GREEN}✅ ${label} Completed!%-60s${C_RESET}\n" " "
@@ -715,7 +738,11 @@ execute_with_progress() {
         printf "\r  ${C_RED}❌ ${label} Failed! (See details below)%-60s${C_RESET}\n" " "
         echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
         echo -e "${C_RED}${C_BOLD}ERROR LOG (Last 20 lines):${C_RESET}"
-        tail -n 20 "$log_file"
+        if [ -f "$log_file" ]; then
+          tail -n 20 "$log_file"
+        else
+          echo "Log file not found."
+        fi
         echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
         echo -e "${C_YELLOW}Full log available at: $log_file${C_RESET}\n"
     fi
@@ -776,6 +803,7 @@ get_service_port() {
     postgres)       printf " port: %s" $((5432 + salt)) ;;
     harvester)      printf " port: %s" $((8090 + salt)) ;;
     dashboard-rest) printf " port: %s" $((8092 + salt)) ;;
+    entity-rest)    printf " port: %s" $((8094 + salt)) ;;
     elasticsearch)  printf " port: %s" $((9200 + salt)) ;;
     *)              printf "" ;;
   esac
@@ -799,6 +827,7 @@ print_module_status_columns() {
     local content="${state_icon} ${module_upper}"
     content="${content}"$'\n'"──────────────"
     
+    local service_count=0
     for service in $(module_services "${module}"); do
       local s_icon="○"
       local port_info=""
@@ -809,20 +838,33 @@ print_module_status_columns() {
         s_icon="${C_GRAY}○${C_RESET}"
       fi
       content="${content}"$'\n'" ${s_icon} ${service}${port_info}"
+      service_count=$((service_count + 1))
+    done
+    
+    # Fill with empty lines to ensure consistent height (max 2 services + header + separator)
+    while [ $service_count -lt 2 ]; do
+      content="${content}"$'\n'""
+      service_count=$((service_count + 1))
     done
     
     # Single gum style call per module
     blocks+=("$(gum style --border normal --border-foreground 240 --padding "0 1" --margin "0 1" --width 30 --foreground "$color" "$content")")
   done
 
-  gum join --horizontal "${blocks[@]}"
+  # Split into two rows of 4
+  local row1=("${blocks[@]:0:4}")
+  local row2=("${blocks[@]:4:4}")
+
+  gum join --vertical \
+    "$(gum join --horizontal "${row1[@]}")" \
+    "$(gum join --horizontal "${row2[@]}")"
 }
 
 wizard_modules() {
   clear_screen
   draw_header
   
-  local optional_modules=("vufind" "elastic" "watch")
+  local optional_modules=("harvester" "dashboard" "entity-rest" "shell" "vufind" "elastic" "watch")
   local pre_selected=()
   for m in "${optional_modules[@]}"; do
     if [ "$(get_module_state "${m}")" = "on" ]; then
@@ -834,10 +876,16 @@ wizard_modules() {
   pre_selected_joined=$(IFS=,; echo "${pre_selected[*]}")
 
   echo -e "${C_BOLD}📦 MODULE MANAGEMENT${C_RESET}"
-  echo -e "${C_GRAY}The 'core' module is always active.${C_RESET}\n"
+  echo -e "${C_GRAY}The 'core' module (postgres, solr) is always active.${C_RESET}\n"
   
+  local gum_args=(--no-limit)
+  if [ -n "${pre_selected_joined}" ]; then
+    gum_args+=(--selected="${pre_selected_joined}")
+  fi
+
   local choices
-  choices=$(gum choose --no-limit --selected="${pre_selected_joined}" \
+  choices=$(gum choose "${gum_args[@]}" \
+    --header "Instructions: [Space] Toggles selection | [Enter] Confirms all" \
     --item.foreground 245 --selected.foreground 114 --cursor.foreground 80 \
     "${optional_modules[@]}")
 
@@ -907,6 +955,17 @@ wizard_main() {
     case "$choice" in
       "🚀 Start Platform (up --build)")
         echo -e "\n${C_GREEN}🚀 Starting the platform...${C_RESET}"
+        
+        # Check if vufind is enabled and needs checkout BEFORE progress bar
+        # to allow interactive input if needed.
+        if [ "$(get_module_state "vufind")" = "on" ] || [ "$(get_module_state "watch")" = "on" ]; then
+           "${BASH_SOURCE[0]}" up --vufind --build --dry-run > /dev/null 2>&1 || true # Trigger ensure_vufind
+           # The 'up' command with --build will handle the checkout, 
+           # but execute_with_progress runs in background. 
+           # Let's just call the check directly.
+           ensure_vufind_checkout
+        fi
+
         execute_with_progress "\"${BASH_SOURCE[0]}\" up --build" "Platform Build & Start"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
@@ -1055,6 +1114,11 @@ case "${cmd}" in
       fi
       collect_from_modules "${modules[@]}"
       services=("${COLLECTED_SERVICES[@]}")
+
+      # If vufind or watch are enabled via environment/wizard, treat as explicit
+      if contains_item "vufind" "${modules[@]-}" || contains_item "watch" "${modules[@]-}"; then
+        explicit_vufind_request=true
+      fi
     else
       collect_profiles_for_services "${services[@]}"
     fi
@@ -1087,7 +1151,19 @@ case "${cmd}" in
     ;;
 
   down)
-    dc down --remove-orphans
+    # Collect all possible profiles to ensure everything is stopped (elastic, tools, watch, etc.)
+    all_profiles=()
+    for m in "${ALL_MODULES[@]}"; do
+      for p in $(module_profiles "${m}"); do
+        if [ -n "${p}" ] && ! contains_item "${p}" "${all_profiles[@]-}"; then
+          all_profiles+=("${p}")
+        fi
+      done
+    done
+    
+    p_args=()
+    for p in "${all_profiles[@]}"; do p_args+=(--profile "$p"); done
+    dc "${p_args[@]}" down --remove-orphans
     ;;
 
   start|stop|restart|build)
@@ -1124,6 +1200,7 @@ case "${cmd}" in
     echo -e "\nEndpoints:"
     curl -fsS -o /dev/null -w "VuFind: http://localhost:${LR_PORT_VUFIND_WEB:-8080} -> %{http_code}\n" http://localhost:${LR_PORT_VUFIND_WEB:-8080}/ || true
     curl -fsS -o /dev/null -w "Harvester: http://localhost:${LR_PORT_HARVESTER:-8090} -> %{http_code}\n" http://localhost:${LR_PORT_HARVESTER:-8090}/ || true
+    curl -fsS -o /dev/null -w "Entity REST: http://localhost:${LR_PORT_ENTITY_REST:-8094} -> %{http_code}\n" http://localhost:${LR_PORT_ENTITY_REST:-8094}/ || true
     ;;
 
   init-db)

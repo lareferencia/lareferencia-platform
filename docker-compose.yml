@@ -198,6 +198,42 @@ services:
           memory: 1G
     restart: unless-stopped
 
+  entity-rest:
+    build:
+      context: .
+      dockerfile: Docker/apps/Dockerfile
+      args:
+        APP_MODULE: lareferencia-entity-rest
+        LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-entity-rest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - entity-rest
+    environment:
+      APP_MODULE: lareferencia-entity-rest
+      APP_JAR: lareferencia-entity-rest-5.0.0-beta.jar
+      APP_CONFIG_DIR: /workspace/lareferencia-entity-rest/config
+      LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+      SERVER_PORT: 8094
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SOLR_HOST: http://solr:8983/solr
+      ELASTIC_HOST: elasticsearch
+    ports:
+      - "${LR_PORT_ENTITY_REST:-8094}:8094"
+    volumes:
+      - ./Docker/config-overrides:/docker-overrides:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+
   shell:
     build:
       context: .
