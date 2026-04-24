@@ -13,6 +13,11 @@ DATA_DIR="${ROOT_DIR}/Docker/data"
 ENV_FILE="${SCRIPT_DIR}/.env"
 ENV_EXAMPLE="${SCRIPT_DIR}/.env.example"
 
+# Ensure vufind directory exists as soon as possible (non-versioned component)
+if [ ! -d "${ROOT_DIR}/vufind" ]; then
+  mkdir -p "${ROOT_DIR}/vufind"
+fi
+
 DEFAULT_VUFIND_REPO_URL="https://github.com/vufind-org/vufind"
 DEFAULT_VUFIND_REF="v11.0.1"
 
@@ -464,13 +469,7 @@ ensure_vufind_checkout() {
   local repo_url
   local repo_ref
 
-  # Create the directory if it doesn't exist to avoid logic failures
-  if [ ! -d "${ROOT_DIR}/vufind" ]; then
-    echo "Creating missing vufind directory at ${ROOT_DIR}/vufind"
-    mkdir -p "${ROOT_DIR}/vufind"
-  fi
-
-  # Check if it's empty (just created or empty clone)
+  # Check if it's already populated
   if [ -f "${ROOT_DIR}/vufind/composer.json" ]; then
     return 0
   fi
@@ -478,7 +477,7 @@ ensure_vufind_checkout() {
   repo_url="${VUFIND_REPO_URL:-$(get_env_var VUFIND_REPO_URL "${DEFAULT_VUFIND_REPO_URL}")}"
   repo_ref="${VUFIND_REF:-$(get_env_var VUFIND_REF "${DEFAULT_VUFIND_REF}")}"
 
-  echo "Directory ${ROOT_DIR}/vufind not found (Current Dir: $(pwd))."
+  echo "VuFind source not found in ${ROOT_DIR}/vufind. Preparation needed..."
 
   if [ -t 0 ]; then
     repo_url=$(gum input --placeholder "VuFind GitHub Repository" --value "${repo_url}")
