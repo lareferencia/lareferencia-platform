@@ -2,7 +2,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve ROOT_DIR more robustly
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Debug paths if needed
+# echo "DEBUG: SCRIPT_DIR=${SCRIPT_DIR}"
+# echo "DEBUG: ROOT_DIR=${ROOT_DIR}"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
 DATA_DIR="${ROOT_DIR}/Docker/data"
 ENV_FILE="${SCRIPT_DIR}/.env"
@@ -466,7 +471,7 @@ ensure_vufind_checkout() {
   repo_url="${VUFIND_REPO_URL:-$(get_env_var VUFIND_REPO_URL "${DEFAULT_VUFIND_REPO_URL}")}"
   repo_ref="${VUFIND_REF:-$(get_env_var VUFIND_REF "${DEFAULT_VUFIND_REF}")}"
 
-  echo "Directory ${ROOT_DIR}/vufind not found."
+  echo "Directory ${ROOT_DIR}/vufind not found (Current Dir: $(pwd))."
 
   if [ -t 0 ]; then
     repo_url=$(gum input --placeholder "VuFind GitHub Repository" --value "${repo_url}")
