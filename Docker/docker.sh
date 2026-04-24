@@ -464,7 +464,14 @@ ensure_vufind_checkout() {
   local repo_url
   local repo_ref
 
-  if [ -d "${ROOT_DIR}/vufind" ]; then
+  # Create the directory if it doesn't exist to avoid logic failures
+  if [ ! -d "${ROOT_DIR}/vufind" ]; then
+    echo "Creating missing vufind directory at ${ROOT_DIR}/vufind"
+    mkdir -p "${ROOT_DIR}/vufind"
+  fi
+
+  # Check if it's empty (just created or empty clone)
+  if [ -f "${ROOT_DIR}/vufind/composer.json" ]; then
     return 0
   fi
 
