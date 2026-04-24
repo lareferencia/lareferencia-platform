@@ -477,21 +477,17 @@ ensure_vufind_checkout() {
   repo_url="${VUFIND_REPO_URL:-$(get_env_var VUFIND_REPO_URL "${DEFAULT_VUFIND_REPO_URL}")}"
   repo_ref="${VUFIND_REF:-$(get_env_var VUFIND_REF "${DEFAULT_VUFIND_REF}")}"
 
-  echo "VuFind source not found in ${ROOT_DIR}/vufind. Cloning automatically..."
-  echo "  Repo: ${repo_url}"
-  echo "  Ref:  ${repo_ref}"
-
   if ! command -v git >/dev/null 2>&1; then
-    echo "git is not available in PATH; cannot clone VuFind." >&2
+    echo "Error: git is not available in PATH; cannot clone VuFind." >&2
     exit 1
   fi
 
-  git clone --branch "${repo_ref}" --single-branch "${repo_url}" "${ROOT_DIR}/vufind"
+  # Silently clone
+  git clone --quiet --branch "${repo_ref}" --single-branch "${repo_url}" "${ROOT_DIR}/vufind" > /dev/null 2>&1
   cloned_vufind=true
 
   if [ "${cloned_vufind}" = true ]; then
-    echo "Syncing Solr assets (import/jars) from VuFind..."
-    sync_solr_assets_from_vufind
+    sync_solr_assets_from_vufind > /dev/null 2>&1
   fi
 }
 
