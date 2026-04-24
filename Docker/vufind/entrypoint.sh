@@ -190,7 +190,8 @@ DB_EXISTS="$(mysql \
   --password="${VUFIND_DB_ROOT_PASSWORD}" \
   --batch \
   --skip-column-names \
-  --execute="SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='${VUFIND_DB_NAME}'" \
+  information_schema \
+  --execute="SELECT SCHEMA_NAME FROM SCHEMATA WHERE SCHEMA_NAME='${VUFIND_DB_NAME}'" \
   || true)"
 
 if [ -z "${DB_EXISTS}" ]; then

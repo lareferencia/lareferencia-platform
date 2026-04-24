@@ -45,7 +45,7 @@ services:
     restart: unless-stopped
 
   vufind-db:
-    image: mariadb:11.4
+    image: mariadb:11.4.5
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-vufind-db
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     networks:
@@ -101,7 +101,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:14-alpine
+    image: postgres:14.15-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-postgres
     networks:
       default:
@@ -222,7 +222,9 @@ services:
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       SERVER_PORT: 8094
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SPRING_DATASOURCE_PASSWORD: lrharvester
       SOLR_HOST: http://solr:8983/solr
+
       ELASTIC_HOST: elasticsearch
     ports:
       - "${LR_PORT_ENTITY_REST:-8094}:8094"
@@ -257,7 +259,9 @@ services:
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       SHELL_IDLE: ${SHELL_IDLE:-true}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SPRING_DATASOURCE_PASSWORD: lrharvester
       SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SPRING_FLYWAY_PASSWORD: lrharvester
       SOLR_HOST: http://solr:8983/solr
       ELASTIC_HOST: elasticsearch
     volumes:
