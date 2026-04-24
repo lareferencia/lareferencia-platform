@@ -477,23 +477,15 @@ ensure_vufind_checkout() {
   repo_url="${VUFIND_REPO_URL:-$(get_env_var VUFIND_REPO_URL "${DEFAULT_VUFIND_REPO_URL}")}"
   repo_ref="${VUFIND_REF:-$(get_env_var VUFIND_REF "${DEFAULT_VUFIND_REF}")}"
 
-  echo "VuFind source not found in ${ROOT_DIR}/vufind. Preparation needed..."
-
-  if [ -t 0 ]; then
-    repo_url=$(gum input --placeholder "VuFind GitHub Repository" --value "${repo_url}")
-    repo_ref=$(gum input --placeholder "VuFind Branch/tag" --value "${repo_ref}")
-  else
-    echo "Non-interactive terminal; using defaults:"
-    echo "  repo=${repo_url}"
-    echo "  ref=${repo_ref}"
-  fi
+  echo "VuFind source not found in ${ROOT_DIR}/vufind. Cloning automatically..."
+  echo "  Repo: ${repo_url}"
+  echo "  Ref:  ${repo_ref}"
 
   if ! command -v git >/dev/null 2>&1; then
     echo "git is not available in PATH; cannot clone VuFind." >&2
     exit 1
   fi
 
-  echo "Cloning VuFind: ${repo_url} (${repo_ref})..."
   git clone --branch "${repo_ref}" --single-branch "${repo_url}" "${ROOT_DIR}/vufind"
   cloned_vufind=true
 
