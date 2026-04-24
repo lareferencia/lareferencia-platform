@@ -30,7 +30,7 @@ RUN \
     (mkdir -p extracted/application && cp "${JAR_FILE}" extracted/application/app.jar)
 
 # --- Stage 2: Runtime ---
-FROM bellsoft/liberica-openjre-debian:17
+FROM bellsoft/liberica-openjre-debian:17.0.14
 
 # Minimal tools
 RUN apt-get update && apt-get install -y bash sed curl && rm -rf /var/lib/apt/lists/*

@@ -304,7 +304,7 @@ services:
     restart: unless-stopped
 
   vufind-scss-watch:
-    image: node:20-alpine
+    image: node:20.18.3-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-vufind-scss-watch
     networks:
       default:
