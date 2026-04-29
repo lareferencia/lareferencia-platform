@@ -140,6 +140,8 @@ services:
         condition: service_healthy
       solr:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     networks:
       default:
         aliases:
@@ -176,6 +178,8 @@ services:
         condition: service_healthy
       solr:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     networks:
       default:
         aliases:
@@ -211,6 +215,8 @@ services:
         condition: service_healthy
       solr:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     networks:
       default:
         aliases:
@@ -236,12 +242,46 @@ services:
           memory: 1G
     restart: unless-stopped
 
+  db-init:
+    build:
+      context: .
+      dockerfile: Docker/apps/Dockerfile
+      args:
+        APP_MODULE: lareferencia-shell
+        LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-db-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - db-init
+    environment:
+      APP_MODULE: lareferencia-shell
+      APP_JAR: lareferencia-shell-5.0.0-beta.jar
+      APP_CONFIG_DIR: /workspace/lareferencia-shell/config
+      LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SPRING_DATASOURCE_PASSWORD: lrharvester
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/lrharvester
+      SPRING_FLYWAY_PASSWORD: lrharvester
+      SOLR_HOST: http://solr:8983/solr
+      ELASTIC_HOST: elasticsearch
+    command: ["database_migrate"]
+    volumes:
+      - ./Docker/config-overrides:/docker-overrides:ro
+    restart: "no"
+
   shell:
     build:
       context: .
       dockerfile: Docker/apps/Dockerfile
       args:
         APP_MODULE: lareferencia-shell
+        LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-shell
     depends_on:
       postgres:

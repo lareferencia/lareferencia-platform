@@ -585,7 +585,15 @@ ensure_m2_cache_dir() {
 
 run_global_build() {
   echo "--- Building images using Multi-stage Dockerfiles ---"
-  dc build
+  local profile_args=()
+  profile_args+=(--profile tools)
+  if [ "$(get_module_state "elastic")" = "on" ]; then
+    profile_args+=(--profile elastic)
+  fi
+  if [ "$(get_module_state "watch")" = "on" ]; then
+    profile_args+=(--profile watch)
+  fi
+  dc "${profile_args[@]}" build --no-cache
   echo "--- Build completed successfully ---"
 }
 
@@ -595,9 +603,13 @@ run_init_db() {
     shell_cmd=(database_migrate)
   fi
 
+  echo "--- Cleaning up potential remnants from previous runs ---"
+  # Garante que containers que possam estar em estado de erro ou travados sejam removidos
+  dc --profile tools rm -f -s -v postgres solr shell db-init 2>/dev/null || true
+
   echo "--- Running Database Initialization ---"
-  dc up -d postgres solr
-  exec_shell_command_noninteractive "${shell_cmd[@]}"
+  dc --profile tools up -d postgres solr
+  dc --profile tools run --rm -T --no-deps shell /usr/local/bin/lr-app-entrypoint.sh "${shell_cmd[@]}"
 }
 
 ensure_shell_service_running() {
@@ -1133,9 +1145,10 @@ case "${cmd}" in
       ensure_java_parent_modules_ready
       contains_item solr "${services[@]-}" && ensure_solr_build_context
       run_global_build
+      run_init_db
     fi
 
-    args=(up -d)
+    args=(up -d --remove-orphans)
     [ "${build_flag}" = true ] && args+=(--force-recreate)
 
     if [ "${#COLLECTED_PROFILES[@]}" -gt 0 ]; then
@@ -1145,8 +1158,6 @@ case "${cmd}" in
     else
       dc "${args[@]}" "${services[@]}"
     fi
-
-    [ "${build_flag}" = true ] && run_init_db
     ;;
 
   down)
