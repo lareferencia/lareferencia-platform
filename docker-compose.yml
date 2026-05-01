@@ -159,6 +159,7 @@ services:
       - "${LR_PORT_HARVESTER:-8090}:8090"
     volumes:
       - ./Docker/config-overrides:/docker-overrides:ro
+      - ./Docker/data/shared/store:/workspace/Docker/data/shared/store
     deploy:
       resources:
         limits:
@@ -166,6 +167,8 @@ services:
     restart: unless-stopped
 
   dashboard-rest:
+    profiles:
+      - dashboard
     build:
       context: .
       dockerfile: Docker/apps/Dockerfile

@@ -138,6 +138,9 @@ Use o diretório `Docker/config-overrides/` para injetar beans ou propriedades s
 **3. Execução de Múltiples Instâncias**
 Rode múltiplas instâncias isoladas configurando as variáveis `SERVICE_PREFIX` e `SERVICES_PORT_OFFSET`.
 
+**4. Suporte a Solr Externo**
+Conecte-se a uma instância existente do Solr configurando `SOLR_EXTERNAL_URL` no `Docker/.env` ou via Assistente. Quando configurado, o container local do Solr não será iniciado.
+
 ---
 
 ## 🛠️ Main Commands / Comandos
@@ -156,3 +159,4 @@ Rode múltiplas instâncias isoladas configurando as variáveis `SERVICE_PREFIX`
 - Harvester: `http://localhost:8090`
 - Dashboard REST: `http://localhost:8092`
 - Solr Admin: `http://localhost:8983/solr`
+/solr`

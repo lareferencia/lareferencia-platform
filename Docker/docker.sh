@@ -174,7 +174,11 @@ export_service_prefix() {
     export COMPOSE_PROJECT_NAME="${clean_name//_/-}"
   else
     export COMPOSE_PROJECT_NAME="lareferencia"
+    export SERVICE_PREFIX=""
   fi
+
+  set_env_var "SERVICE_PREFIX" "${SERVICE_PREFIX}"
+  set_env_var "COMPOSE_PROJECT_NAME" "${COMPOSE_PROJECT_NAME}"
 }
 
 export_salted_ports() {
@@ -183,10 +187,6 @@ export_salted_ports() {
   local salt
   salt="$(get_env_var SERVICES_PORT_OFFSET 0)"
   salt="${salt//[^0-9]/}"
-
-  if [ -z "${salt}" ] || [ "${salt}" -eq 0 ]; then
-    return 0
-  fi
 
   local base_vufind_web=8080
   local base_vufind_db=3307
@@ -198,6 +198,10 @@ export_salted_ports() {
   local base_elastic_9200=9200
   local base_elastic_9300=9300
 
+  if [ -z "${salt}" ] || [ "${salt}" -eq 0 ]; then
+    salt=0
+  fi
+
   export LR_PORT_VUFIND_WEB=$((base_vufind_web + salt))
   export LR_PORT_VUFIND_DB=$((base_vufind_db + salt))
   export LR_PORT_SOLR=$((base_solr + salt))
@@ -207,13 +211,55 @@ export_salted_ports() {
   export LR_PORT_ENTITY_REST=$((base_entity_rest + salt))
   export LR_PORT_ELASTIC_9200=$((base_elastic_9200 + salt))
   export LR_PORT_ELASTIC_9300=$((base_elastic_9300 + salt))
+
+  set_env_var "LR_PORT_VUFIND_WEB" "${LR_PORT_VUFIND_WEB}"
+  set_env_var "LR_PORT_VUFIND_DB" "${LR_PORT_VUFIND_DB}"
+  set_env_var "LR_PORT_SOLR" "${LR_PORT_SOLR}"
+  set_env_var "LR_PORT_POSTGRES" "${LR_PORT_POSTGRES}"
+  set_env_var "LR_PORT_HARVESTER" "${LR_PORT_HARVESTER}"
+  set_env_var "LR_PORT_DASHBOARD" "${LR_PORT_DASHBOARD}"
+  set_env_var "LR_PORT_ENTITY_REST" "${LR_PORT_ENTITY_REST}"
+  set_env_var "LR_PORT_ELASTIC_9200" "${LR_PORT_ELASTIC_9200}"
+  set_env_var "LR_PORT_ELASTIC_9300" "${LR_PORT_ELASTIC_9300}"
+}
+
+sync_compose_profiles() {
+  local profiles=()
+  
+  for module in "${ALL_MODULES[@]}"; do
+    if [ "$(get_module_state "${module}")" = "on" ]; then
+      case "${module}" in
+        core)         profiles+=(core) ;;
+        harvester)    profiles+=(harvester) ;;
+        dashboard)    profiles+=(dashboard) ;;
+        entity-rest)  profiles+=(entity-rest) ;;
+        shell)        profiles+=(tools) ;;
+        vufind)       profiles+=(vufind) ;;
+        elastic)      profiles+=(elastic) ;;
+        watch)        profiles+=(watch) ;;
+      esac
+    fi
+  done
+  
+  local joined
+  joined=$(IFS=,; echo "${profiles[*]}")
+  export COMPOSE_PROFILES="${joined}"
+  set_env_var "COMPOSE_PROFILES" "${joined}"
 }
 
 dc() {
   ensure_env_file
   export_salted_ports
   export_service_prefix
+  sync_compose_profiles
   
+  # Lógica para Solr Externo
+  local ext_solr
+  ext_solr="$(get_env_var SOLR_EXTERNAL_URL "")"
+  if [ -n "${ext_solr}" ]; then
+    export SOLR_HOST="${ext_solr}"
+  fi
+
   local env_args=()
   if [ -f "${ENV_FILE}" ]; then
     env_args+=(--env-file "${ENV_FILE}")
@@ -333,7 +379,11 @@ module_services() {
   local module="$1"
   case "${module}" in
     core)
-      printf "postgres solr\n"
+      local services="postgres"
+      if [ -z "$(get_env_var SOLR_EXTERNAL_URL "")" ]; then
+        services="${services} solr"
+      fi
+      printf "%s\n" "${services}"
       ;;
     harvester)
       printf "harvester\n"
@@ -629,12 +679,16 @@ exec_shell_command_interactive() {
 
 clean_data_preserving_tracked() {
   local rel_data_dir="${DATA_DIR#${ROOT_DIR}/}"
+  echo "--- Cleaning data in ${rel_data_dir} (preserving Maven cache) ---"
+
   if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "${ROOT_DIR}" clean -fdx -- "${rel_data_dir}"
+    # Git clean excluding the m2 directory
+    git -C "${ROOT_DIR}" clean -fdx -e "m2/" -- "${rel_data_dir}"
   else
-    find "${DATA_DIR}" -mindepth 1 -type f ! -name '.gitkeep' -delete
-    find "${DATA_DIR}" -mindepth 1 -type l -delete
-    find "${DATA_DIR}" -mindepth 1 -type d -empty -delete
+    # Find/delete excluding the m2 path
+    find "${DATA_DIR}" -mindepth 1 -path "${DATA_DIR}/m2" -prune -o ! -name '.gitkeep' -type f -delete
+    find "${DATA_DIR}" -mindepth 1 -path "${DATA_DIR}/m2" -prune -o -type l -delete
+    find "${DATA_DIR}" -mindepth 1 -path "${DATA_DIR}/m2" -prune -o -type d -empty -delete
   fi
 }
 
@@ -714,13 +768,60 @@ execute_with_progress() {
     eval "$cmd" > "$log_file" 2>&1 &
     local pid=$!
     
-    local width=40
+    local width=25
     local i=0
+    local cpu_val="0"
+    local mem_val="0"
+    local ncpu=$(sysctl -n hw.ncpu || echo 1)
+
     # Disable exit on error temporarily to handle the wait manually
     set +e
     while kill -0 $pid 2>/dev/null; do
         local progress=$(( (i % width) + 1 ))
         local remaining=$(( width - progress ))
+        
+        # Update system stats every 1.5 seconds to avoid overhead
+        if (( i % 15 == 0 )); then
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS CPU: ps sum normalized by cores
+            local raw_cpu=$(ps -A -o %cpu | awk '{s+=$1} END {printf "%.0f", s}')
+            cpu_val=$(( raw_cpu / ncpu ))
+            [ $cpu_val -gt 100 ] && cpu_val=100
+            # macOS Mem: Approximation via vm_stat
+            mem_val=$(memory_pressure | grep "System-wide memory free percentage" | awk '{print 100-$5}' || echo "0")
+          else
+            # Linux fallback
+            cpu_val=$(top -bn1 | grep "Cpu(s)" | awk '{print $2+$4}' | cut -d. -f1 || echo "0")
+            mem_val=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100}' || echo "0")
+          fi
+        fi
+
+        # Helper for mini-bar graph
+        draw_mini_graph() {
+          local val=$1
+          local color=$C_GREEN
+          [ $val -gt 60 ] && color=$C_YELLOW
+          [ $val -gt 85 ] && color=$C_RED
+          
+          local blocks=(" " "▂" "▃" "▄" "▅" "▆" "▇" "█")
+          local idx=$(( val * 7 / 100 ))
+          printf "${color}${blocks[$idx]}${C_RESET}"
+        }
+
+        # Extract current status/service from log
+        local status_text="Initializing..."
+        if [ -f "$log_file" ]; then
+          local found
+          found=$(grep -E "Container|Building|#|Step" "$log_file" | tail -n 1 | sed -E 's/.*Container ([^ ]+).*/\1/; s/.*Building ([^ ]+).*/\1/; s/.*#[0-9]+ (\[[^]]+\]).*/\1/')
+          if [ -n "$found" ]; then
+             status_text="$found"
+          fi
+          status_text=${status_text//"${COMPOSE_PROJECT_NAME:-lr}-"/}
+          if [ ${#status_text} -gt 20 ]; then
+            status_text="${status_text:0:17}..."
+          fi
+        fi
+
         printf "\r  ${C_CYAN}${label}${C_RESET} ["
         printf "${C_GREEN}"
         for ((j=0; j<progress; j++)); do printf "━"; done
@@ -734,6 +835,11 @@ execute_with_progress() {
             2) printf "⠹" ;;
             3) printf "⠸" ;;
         esac
+
+        # Info display: Status + CPU/MEM Mini Graphs
+        printf " ${C_GRAY}➜ ${C_BOLD}%-20s${C_RESET} " "$status_text"
+        printf "${C_GRAY}CPU:${C_RESET}$(draw_mini_graph $cpu_val)${C_GRAY}%-3s${C_RESET} " "$cpu_val%"
+        printf "${C_GRAY}MEM:${C_RESET}$(draw_mini_graph $mem_val)${C_GRAY}%-3s${C_RESET}\033[K" "$mem_val%"
         
         i=$((i + 1))
         sleep 0.1
@@ -936,6 +1042,9 @@ wizard_main() {
     local prefix="$(get_env_var SERVICE_PREFIX "lareferencia")"
     local offset="$(get_env_var SERVICES_PORT_OFFSET "0")"
     local profile="$(get_env_var LR_BUILD_PROFILE "lareferencia")"
+    local cache_state="$(get_env_var DOCKER_BUILD_CACHE "on")"
+    local cache_display="ON"
+    [ "${cache_state}" = "off" ] && cache_display="OFF"
     
     # Status Table
     local status_text="Project: ${COMPOSE_PROJECT_NAME:-lareferencia} | Prefix: ${prefix} | Offset: ${offset} | Profile: ${profile}"
@@ -955,10 +1064,12 @@ wizard_main() {
       "🚀 Start Platform (up --build)" \
       "🛑 Stop Platform (down)" \
       "📦 Manage Modules (on/off)" \
+      "🏗️ Build Cache: [${cache_display}]" \
       "📝 View Logs (follow)" \
       "🏷️ Change SERVICE_PREFIX" \
       "🔌 Change PORT_OFFSET" \
       "🏗️ Change BUILD_PROFILE" \
+      "📡 Configure External Solr" \
       "🛠️ Run Init-DB (migrations)" \
       "🧹 Reset Data (CLEAN ALL)" \
       "🚪 Exit")
@@ -966,18 +1077,9 @@ wizard_main() {
     case "$choice" in
       "🚀 Start Platform (up --build)")
         echo -e "\n${C_GREEN}🚀 Starting the platform...${C_RESET}"
-        
-        # Check if vufind is enabled and needs checkout BEFORE progress bar
-        # to allow interactive input if needed.
-        if [ "$(get_module_state "vufind")" = "on" ] || [ "$(get_module_state "watch")" = "on" ]; then
-           "${BASH_SOURCE[0]}" up --vufind --build --dry-run > /dev/null 2>&1 || true # Trigger ensure_vufind
-           # The 'up' command with --build will handle the checkout, 
-           # but execute_with_progress runs in background. 
-           # Let's just call the check directly.
-           ensure_vufind_checkout
-        fi
-
-        execute_with_progress "\"${BASH_SOURCE[0]}\" up --build" "Platform Build & Start"
+        local build_cmd="\"${BASH_SOURCE[0]}\" up --build"
+        [ "${cache_state}" = "off" ] && build_cmd="${build_cmd} --no-cache"
+        execute_with_progress "${build_cmd}" "Platform Build & Start"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
       "🛑 Stop Platform (down)")
@@ -987,6 +1089,13 @@ wizard_main() {
         ;;
       "📦 Manage Modules (on/off)")
         wizard_modules
+        ;;
+      "🏗️ Build Cache: ["*)
+        if [ "${cache_state}" = "on" ]; then
+          set_env_var "DOCKER_BUILD_CACHE" "off"
+        else
+          set_env_var "DOCKER_BUILD_CACHE" "on"
+        fi
         ;;
       "📝 View Logs (follow)")
         echo -e "\n${C_CYAN}📝 Showing logs (Ctrl+C to stop)...${C_RESET}"
@@ -1034,6 +1143,19 @@ wizard_main() {
         val=$(gum choose "lareferencia" "ibict" "rcaap" "lite")
         set_env_var "LR_BUILD_PROFILE" "${val}"
         ;;
+      "📡 Configure External Solr")
+        local current_ext
+        current_ext=$(get_env_var SOLR_EXTERNAL_URL "")
+        local val
+        val=$(gum input --placeholder "External Solr URL (leave empty for internal Docker Solr)" --value "$current_ext")
+        set_env_var "SOLR_EXTERNAL_URL" "${val}"
+        if [ -n "$val" ]; then
+          gum style --foreground 114 "📡 External Solr configured: $val"
+        else
+          gum style --foreground 114 "🟢 Using internal Docker Solr."
+        fi
+        sleep 2
+        ;;
       "🛠️ Run Init-DB (migrations)")
         echo -e "\n${C_MAGENTA}🛠️  Running database migrations...${C_RESET}"
         execute_with_progress "\"${BASH_SOURCE[0]}\" init-db" "Database Migrations"
@@ -1041,10 +1163,10 @@ wizard_main() {
         ;;
       "🧹 Reset Data (CLEAN ALL)")
         echo
-        gum style --foreground 204 --border double --border-foreground 204 --padding "0 1" "⚠️  DANGER ZONE: ALL DATA IN Docker/data WILL BE PERMANENTLY DELETED"
-        if gum confirm "Are you absolutely sure you want to reset all persistent data?"; then
+        gum style --foreground 204 --border double --border-foreground 204 --padding "0 1" "⚠️  DANGER ZONE: ALL DATA AND ALL CONTAINERS WILL BE PERMANENTLY DELETED"
+        if gum confirm "Are you absolutely sure you want to reset EVERYTHING?"; then
           "${BASH_SOURCE[0]}" reset-data --yes
-          gum input --placeholder "Data reset completed. Press Enter to continue..." > /dev/null
+          gum input --placeholder "System reset completed. Press Enter to continue..." > /dev/null
         fi
         ;;
       "🚪 Exit")
@@ -1097,6 +1219,7 @@ case "${cmd}" in
 
   up)
     build_flag=false
+    no_cache_flag=false
     explicit_vufind_request=false
     requested_modules=()
     services=()
@@ -1104,6 +1227,7 @@ case "${cmd}" in
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --build) build_flag=true ;;
+        --no-cache) no_cache_flag=true ;;
         --prefix=*) set_env_var "SERVICE_PREFIX" "${1#*=}" ;;
         --offset=*) set_env_var "SERVICES_PORT_OFFSET" "${1#*=}" ;;
         --module) shift; requested_modules+=("$1"); [ "$1" = "vufind" ] && explicit_vufind_request=true ;;
@@ -1149,7 +1273,10 @@ case "${cmd}" in
     fi
 
     args=(up -d --remove-orphans)
-    [ "${build_flag}" = true ] && args+=(--force-recreate)
+    if [ "${build_flag}" = true ]; then
+      args+=(--force-recreate --build)
+      [ "${no_cache_flag}" = true ] && args+=(--no-cache)
+    fi
 
     if [ "${#COLLECTED_PROFILES[@]}" -gt 0 ]; then
       p_args=()
@@ -1173,7 +1300,15 @@ case "${cmd}" in
     
     p_args=()
     for p in "${all_profiles[@]}"; do p_args+=(--profile "$p"); done
-    dc "${p_args[@]}" down --remove-orphans
+    
+    down_args=(down --remove-orphans)
+    # If the first argument is 'v', we add --volumes
+    if [ "${1:-}" = "v" ]; then
+      down_args+=(--volumes)
+      shift
+    fi
+    
+    dc "${p_args[@]}" "${down_args[@]}" ${1+"$@"}
     ;;
 
   start|stop|restart|build)
@@ -1229,11 +1364,12 @@ case "${cmd}" in
     auto_yes=false
     [ "${1:-}" = "--yes" ] && auto_yes=true
     if [ "${auto_yes}" != true ]; then
-      echo -e "${C_RED}This will clear data in Docker/data!${C_RESET}"
+      echo -e "${C_RED}This will clear data in Docker/data and REMOVE ALL containers!${C_RESET}"
       read -r -p "Type RESET to confirm: " confirmation
       [ "${confirmation}" != "RESET" ] && exit 1
     fi
-    dc down --remove-orphans || true
+    echo "--- Stopping and removing all containers, networks and volumes ---"
+    "${BASH_SOURCE[0]}" down v || true
     clean_data_preserving_tracked
     ;;
 
