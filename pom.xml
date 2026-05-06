@@ -54,11 +54,25 @@
 	
 	<!-- UPGRADED: Jakarta namespace versions -->
 	<jakarta.persistence.version>3.1.0</jakarta.persistence.version>
-	<jakarta.validation.version>3.0.2</jakarta.validation.version>		<lareferencia.shell.appname>lareferencia-shell</lareferencia.shell.appname>
-		<harvester.appname>harvester</harvester.appname>
+	<jakarta.validation.version>3.0.2</jakarta.validation.version>
+	<spring-boot.executable>true</spring-boot.executable>
+	<lareferencia.shell.appname>lareferencia-shell</lareferencia.shell.appname>		<harvester.appname>harvester</harvester.appname>
 		<dashboard.rest.appname>dashboard-rest</dashboard.rest.appname>
 		<entity.rest.appname>entity-rest</entity.rest.appname>
+		<testcontainers.version>1.20.1</testcontainers.version>
 	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.testcontainers</groupId>
+				<artifactId>testcontainers-bom</artifactId>
+				<version>${testcontainers.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<dependencies>
 		<dependency>
@@ -66,27 +80,12 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 		</dependency>
 
-		<!-- Spring Boot Logging brings conflicting dependencies
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-logging</artifactId>
-		</dependency>
-		-->
 
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
 			<version>2.15.1</version>
 		</dependency>
-
-		<!-- Logging -->
-		<!-- Commented out to avoid conflicts with Spring Boot Logback
-		<dependency>
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-core</artifactId>
-			<version>${log4j.version}</version>
-		</dependency>
-		-->
 
 	<!-- UPGRADED: Solr 9.5.0 compatible with Spring Boot 3.x -->
 	<dependency>
@@ -113,7 +112,14 @@
 				<artifactId>jline</artifactId>
 			</exclusion>
 		</exclusions>
-	</dependency>		<!-- UPGRADED: Guava to latest stable version -->
+	</dependency>
+
+	<dependency>
+		<groupId>org.apache.httpcomponents</groupId>
+		<artifactId>httpmime</artifactId>
+		<version>4.5.14</version>
+	</dependency>
+
 		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>

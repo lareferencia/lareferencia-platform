@@ -1,172 +1,162 @@
-# Entorno Docker de Desarrollo
+# Docker Development Environment / Entorno Docker / Ambiente Docker
 
-Este entorno levanta la plataforma desde la raíz del repositorio usando `docker-compose.yml` y `Docker/dev.sh`.
+Choose your language: [English](#english) | [Español](#español) | [Português](#português)
 
-## Módulos (Docker/dev.sh)
+---
 
-- `core` (activo por defecto): `postgres`, `solr`, `harvester`, `dashboard-rest`, `shell`
-- `vufind` (opcional, on-demand): `vufind-db`, `vufind-web`
-- `elastic` (opcional): `elasticsearch`
-- `watch` (opcional): `vufind-scss-watch`
+## English
 
-Comando de estado:
+This environment sets up the platform from the repository root using `docker-compose.yml` and `Docker/docker.sh`.
 
-```bash
-./Docker/dev.sh modules status
-```
+### 📋 Prerequisites
+- **Docker Engine**: 24.0.0 or later
+- **Docker Compose**: 2.20.0 or later (v2 plugin required)
+- **Git**: 2.30.0 or later
 
-Activar/desactivar módulos:
+### 🧙‍♂️ Docker Management Wizard (Recommended)
 
-```bash
-./Docker/dev.sh modules on vufind
-./Docker/dev.sh modules off vufind
-./Docker/dev.sh modules on elastic
-./Docker/dev.sh modules off elastic
-```
-
-Los toggles se guardan en `./.env`:
-- `DEV_MODULE_VUFIND`
-- `DEV_MODULE_ELASTIC`
-- `DEV_MODULE_WATCH`
-
-## Requisitos
-
-- Docker Engine
-- Docker Compose plugin (`docker compose`)
-- Git (para clonado automático de `vufind/` cuando se use ese módulo)
-
-## Configuración
-
-Inicialización sugerida:
+The easiest way to manage your environment is using the interactive Wizard. It provides real-time status, configuration management, and one-click actions with progress bars.
 
 ```bash
-cp Docker/.env.example .env
-chmod +x Docker/dev.sh
+./Docker/docker.sh wizard
 ```
-
-Variables relevantes:
-
-- `LR_BUILD_PROFILE` (default `lareferencia`)
-- `BUILD_ON_START` (default `smart`, valores: `smart|always|false`)
-- `VUFIND_REPO_URL` (default `https://github.com/vufind-org/vufind`)
-- `VUFIND_REF` (default `v11.0.1`)
-- `VUFIND_THEME` (default `bootstrap5`)
-
-## Arranque rápido
 
 ```bash
-# 1) Inicializar submódulos de platform (importante para build Java)
-./githelper pull
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐳 LA REFERENCIA PLATFORM - Docker Management Wizard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️  CURRENT CONFIGURATION:
+  🆔 Project: laref
+  🏷️  Prefix:  laref_
+  🔌 Offset:  400
+  🏗️  Profile: lareferencia
 
-# 2) Levantar stack activo (por módulos)
-./Docker/dev.sh up
+📦 Platform Modules:
+  core       [on ] 🟢
+    └─ postgres        [⚡running]
+    └─ solr            [⚡running]
+    └─ harvester       [⚡running]
+    └─ dashboard-rest  [⚡running]
+    └─ shell           [⚡running]
+  vufind     [off] ⚪
+    └─ vufind-db       [⭕off]
+    └─ vufind-web      [⭕off]
+  elastic    [off] ⚪
+    └─ elasticsearch   [⭕off]
+  watch      [off] ⚪
+    └─ vufind-scss-watch [⭕off]
 
-# 3) Levantar forzando rebuild de imágenes + recompilación Java + migrate DB
-./Docker/dev.sh up --build
+🛠️  GENERAL OPTIONS:
+  1) 🚀 Start Platform (up --build)    5) 🏷️  Change SERVICE_PREFIX
+  2) 🛑 Stop Platform (down)           6) 🔌 Change PORT_OFFSET
+  3) 📦 Manage Modules (on/off)        7) 🏗️  Change BUILD_PROFILE
+  4) 📝 View Logs (follow)             0) 🚪 Exit
+
+🧪 MAINTENANCE OPTIONS:
+  8) 🛠️  Run Init-DB (migrations)      9) 🧹 Reset Data (CLEAN ALL)
+
+Select an option:
 ```
 
-`up --build` ejecuta:
-- `docker compose up -d --build ...`
-- compilación Java una sola vez vía `lr-shell`
-- arranque de `harvester` / `dashboard-rest` / `shell` con `BUILD_ON_START=false`
-- `init-db` (`database_migrate`) al finalizar, para dejar schema actualizado
+### 🚀 Key Features (v5.0)
 
-## VuFind on-demand
+**1. Maven Build Profiles**
+Choose business logic by editing `Docker/.env` or via Wizard:
+- `LR_BUILD_PROFILE=lareferencia` (Default)
+- `LR_BUILD_PROFILE=ibict` (Includes DARK/PID worker)
+- `LR_BUILD_PROFILE=rcaap` (Includes RCAAP specific logic)
 
-`vufind/` se clona solo si realmente se necesita (módulo/servicios VuFind):
+**2. Flexible Config Overrides**
+Use `Docker/config-overrides/` to inject beans/properties without modifying source code.
 
-- `./Docker/dev.sh modules on vufind`
-- `./Docker/dev.sh vufind up`
-- `./Docker/dev.sh up --vufind`
-- `./Docker/dev.sh vufind ...`
-- `./Docker/dev.sh solr sync-from-vufind`
+**3. Running Multiple Instances**
+Run multiple isolated instances on the same server by configuring `SERVICE_PREFIX` and `SERVICES_PORT_OFFSET`.
 
-`./Docker/dev.sh up` (y `start/restart/build` sin flags/servicios VuFind explícitos) no dispara clone de `vufind/` si falta el checkout.
+---
 
-Si `vufind/` no existe, el script pide repo/ref (o usa defaults de `.env`) y luego sincroniza:
+## Español
 
-- `vufind/import` -> `Docker/solr/import`
-- `vufind/solr/vufind/jars` -> `Docker/solr/jars`
+Este entorno levanta la plataforma desde la raíz del repositorio usando `docker-compose.yml` y `Docker/docker.sh`.
 
-Al ejecutar `./Docker/dev.sh solr sync-from-vufind`, el servicio `solr` se recrea automáticamente para aplicar esos assets.
-Al ejecutar `./Docker/dev.sh vufind up` (o `modules on vufind`), también se sincronizan assets de Solr y se recrea `solr`.
+### 📋 Requisitos Previos
+- **Docker Engine**: 24.0.0 o superior
+- **Docker Compose**: 2.20.0 o superior (se requiere plugin v2)
+- **Git**: 2.30.0 o superior
 
-## Comandos principales
+### 🧙‍♂️ Asistente de Gestión Docker (Recomendado)
+
+La forma más sencilla de gestionar su entorno es utilizando el Asistente interactivo. Proporciona estado en tiempo real, gestión de configuración y acciones con barras de progreso.
 
 ```bash
-./Docker/dev.sh up
-./Docker/dev.sh up --build
-./Docker/dev.sh up --module vufind
-./Docker/dev.sh down
-./Docker/dev.sh start
-./Docker/dev.sh stop
-./Docker/dev.sh restart
-./Docker/dev.sh ps
-./Docker/dev.sh logs
-./Docker/dev.sh health
+./Docker/docker.sh wizard
 ```
 
-## Core
+### 🚀 Características Clave (v5.0)
+
+**1. Perfiles de Build Maven**
+Seleccione la lógica de negocio editando `Docker/.env` o mediante el Asistente:
+- `LR_BUILD_PROFILE=lareferencia` (Por defecto)
+- `LR_BUILD_PROFILE=ibict` (Incluye worker DARK/PID)
+- `LR_BUILD_PROFILE=rcaap` (Incluye lógica específica de RCAAP)
+
+**2. Sobrescritura Flexible de Configuración**
+Use `Docker/config-overrides/` para inyectar beans o propiedades sin modificar el código fuente.
+
+**3. Ejecución de Múltiples Instancias**
+Ejecute múltiples instancias aisladas configurando `SERVICE_PREFIX` y `SERVICES_PORT_OFFSET`.
+
+---
+
+## Português
+
+Este ambiente levanta a plataforma a partir da raiz do repositório usando `docker-compose.yml` e `Docker/docker.sh`.
+
+### 📋 Pré-requisitos
+- **Docker Engine**: 24.0.0 ou superior
+- **Docker Compose**: 2.20.0 ou superior (necessário plugin v2)
+- **Git**: 2.30.0 ou superior
+
+### 🧙‍♂️ Assistente de Gerenciamento Docker (Recomendado)
+
+A maneira mais fácil de gerenciar seu ambiente é usando o Assistente (Wizard) interativo. Ele oferece status em tempo real, gerenciamento de configuração e ações com barras de progresso.
 
 ```bash
-./Docker/dev.sh core status
-./Docker/dev.sh core up
-./Docker/dev.sh core down
+./Docker/docker.sh wizard
 ```
 
-## DB y shell
+### 🚀 Novidades e Recursos (v5.0)
+
+**1. Perfis de Build Maven**
+Escolha a lógica de negócio editando o arquivo `Docker/.env` ou via Assistente:
+- `LR_BUILD_PROFILE=lareferencia` (Padrão)
+- `LR_BUILD_PROFILE=ibict` (Inclui o worker DARK/PID)
+- `LR_BUILD_PROFILE=rcaap` (Inclui lógica específica da RCAAP)
+
+**2. Sobrescritas de Configuração Flexíveis**
+Use o diretório `Docker/config-overrides/` para injetar beans ou propriedades sem modificar o código-fonte.
+
+**3. Execução de Múltiples Instâncias**
+Rode múltiplas instâncias isoladas configurando as variáveis `SERVICE_PREFIX` e `SERVICES_PORT_OFFSET`.
+
+**4. Suporte a Solr Externo**
+Conecte-se a uma instância existente do Solr configurando `SOLR_EXTERNAL_URL` no `Docker/.env` ou via Assistente. Quando configurado, o container local do Solr não será iniciado.
+
+---
+
+## 🛠️ Main Commands / Comandos
 
 ```bash
-./Docker/dev.sh init-db
-./Docker/dev.sh shell-interactive
-./Docker/dev.sh shell-interactive database_migrate
+./Docker/docker.sh wizard              # Start the interactive UI
+./Docker/docker.sh up                  # Start services (CLI mode)
+./Docker/docker.sh down                # Stop and remove containers
+./Docker/docker.sh reset-data          # Clean Docker/data (preserving .gitkeep)
+./Docker/docker.sh init-db             # Run database migrations
 ```
 
-`init-db` y `shell-interactive` usan el contenedor `lr-shell` existente (via `docker compose exec`) y no crean contenedores temporales `shell-run-*`.
-
-## VuFind
-
-```bash
-./Docker/dev.sh vufind status
-./Docker/dev.sh vufind up
-./Docker/dev.sh vufind down
-./Docker/dev.sh vufind debug show
-./Docker/dev.sh vufind debug on
-./Docker/dev.sh vufind debug off
-./Docker/dev.sh vufind theme show
-./Docker/dev.sh vufind theme set bootstrap5
-./Docker/dev.sh vufind db
-./Docker/dev.sh vufind cli <args...>
-./Docker/dev.sh vufind shell web
-```
-
-## Elastic y Watch
-
-```bash
-./Docker/dev.sh elastic status
-./Docker/dev.sh elastic up
-./Docker/dev.sh elastic down
-./Docker/dev.sh elastic logs
-
-./Docker/dev.sh watch status
-./Docker/dev.sh watch up
-./Docker/dev.sh watch down
-./Docker/dev.sh watch logs
-```
-
-## Limpieza de datos
-
-```bash
-./Docker/dev.sh reset-data
-./Docker/dev.sh reset-data --yes
-```
-
-`reset-data` limpia solo data persistida no versionada en `Docker/data`.
-Los archivos trackeados por git dentro de esa carpeta se conservan.
-
-## Endpoints locales
+## 🌐 Endpoints
 
 - VuFind: `http://localhost:8080`
 - Harvester: `http://localhost:8090`
 - Dashboard REST: `http://localhost:8092`
 - Solr Admin: `http://localhost:8983/solr`
+/solr`

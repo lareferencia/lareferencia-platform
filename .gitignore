@@ -2,6 +2,9 @@ HELP.md
 /target/
 !.mvn/wrapper/maven-wrapper.jar
 
+### Docker local binaries ###
+/Docker/.bin/
+
 ### STS ###
 .apt_generated
 .classpath
@@ -31,3 +34,17 @@ config/application.properties
 harvester.jar
 pom.xml.versionsBackup
 .DS_Store
+
+### Docker Data and Backups ###
+/Docker/data/*
+!/Docker/data/**/.gitkeep
+/Docker_pre_restoration/
+/*.bak
+/*.patch
+/dependencias/
+/staged_bundle/
+
+# Ignore custom beans overrides but keep the directory
+/Docker/config-overrides/lareferencia-lrharvester-app/beans/*
+!/Docker/config-overrides/lareferencia-lrharvester-app/beans/.gitkeep
+/vufind/

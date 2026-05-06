@@ -1,0 +1,11 @@
+.git
+.gitignore
+Docker/data
+Docker_pre_restoration
+**/target
+**/logs
+**/node_modules
+**/vendor
+vufind
+!vufind/solr/vendor/modules/analysis-extras/lib
+!vufind/solr/vufind/jars

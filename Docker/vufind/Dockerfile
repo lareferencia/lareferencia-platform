@@ -32,7 +32,7 @@ RUN apt-get update \
         xsl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+COPY --from=composer:2.8.5 /usr/bin/composer /usr/local/bin/composer
 
 COPY Docker/vufind/apache-vufind.conf /etc/apache2/conf-available/vufind.conf
 COPY Docker/vufind/entrypoint.sh /usr/local/bin/vufind-entrypoint.sh
