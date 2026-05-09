@@ -772,7 +772,12 @@ execute_with_progress() {
     local i=0
     local cpu_val="0"
     local mem_val="0"
-    local ncpu=$(sysctl -n hw.ncpu || echo 1)
+    local ncpu
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      ncpu=$(sysctl -n hw.ncpu 2>/dev/null || echo 1)
+    else
+      ncpu=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
+    fi
 
     # Disable exit on error temporarily to handle the wait manually
     set +e
