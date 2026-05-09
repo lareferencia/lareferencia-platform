@@ -247,6 +247,33 @@ sync_compose_profiles() {
   set_env_var "COMPOSE_PROFILES" "${joined}"
 }
 
+apply_resource_profile() {
+  local profile="$1"
+  local config_file="${SCRIPT_DIR}/profiles/${profile}.env"
+  
+  if [ ! -f "${config_file}" ]; then
+    echo -e "${C_RED}Error: Profile file ${config_file} not found.${C_RESET}" >&2
+    return 1
+  fi
+
+  echo -e "${C_CYAN}Applying resource profile: ${profile}...${C_RESET}"
+  
+  # Read settings from the individual profile file
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Skip comments and empty lines
+    [[ "$line" =~ ^#.*$ ]] && continue
+    [[ -z "$line" ]] && continue
+
+    if [[ "$line" == *"="* ]]; then
+      local key="${line%%=*}"
+      local value="${line#*=}"
+      set_env_var "${key}" "${value}"
+    fi
+  done < "${config_file}"
+  
+  set_env_var "LR_RESOURCE_PROFILE" "${profile}"
+}
+
 dc() {
   ensure_env_file
   export_salted_ports
@@ -415,6 +442,9 @@ module_services() {
 module_profiles() {
   local module="$1"
   case "${module}" in
+    dashboard)
+      printf "dashboard\n"
+      ;;
     shell)
       printf "tools\n"
       ;;
@@ -747,12 +777,14 @@ show_current_config() {
   local prefix="$(get_env_var SERVICE_PREFIX "lareferencia")"
   local offset="$(get_env_var SERVICES_PORT_OFFSET "0")"
   local profile="$(get_env_var LR_BUILD_PROFILE "lareferencia")"
+  local res_profile="$(get_env_var LR_RESOURCE_PROFILE "medium")"
   
   echo -e "${C_MAGENTA}${C_BOLD}⚙️  CURRENT CONFIGURATION:${C_RESET}"
   echo -e "  🆔 ${C_GRAY}Project:${C_RESET} ${C_BOLD}${COMPOSE_PROJECT_NAME:-lareferencia}${C_RESET}"
   echo -e "  🏷️  ${C_GRAY}Prefix:${C_RESET}  ${C_BOLD}${prefix}${C_RESET}"
   echo -e "  🔌 ${C_GRAY}Offset:${C_RESET}  ${C_YELLOW}${offset}${C_RESET}"
   echo -e "  🏗️  ${C_GRAY}Profile:${C_RESET} ${C_BLUE}${profile}${C_RESET}"
+  echo -e "  ⚡ ${C_GRAY}Resources:${C_RESET} ${C_GREEN}${res_profile}${C_RESET}"
   echo
   print_module_status
   echo
@@ -919,14 +951,14 @@ get_service_port() {
   [ -z "${salt}" ] && salt=0
 
   case "${service}" in
-    vufind-web)     printf " port: %s" $((8080 + salt)) ;;
-    vufind-db)      printf " port: %s" $((3307 + salt)) ;;
-    solr)           printf " port: %s" $((8983 + salt)) ;;
-    postgres)       printf " port: %s" $((5432 + salt)) ;;
-    harvester)      printf " port: %s" $((8090 + salt)) ;;
-    dashboard-rest) printf " port: %s" $((8092 + salt)) ;;
-    entity-rest)    printf " port: %s" $((8094 + salt)) ;;
-    elasticsearch)  printf " port: %s" $((9200 + salt)) ;;
+    vufind-web)     printf ":%s" $((8080 + salt)) ;;
+    vufind-db)      printf ":%s" $((3307 + salt)) ;;
+    solr)           printf ":%s" $((8983 + salt)) ;;
+    postgres)       printf ":%s" $((5432 + salt)) ;;
+    harvester)      printf ":%s" $((8090 + salt)) ;;
+    dashboard-rest) printf ":%s" $((8092 + salt)) ;;
+    entity-rest)    printf ":%s" $((8094 + salt)) ;;
+    elasticsearch)  printf ":%s" $((9200 + salt)) ;;
     *)              printf "" ;;
   esac
 }
@@ -937,6 +969,9 @@ print_module_status_columns() {
   local blocks=()
 
   for module in "${ALL_MODULES[@]}"; do
+    # Skip Harvester as it will be grouped with Core
+    [ "${module}" = "harvester" ] && continue
+
     local state="$(get_module_state "${module}")"
     local color="245"
     local state_icon="○"
@@ -944,13 +979,19 @@ print_module_status_columns() {
     
     local module_upper
     module_upper=$(echo "$module" | tr '[:lower:]' '[:upper:]')
+    [ "${module}" = "core" ] && module_upper="CORE & HARVESTER"
 
-    # Build internal content using Bash newline literals
-    local content="${state_icon} ${module_upper}"
-    content="${content}"$'\n'"──────────────"
+    # Build internal content
+    local content="${state_icon} ${module_upper}"$'\n'"──────────────"
     
-    local service_count=0
-    for service in $(module_services "${module}"); do
+    local services_to_show
+    services_to_show=$(module_services "${module}")
+    # If core, also add harvester services
+    if [ "${module}" = "core" ]; then
+      services_to_show="${services_to_show} $(module_services "harvester")"
+    fi
+
+    for service in ${services_to_show}; do
       local s_icon="○"
       local port_info=""
       if printf "%s\n" "${running_services}" | grep -Fxq "${service}"; then
@@ -960,22 +1001,15 @@ print_module_status_columns() {
         s_icon="${C_GRAY}○${C_RESET}"
       fi
       content="${content}"$'\n'" ${s_icon} ${service}${port_info}"
-      service_count=$((service_count + 1))
     done
     
-    # Fill with empty lines to ensure consistent height (max 2 services + header + separator)
-    while [ $service_count -lt 2 ]; do
-      content="${content}"$'\n'""
-      service_count=$((service_count + 1))
-    done
-    
-    # Single gum style call per module
-    blocks+=("$(gum style --border normal --border-foreground 240 --padding "0 1" --margin "0 1" --width 30 --foreground "$color" "$content")")
+    # Single gum style call per module - Borderless
+    blocks+=("$(gum style --padding "0 1" --margin "0 2" --width 28 --foreground "$color" "$content")")
   done
 
-  # Split into two rows of 4
-  local row1=("${blocks[@]:0:4}")
-  local row2=("${blocks[@]:4:4}")
+  # Split into rows (now we have 7 modules - 1 = 6 blocks)
+  local row1=("${blocks[@]:0:3}")
+  local row2=("${blocks[@]:3:3}")
 
   gum join --vertical \
     "$(gum join --horizontal "${row1[@]}")" \
@@ -1052,7 +1086,8 @@ wizard_main() {
     [ "${cache_state}" = "off" ] && cache_display="OFF"
     
     # Status Table
-    local status_text="Project: ${COMPOSE_PROJECT_NAME:-lareferencia} | Prefix: ${prefix} | Offset: ${offset} | Profile: ${profile}"
+    local res_profile="$(get_env_var LR_RESOURCE_PROFILE "medium")"
+    local status_text="Project: ${COMPOSE_PROJECT_NAME:-lareferencia} | Prefix: ${prefix} | Offset: ${offset} | Profile: ${profile} | Resources: ${res_profile}"
     gum style --foreground 176 "$status_text"
     echo
 
@@ -1074,6 +1109,7 @@ wizard_main() {
       "🏷️ Change SERVICE_PREFIX" \
       "🔌 Change PORT_OFFSET" \
       "🏗️ Change BUILD_PROFILE" \
+      "⚡ Resource Profile: [${res_profile}]" \
       "📡 Configure External Solr" \
       "🛠️ Run Init-DB (migrations)" \
       "🧹 Reset Data (CLEAN ALL)" \
@@ -1148,6 +1184,35 @@ wizard_main() {
         val=$(gum choose "lareferencia" "ibict" "rcaap" "lite")
         set_env_var "LR_BUILD_PROFILE" "${val}"
         ;;
+      "⚡ Resource Profile: ["*)
+        local choice
+        choice=$(gum choose "low" "medium" "high" "custom")
+        if [ "${choice}" = "custom" ]; then
+          local services=("HARVESTER" "SOLR" "POSTGRES" "DASHBOARD" "ENTITY" "VUFIND" "ELASTIC")
+          local custom_file="${SCRIPT_DIR}/profiles/custom.env"
+          echo "# Profile: custom" > "${custom_file}"
+          
+          for s in "${services[@]}"; do
+            local current_mem=$(get_env_var "LR_MEM_${s}" "1G")
+            local current_cpu=$(get_env_var "LR_CPU_${s}" "0.5")
+            
+            echo -e "\n${C_BOLD}${C_MAGENTA}⚙️  Configuring ${s}${C_RESET}"
+            local mem=$(gum input --header "Memory Limit (e.g., 2G, 512M):" --value "${current_mem}")
+            local cpu=$(gum input --header "CPU Limit (e.g., 1.0, 0.5):" --value "${current_cpu}")
+            
+            local final_mem="${mem:-$current_mem}"
+            local final_cpu="${cpu:-$current_cpu}"
+            
+            set_env_var "LR_MEM_${s}" "${final_mem}"
+            set_env_var "LR_CPU_${s}" "${final_cpu}"
+            echo "LR_MEM_${s}=${final_mem}" >> "${custom_file}"
+            echo "LR_CPU_${s}=${final_cpu}" >> "${custom_file}"
+          done
+          set_env_var "LR_RESOURCE_PROFILE" "custom"
+        else
+          apply_resource_profile "${choice}"
+        fi
+        ;;
       "📡 Configure External Solr")
         local current_ext
         current_ext=$(get_env_var SOLR_EXTERNAL_URL "")
@@ -1193,6 +1258,7 @@ Core Commands:
   start/stop/restart   Manage existing containers
   ps / logs / health   Monitoring
   modules <on|off>     Enable/disable modules (vufind, elastic, watch)
+  res <profile>        Apply resource profile (low, medium, high, custom)
   init-db              Migrate database
   reset-data           Clean Docker/data
 
@@ -1392,6 +1458,12 @@ case "${cmd}" in
       on) validate_module_name "$1" && set_module_state "$1" on && echo "Module $1 activated." ;;
       off) validate_module_name "$1" && set_module_state "$1" off && echo "Module $1 deactivated." ;;
     esac
+    ;;
+
+  resource-profile|res)
+    profile="${1:-}"
+    [ -z "${profile}" ] && echo "Usage: res <low|medium|high|custom>" && exit 1
+    apply_resource_profile "${profile}"
     ;;
 
   *)
