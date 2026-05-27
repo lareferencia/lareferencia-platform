@@ -1,6 +1,8 @@
 # githelper
 
-CLI unificado para gestionar ramas y `pull` del repositorio padre y sus submodules.
+CLI unificado para gestionar el repositorio padre y los clones del workspace declarados en `workspace.ini`.
+
+El proyecto ya no usa Git submodules como forma de trabajo diaria. Cada modulo vive en la raiz como un clone Git independiente, con el mismo nombre de directorio que antes.
 
 ## Ejecucion
 
@@ -12,142 +14,175 @@ Desde la raiz del repo:
 
 Opcionalmente puedes agregarlo al `PATH`.
 
+## Manifest
+
+`workspace.ini` es la fuente de verdad para los repos del workspace:
+
+```ini
+[workspace]
+default_branch = main
+
+[module.lareferencia-core-lib]
+url = https://github.com/lareferencia/lareferencia-core-lib
+branch = main
+
+[profile.v5-semantic-indexing]
+lareferencia-core-lib = v5-semantic-indexing
+lareferencia-entity-lib = v5-semantic-indexing
+```
+
+- `default_branch` se usa cuando un modulo no declara `branch`.
+- Cada `[module.<name>]` declara `url` y opcionalmente `branch`.
+- Cada `[profile.<branch>]` articula ramas por modulo para una rama del repo padre.
+- Si no existe un perfil para la rama del padre, los modulos usan su `branch` o `main`.
+
 ## Comandos
 
 ### 1) Estado general
 
 ```bash
 ./githelper status
-./githelper status --modules module-a,module-b
+./githelper status --modules lareferencia-core-lib,lareferencia-shell
+./githelper status --dirty
 ```
 
-Muestra: `parent|branch|sha` y para cada submodule: `module|branch|sha`.
+Muestra `parent|branch|sha|state` y para cada modulo `module|branch|sha|state`.
 
-Estados de branch posibles en submodules:
-- `MISSING`: no existe el path del submodule en disco.
-- `UNINITIALIZED`: existe el path pero no es repo git inicializado.
+Estados de cambios:
+- `clean`: sin cambios locales.
+- `dirty:N`: hay `N` entradas en `git status --porcelain`.
+- `status?`: no se pudo leer el estado.
+
+Estados posibles:
+- `MISSING`: no existe el path del modulo en disco.
+- `UNINITIALIZED`: existe el path pero no es repo Git inicializado.
 - `DETACHED`: repo inicializado en detached HEAD.
 
-### 2) Cambiar branch en el padre y sincronizar submodules
+Con `--dirty`, muestra solo el padre y/o modulos con cambios locales.
+
+### 2) Inicializar clones faltantes
+
+```bash
+./githelper init
+./githelper init --modules lareferencia-core-lib,lareferencia-shell
+./githelper init --branch v5-semantic-indexing
+```
+
+Clona los repos declarados en `workspace.ini` que no existan localmente. Por defecto usa la rama del modulo; con `--branch` usa el perfil correspondiente si existe.
+
+### 3) Cambiar branch en el padre y aplicar perfil
 
 ```bash
 ./githelper switch <branch>
-./githelper switch <branch> --modules module-a,module-b
+./githelper switch <branch> --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-Regla en submodules:
-- Si el submodule tiene esa branch (local o `origin/<branch>`), cambia a esa branch.
-- Si no la tiene, se queda donde esta.
+Flujo:
+1. Cambia el repo padre a `<branch>`.
+2. Busca `[profile.<branch>]` en `workspace.ini`.
+3. Cada modulo listado en el perfil cambia a la rama indicada.
+4. Los modulos no listados usan su branch por defecto, normalmente `main`.
 
-### 3) Sincronizar submodules con una branch objetivo
+Si una rama requerida por el manifest/perfil no existe localmente ni en `origin`, el comando reporta error.
+
+### 4) Sincronizar modulos
 
 ```bash
 ./githelper sync
-./githelper sync --branch <branch>
-./githelper sync --modules module-a,module-b
+./githelper sync --branch <profile>
+./githelper sync --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-- Sin `--branch`, usa la branch actual del padre.
-- Aplica la misma regla: cambiar solo si existe la branch en ese submodule.
+Sin `--branch`, usa la branch actual del padre como nombre de perfil. Si no existe perfil, aplica defaults.
 
-### 4) Pull integrado (padre + submodules)
+### 5) Pull integrado
 
 ```bash
 ./githelper pull
 ./githelper pull --branch <branch>
-./githelper pull --modules module-a,module-b
+./githelper pull --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-Flujo:
-1. Opcional: con `--branch`, cambia el repo padre a esa branch.
-2. Hace `pull` del repositorio padre en su branch actual.
-3. Ejecuta `git submodule update --init --recursive` (o solo sobre `--modules`).
-4. Para cada submodule:
-- Si existe la branch del padre, cambia a esa branch y hace `pull`.
-- Si no existe la branch del padre, hace `pull` de la branch actual del submodule.
-- Si esta en `detached HEAD` y no hay branch del padre, hace `fetch` y reporta `SKIP`.
+Hace `pull` del padre y luego de cada modulo en su rama objetivo segun `workspace.ini`.
 
-### 5) Crear branch en modulos especificos
+### 6) Crear branch en modulos especificos
 
 ```bash
-./githelper branch create --modules module-a,module-b
-./githelper branch create --modules module-a --branch feature/x
+./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
+./githelper branch create --modules lareferencia-core-lib --branch feature/x
 ```
 
-- Sin `--branch`, usa el nombre de la branch actual del padre.
-- Opera modulo por modulo.
+Sin `--branch`, usa el nombre de la branch actual del padre. Este comando no modifica `workspace.ini`; los perfiles se mantienen manualmente.
 
-### 6) Convertir URLs de submodules (SSH/HTTPS)
+### 7) Convertir URLs SSH/HTTPS
 
 ```bash
-# Vista previa de conversion SSH -> HTTPS en todos los submodules
 ./githelper url rewrite --to https --dry-run
-
-# Aplicar conversion SSH -> HTTPS en todos los submodules
 ./githelper url rewrite --to https
-
-# Aplicar solo en algunos modulos
-./githelper url rewrite --to https --modules module-a,module-b
+./githelper url rewrite --to ssh --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-Este comando:
-- actualiza `origin` del repo padre
-- actualiza `submodule.<name>.url` en `.gitmodules`
-- actualiza `submodule.<name>.url` en `.git/config` del repo padre
-- actualiza `origin` en submodules existentes en disco
-- ejecuta `git submodule sync --recursive` al final (cuando no es `--dry-run`)
+Este comando actualiza:
+- `origin` del repo padre.
+- URLs de modulos en `workspace.ini`.
+- `origin` en clones existentes en disco.
+
+### 8) Migrar desde submodules
+
+```bash
+./githelper migrate from-submodules --in-place --dry-run
+./githelper migrate from-submodules --in-place
+```
+
+Preflight:
+- el repo padre debe estar limpio;
+- `.gitmodules` debe existir;
+- cada modulo debe tener `.git` como archivo `gitdir: ../.git/modules/<modulo>`;
+- cada gitdir referenciado debe existir.
+
+La migracion mueve cada gitdir a `<modulo>/.git`, quita `core.worktree`, elimina los gitlinks del indice del padre, borra `.gitmodules` y limpia las entradas `submodule.*` de `.git/config`.
 
 ## Manejo de cambios locales al crear branch
 
-Cuando ejecutas `branch create`, si un modulo tiene cambios sin commit, `githelper` pregunta **para ese modulo**:
+Cuando ejecutas `branch create`, si un modulo tiene cambios sin commit, `githelper` pregunta para ese modulo:
 
 - `[l]` llevar cambios a la nueva branch.
 - `[d]` dejar cambios en la branch actual.
 
-Si eliges `[d]`:
-- Se crea la branch objetivo (si no existe) pero **no** se cambia de branch en ese modulo.
-- Los cambios quedan en la branch actual del modulo.
-
-Si eliges `[l]`:
-- Se cambia/crea la branch objetivo normalmente.
-- Los cambios pasan a esa branch.
+Si eliges `[d]`, se crea la branch objetivo si hace falta, pero no se cambia de branch en ese modulo.
 
 ## Seleccion de modulos
 
 `--modules` acepta lista separada por comas:
 
 ```bash
---modules module-a,module-b,module-c
+--modules lareferencia-core-lib,lareferencia-shell,lareferencia-entity-lib
 ```
 
-Si no se indica `--modules` en comandos que lo permiten, se usan todos los submodules de `.gitmodules`.
-
-## Errores y salida
-
-- El comando devuelve codigo `0` si no hay errores.
-- Devuelve codigo distinto de `0` si hay fallos en algun modulo o en el padre.
-- Mensajes:
-  - `OK` operacion exitosa
-  - `SKIP` modulo omitido por regla de branch
-  - `WARN` problema no bloqueante por modulo
-  - `ERROR` fallo bloqueante
+Si no se indica `--modules`, se usan todos los modulos de `workspace.ini`.
 
 ## Recomendaciones de uso diario
 
-1. Cambiar branch de trabajo:
+1. Inicializar workspace:
+
+```bash
+./githelper init
+```
+
+2. Cambiar branch de trabajo y aplicar perfil:
 
 ```bash
 ./githelper switch feature/x
 ```
 
-2. Traer cambios de todo el workspace:
+3. Traer cambios de todo el workspace:
 
 ```bash
 ./githelper pull
 ```
 
-3. Crear la misma branch del padre en modulos puntuales:
+4. Crear la misma branch del padre en modulos puntuales:
 
 ```bash
-./githelper branch create --modules module-a,module-b
+./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
 ```
