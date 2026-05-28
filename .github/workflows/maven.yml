@@ -21,9 +21,10 @@ jobs:
 
     steps:
     
-    - uses: actions/checkout@v3
-      with:
-        submodules: recursive
+    - uses: actions/checkout@v4
+
+    - name: Init workspace modules
+      run: ./githelper init
     - name: Set up JDK 21
       uses: actions/setup-java@v3
       with:
@@ -48,12 +49,14 @@ jobs:
     - name: Build with Maven
       run: bash build.sh lareferencia
 
-    - name: Clean targets
-      run: bash clean-targets.sh
-
     - name: Compress Build
       working-directory: .
-      run: zip -r lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip .
+      run: |
+        zip -r lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip . \
+          -x "target/*" \
+          -x "*/target/*" \
+          -x ".git/*" \
+          -x "*/.git/*"
 
     - name: Delete existing release if exists
       continue-on-error: true

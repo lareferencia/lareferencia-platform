@@ -26,15 +26,16 @@ default_branch = main
 url = https://github.com/lareferencia/lareferencia-core-lib
 branch = main
 
-[profile.v5-semantic-indexing]
+[branch-set.v5-semantic-indexing]
 lareferencia-core-lib = v5-semantic-indexing
 lareferencia-entity-lib = v5-semantic-indexing
 ```
 
 - `default_branch` se usa cuando un modulo no declara `branch`.
 - Cada `[module.<name>]` declara `url` y opcionalmente `branch`.
-- Cada `[profile.<branch>]` articula ramas por modulo para una rama del repo padre.
-- Si no existe un perfil para la rama del padre, los modulos usan su `branch` o `main`.
+- Cada `[branch-set.<branch>]` articula ramas por modulo para una rama del repo padre.
+- Si no existe un branch-set para la rama del padre, los modulos usan su `branch` o `main`.
+- Los profiles Maven (`lareferencia`, `ibict`, `rcaap`) son independientes de los branch sets de `githelper`.
 
 ## Comandos
 
@@ -65,12 +66,12 @@ Con `--dirty`, muestra solo el padre y/o modulos con cambios locales.
 ```bash
 ./githelper init
 ./githelper init --modules lareferencia-core-lib,lareferencia-shell
-./githelper init --branch v5-semantic-indexing
+./githelper init --set v5-semantic-indexing
 ```
 
-Clona los repos declarados en `workspace.ini` que no existan localmente. Por defecto usa la rama del modulo; con `--branch` usa el perfil correspondiente si existe.
+Clona los repos declarados en `workspace.ini` que no existan localmente. Por defecto usa la rama del modulo; con `--set` usa el branch-set correspondiente si existe.
 
-### 3) Cambiar branch en el padre y aplicar perfil
+### 3) Cambiar branch en el padre y aplicar branch-set
 
 ```bash
 ./githelper switch <branch>
@@ -79,23 +80,40 @@ Clona los repos declarados en `workspace.ini` que no existan localmente. Por def
 
 Flujo:
 1. Cambia el repo padre a `<branch>`.
-2. Busca `[profile.<branch>]` en `workspace.ini`.
-3. Cada modulo listado en el perfil cambia a la rama indicada.
+2. Busca `[branch-set.<branch>]` en `workspace.ini`.
+3. Cada modulo listado en el branch-set cambia a la rama indicada.
 4. Los modulos no listados usan su branch por defecto, normalmente `main`.
 
-Si una rama requerida por el manifest/perfil no existe localmente ni en `origin`, el comando reporta error.
+Si una rama requerida por el manifest/branch-set no existe localmente ni en `origin`, el comando reporta error.
 
 ### 4) Sincronizar modulos
 
 ```bash
 ./githelper sync
-./githelper sync --branch <profile>
+./githelper sync --set <branch-set>
 ./githelper sync --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-Sin `--branch`, usa la branch actual del padre como nombre de perfil. Si no existe perfil, aplica defaults.
+Sin `--set`, usa la branch actual del padre como nombre de branch-set. Si no existe branch-set, aplica defaults.
 
-### 5) Pull integrado
+### 5) Guardar un mapa de ramas del workspace
+
+```bash
+./githelper branch-set capture semantic-demo
+./githelper branch-set capture semantic-demo --modules lareferencia-core-lib,lareferencia-shell
+./githelper branch-set capture semantic-demo --force
+```
+
+Lee la branch actual de cada modulo seleccionado y escribe un `[branch-set.semantic-demo]` en `workspace.ini`.
+Ese branch-set se puede reproducir despues con:
+
+```bash
+./githelper sync --set semantic-demo
+```
+
+Si el branch-set ya existe, el comando falla salvo que uses `--force`. Los modulos con cambios locales se pueden capturar igual; los modulos `MISSING`, `UNINITIALIZED` o `DETACHED` hacen fallar la captura porque no hay una branch reproducible.
+
+### 6) Pull integrado
 
 ```bash
 ./githelper pull
@@ -105,16 +123,16 @@ Sin `--branch`, usa la branch actual del padre como nombre de perfil. Si no exis
 
 Hace `pull` del padre y luego de cada modulo en su rama objetivo segun `workspace.ini`.
 
-### 6) Crear branch en modulos especificos
+### 7) Crear branch en modulos especificos
 
 ```bash
 ./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
 ./githelper branch create --modules lareferencia-core-lib --branch feature/x
 ```
 
-Sin `--branch`, usa el nombre de la branch actual del padre. Este comando no modifica `workspace.ini`; los perfiles se mantienen manualmente.
+Sin `--branch`, usa el nombre de la branch actual del padre. Este comando no modifica `workspace.ini`; los branch sets se pueden editar manualmente o generar con `branch-set capture`.
 
-### 7) Convertir URLs SSH/HTTPS
+### 8) Convertir URLs SSH/HTTPS
 
 ```bash
 ./githelper url rewrite --to https --dry-run
@@ -126,21 +144,6 @@ Este comando actualiza:
 - `origin` del repo padre.
 - URLs de modulos en `workspace.ini`.
 - `origin` en clones existentes en disco.
-
-### 8) Migrar desde submodules
-
-```bash
-./githelper migrate from-submodules --in-place --dry-run
-./githelper migrate from-submodules --in-place
-```
-
-Preflight:
-- el repo padre debe estar limpio;
-- `.gitmodules` debe existir;
-- cada modulo debe tener `.git` como archivo `gitdir: ../.git/modules/<modulo>`;
-- cada gitdir referenciado debe existir.
-
-La migracion mueve cada gitdir a `<modulo>/.git`, quita `core.worktree`, elimina los gitlinks del indice del padre, borra `.gitmodules` y limpia las entradas `submodule.*` de `.git/config`.
 
 ## Manejo de cambios locales al crear branch
 
@@ -169,7 +172,7 @@ Si no se indica `--modules`, se usan todos los modulos de `workspace.ini`.
 ./githelper init
 ```
 
-2. Cambiar branch de trabajo y aplicar perfil:
+2. Cambiar branch de trabajo y aplicar branch-set:
 
 ```bash
 ./githelper switch feature/x

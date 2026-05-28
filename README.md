@@ -381,11 +381,14 @@ The repository includes a single integrated CLI in the project root: `./githelpe
 # Show parent/module status
 ./githelper status
 
-# Switch parent branch and apply the matching workspace profile if present
+# Switch parent branch and apply the matching workspace branch-set if present
 ./githelper switch v5-semantic-indexing
 
 # Pull parent branch and then modules on their workspace target branches
 ./githelper pull
+
+# Capture the current module branches as a reproducible branch-set
+./githelper branch-set capture semantic-demo
 
 # Create the parent branch name in specific modules
 ./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
@@ -394,7 +397,7 @@ The repository includes a single integrated CLI in the project root: `./githelpe
 ./githelper url rewrite --to https
 ```
 
-Workspace modules and branch profiles are declared in `workspace.ini`. By default modules use `main`; a section like `[profile.v5-semantic-indexing]` can point selected modules to feature branches for that parent branch.
+Workspace modules and branch sets are declared in `workspace.ini`. By default modules use `main`; a section like `[branch-set.v5-semantic-indexing]` can point selected modules to feature branches for that parent branch. `./githelper branch-set capture <name>` takes a snapshot of the current module branches so the same combination can be reproduced with `./githelper sync --set <name>`. Maven build profiles such as `lareferencia`, `ibict`, and `rcaap` are separate and are only used by `build.sh`.
 
 ### Checkout Specific Tagged Version
 

@@ -6,12 +6,11 @@ from __future__ import annotations
 import argparse
 import configparser
 import re
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
 
 
 MANIFEST_FILE = "workspace.ini"
@@ -36,7 +35,7 @@ class ModuleMeta:
 class Workspace:
     default_branch: str
     modules: List[ModuleMeta]
-    profiles: Dict[str, Dict[str, str]]
+    branch_sets: Dict[str, Dict[str, str]]
 
     def module_by_selector(self) -> Dict[str, ModuleMeta]:
         selectors: Dict[str, ModuleMeta] = {}
@@ -44,14 +43,6 @@ class Workspace:
             selectors[module.name] = module
             selectors[module.path] = module
         return selectors
-
-
-@dataclass
-class MigrationItem:
-    module: ModuleMeta
-    git_file: Path
-    gitdir: Path
-    destination: Path
 
 
 def run_git(args: Sequence[str], cwd: Path) -> CommandResult:
@@ -165,6 +156,15 @@ def write_manifest_parser(root: Path, parser: configparser.ConfigParser) -> None
         parser.write(fh)
 
 
+def validate_branch_set_name(name: str) -> str:
+    branch_set_name = name.strip()
+    if not branch_set_name:
+        raise RuntimeError("Branch-set name cannot be empty.")
+    if any(ch in branch_set_name for ch in "\r\n[]"):
+        raise RuntimeError(f"Invalid branch-set name: {name}")
+    return branch_set_name
+
+
 def validate_module_path(path: str) -> None:
     module_path = Path(path)
     if module_path.is_absolute():
@@ -199,23 +199,38 @@ def load_workspace(root: Path) -> Workspace:
     if not modules:
         raise RuntimeError(f"{MANIFEST_FILE} does not define any [module.*] sections.")
 
-    profiles: Dict[str, Dict[str, str]] = {}
+    branch_sets: Dict[str, Dict[str, str]] = {}
     for section in parser.sections():
         if not section.startswith("profile."):
             continue
-        profile_name = section[len("profile.") :].strip()
-        if not profile_name:
-            raise RuntimeError(f"Invalid empty profile section in {MANIFEST_FILE}.")
+        branch_set_name = section[len("profile.") :].strip()
+        if not branch_set_name:
+            raise RuntimeError(f"Invalid empty legacy profile section in {MANIFEST_FILE}.")
 
-        profile: Dict[str, str] = {}
+        branch_set: Dict[str, str] = {}
         for module_name, branch in parser.items(section):
             module_name = module_name.strip()
             branch = branch.strip()
             if module_name and branch:
-                profile[module_name] = branch
-        profiles[profile_name] = profile
+                branch_set[module_name] = branch
+        branch_sets[branch_set_name] = branch_set
 
-    return Workspace(default_branch=default_branch, modules=modules, profiles=profiles)
+    for section in parser.sections():
+        if not section.startswith("branch-set."):
+            continue
+        branch_set_name = section[len("branch-set.") :].strip()
+        if not branch_set_name:
+            raise RuntimeError(f"Invalid empty branch-set section in {MANIFEST_FILE}.")
+
+        branch_set: Dict[str, str] = {}
+        for module_name, branch in parser.items(section):
+            module_name = module_name.strip()
+            branch = branch.strip()
+            if module_name and branch:
+                branch_set[module_name] = branch
+        branch_sets[branch_set_name] = branch_set
+
+    return Workspace(default_branch=default_branch, modules=modules, branch_sets=branch_sets)
 
 
 def parse_modules_arg(raw_modules: Optional[str]) -> List[str]:
@@ -251,18 +266,67 @@ def select_modules(workspace: Workspace, raw_modules: Optional[str]) -> List[Mod
     return [by_selector[name] for name in requested]
 
 
-def target_branch_for_module(workspace: Workspace, profile_name: Optional[str], module: ModuleMeta) -> str:
-    profile = workspace.profiles.get(profile_name or "")
-    if profile:
-        if module.name in profile:
-            return profile[module.name]
-        if module.path in profile:
-            return profile[module.path]
+def branch_set_exists(workspace: Workspace, branch_set_name: Optional[str]) -> bool:
+    return bool(branch_set_name and branch_set_name in workspace.branch_sets)
+
+
+def target_branch_for_module(workspace: Workspace, branch_set_name: Optional[str], module: ModuleMeta) -> str:
+    branch_set = workspace.branch_sets.get(branch_set_name or "")
+    if branch_set:
+        if module.name in branch_set:
+            return branch_set[module.name]
+        if module.path in branch_set:
+            return branch_set[module.path]
     return module.branch or workspace.default_branch
 
 
-def target_branches(workspace: Workspace, profile_name: Optional[str], modules: Iterable[ModuleMeta]) -> Dict[str, str]:
-    return {module.name: target_branch_for_module(workspace, profile_name, module) for module in modules}
+def target_branches(workspace: Workspace, branch_set_name: Optional[str], modules: Iterable[ModuleMeta]) -> Dict[str, str]:
+    return {module.name: target_branch_for_module(workspace, branch_set_name, module) for module in modules}
+
+
+def capture_module_branches(root: Path, modules: Iterable[ModuleMeta]) -> Dict[str, str]:
+    captured: Dict[str, str] = {}
+    errors: List[str] = []
+
+    for module in modules:
+        repo = root / module.path
+        branch_state = format_branch(repo)
+        if branch_state in ("MISSING", "UNINITIALIZED", "DETACHED"):
+            errors.append(f"{module.name}: {branch_state}")
+            continue
+        captured[module.name] = branch_state
+
+    if errors:
+        raise RuntimeError("Cannot capture branch-set: " + "; ".join(errors))
+    return captured
+
+
+def write_branch_set(root: Path, branch_set_name: str, captured: Dict[str, str], force: bool = False) -> None:
+    parser = read_manifest_parser(root)
+    section = f"branch-set.{branch_set_name}"
+
+    if parser.has_section(section):
+        if not force:
+            raise RuntimeError(f"Branch-set '{branch_set_name}' already exists; use --force to replace it.")
+        parser.remove_section(section)
+
+    parser.add_section(section)
+    for module_name, branch in captured.items():
+        parser.set(section, module_name, branch)
+
+    write_manifest_parser(root, parser)
+
+
+def resolve_branch_set_arg(args: argparse.Namespace) -> Optional[str]:
+    branch_set = getattr(args, "branch_set", None)
+    legacy_branch = getattr(args, "legacy_branch", None)
+
+    if branch_set and legacy_branch:
+        raise RuntimeError("Use either --set or deprecated --branch, not both.")
+    if legacy_branch:
+        warn("--branch is deprecated for githelper branch sets; use --set.")
+        return legacy_branch
+    return branch_set
 
 
 def prompt_changes_policy(module: str) -> str:
@@ -344,6 +408,19 @@ def switch_to_branch(repo: Path, branch: str) -> CommandResult:
     return CommandResult(2, "", f"Branch '{branch}' not found locally or in origin")
 
 
+def ref_contains_path(repo: Path, ref: str, path: str) -> bool:
+    result = run_git(["cat-file", "-e", f"{ref}:{path}"], repo)
+    return result.returncode == 0
+
+
+def branch_contains_workspace_manifest(repo: Path, branch: str) -> bool:
+    if local_branch_exists(repo, branch) and ref_contains_path(repo, branch, MANIFEST_FILE):
+        return True
+    if remote_branch_exists(repo, branch) and ref_contains_path(repo, f"origin/{branch}", MANIFEST_FILE):
+        return True
+    return False
+
+
 def pull_repo(repo: Path) -> CommandResult:
     return run_git(["pull"], repo)
 
@@ -397,6 +474,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         root = get_repo_root()
         workspace = load_workspace(root)
         modules = select_modules(workspace, args.modules)
+        branch_set_name = resolve_branch_set_arg(args)
     except RuntimeError as err:
         return fail(str(err))
 
@@ -404,9 +482,12 @@ def cmd_init(args: argparse.Namespace) -> int:
     existing = 0
     errors = 0
 
+    if branch_set_name and not branch_set_exists(workspace, branch_set_name):
+        info(f"No branch-set for '{branch_set_name}'; using module defaults.")
+
     for module in modules:
         repo = root / module.path
-        branch = target_branch_for_module(workspace, args.branch, module) if args.branch else module.branch
+        branch = target_branch_for_module(workspace, branch_set_name, module) if branch_set_name else module.branch
 
         if repo.exists():
             if is_git_repository(repo):
@@ -434,12 +515,16 @@ def cmd_sync(args: argparse.Namespace) -> int:
         root = get_repo_root()
         workspace = load_workspace(root)
         modules = select_modules(workspace, args.modules)
+        branch_set_name = resolve_branch_set_arg(args)
     except RuntimeError as err:
         return fail(str(err))
 
-    profile_name = args.branch or get_current_branch(root)
-    if not profile_name:
-        return fail("Parent repository is in detached HEAD; pass --branch explicitly.")
+    branch_set_name = branch_set_name or get_current_branch(root)
+    if not branch_set_name:
+        return fail("Parent repository is in detached HEAD; pass --set explicitly.")
+
+    if not branch_set_exists(workspace, branch_set_name):
+        info(f"No branch-set for '{branch_set_name}'; using module defaults.")
 
     switched = 0
     unchanged = 0
@@ -447,7 +532,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
     for module in modules:
         repo = root / module.path
-        branch = target_branch_for_module(workspace, profile_name, module)
+        branch = target_branch_for_module(workspace, branch_set_name, module)
         if not repo.exists() or not is_git_repository(repo):
             warn(f"{module.name}: repository missing or uninitialized; run './githelper init'.")
             errors += 1
@@ -486,12 +571,18 @@ def cmd_switch(args: argparse.Namespace) -> int:
     target = args.branch
     ensure_remote_refs(root)
 
+    if not branch_contains_workspace_manifest(root, target):
+        return fail(
+            f"branch '{target}' does not contain {MANIFEST_FILE}.\n"
+            "This branch uses the old submodule layout; use plain git switch if you really want to inspect it."
+        )
+
     parent_result = switch_to_branch(root, target)
     if parent_result.returncode != 0:
         return fail(f"Could not switch parent to '{target}': {parent_result.stderr or parent_result.stdout}")
 
     info(f"OK   parent: now on '{target}'.")
-    sync_ns = argparse.Namespace(branch=target, modules=args.modules)
+    sync_ns = argparse.Namespace(branch_set=target, legacy_branch=None, modules=args.modules)
     return cmd_sync(sync_ns)
 
 
@@ -607,6 +698,23 @@ def cmd_branch_create(args: argparse.Namespace) -> int:
 
     info(f"Summary: created={created} existing={existing} kept_changes={kept_changes} errors={errors}")
     return 1 if errors else 0
+
+
+def cmd_branch_set_capture(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
+        branch_set_name = validate_branch_set_name(args.name)
+        captured = capture_module_branches(root, modules)
+        write_branch_set(root, branch_set_name, captured, force=args.force)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    for module_name, branch in captured.items():
+        info(f"OK   {module_name}: captured '{branch}'.")
+    info(f"OK   branch-set '{branch_set_name}': wrote {len(captured)} module branches to {MANIFEST_FILE}.")
+    return 0
 
 
 def cmd_pull(args: argparse.Namespace) -> int:
@@ -759,149 +867,6 @@ def cmd_url_rewrite(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
-def parse_gitdir_file(git_file: Path) -> Optional[Path]:
-    try:
-        text = git_file.read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-
-    match = re.match(r"^gitdir:\s*(.+)$", text)
-    if not match:
-        return None
-    return Path(match.group(1).strip())
-
-
-def collect_submodule_migration_items(root: Path, modules: Iterable[ModuleMeta]) -> List[MigrationItem]:
-    items: List[MigrationItem] = []
-    errors: List[str] = []
-
-    for module in modules:
-        module_path = root / module.path
-        git_file = module_path / ".git"
-        destination = module_path / ".git"
-
-        if not module_path.exists():
-            errors.append(f"{module.name}: module path does not exist: {module.path}")
-            continue
-        if destination.is_dir():
-            errors.append(f"{module.name}: already has a .git directory; not a submodule worktree")
-            continue
-        if not git_file.is_file():
-            errors.append(f"{module.name}: .git is not a gitdir file")
-            continue
-
-        relative_gitdir = parse_gitdir_file(git_file)
-        if relative_gitdir is None:
-            errors.append(f"{module.name}: .git file does not contain a gitdir pointer")
-            continue
-
-        gitdir = (module_path / relative_gitdir).resolve()
-        expected = (root / ".git" / "modules" / module.path).resolve()
-        if gitdir != expected:
-            errors.append(f"{module.name}: gitdir points to {gitdir}, expected {expected}")
-            continue
-        if not gitdir.is_dir():
-            errors.append(f"{module.name}: gitdir does not exist: {gitdir}")
-            continue
-
-        items.append(MigrationItem(module=module, git_file=git_file, gitdir=gitdir, destination=destination))
-
-    if errors:
-        raise RuntimeError("; ".join(errors))
-
-    return items
-
-
-def remove_submodule_config_sections(root: Path) -> int:
-    result = run_git(["config", "--get-regexp", r"^submodule\."], root)
-    if result.returncode != 0 or not result.stdout:
-        return 0
-
-    sections = []
-    for line in result.stdout.splitlines():
-        key = line.split(maxsplit=1)[0]
-        section = key.rsplit(".", 1)[0]
-        if section.startswith("submodule.") and section not in sections:
-            sections.append(section)
-
-    removed = 0
-    for section in sections:
-        remove_result = run_git(["config", "--remove-section", section], root)
-        if remove_result.returncode == 0:
-            removed += 1
-    return removed
-
-
-def cmd_migrate_from_submodules(args: argparse.Namespace) -> int:
-    if not args.in_place:
-        return fail("Only in-place migration is supported; pass --in-place.")
-
-    try:
-        root = get_repo_root()
-        workspace = load_workspace(root)
-        modules = select_modules(workspace, args.modules)
-        items = collect_submodule_migration_items(root, modules)
-    except RuntimeError as err:
-        return fail(str(err))
-
-    gitmodules = root / ".gitmodules"
-    if not gitmodules.exists():
-        return fail(".gitmodules not found; this does not look like a submodule workspace.")
-
-    if working_tree_dirty(root):
-        return fail("Parent repository has uncommitted changes; commit/stash them before migration.")
-
-    for item in items:
-        info(f"PLAN {item.module.name}: {item.gitdir} -> {item.destination}")
-
-    if args.dry_run:
-        info(f"Summary: modules={len(items)} errors=0 (dry-run)")
-        return 0
-
-    errors = 0
-    for item in items:
-        try:
-            item.git_file.unlink()
-            shutil.move(str(item.gitdir), str(item.destination))
-        except OSError as exc:
-            warn(f"{item.module.name}: could not move gitdir: {exc}")
-            errors += 1
-            continue
-
-        unset_result = run_command(
-            ["git", "config", "--file", str(item.destination / "config"), "--unset", "core.worktree"],
-            root,
-        )
-        if unset_result.returncode not in (0, 5):
-            warn(f"{item.module.name}: could not unset core.worktree: {unset_result.stderr or unset_result.stdout}")
-            errors += 1
-            continue
-
-        info(f"OK   {item.module.name}: converted to standalone clone.")
-
-    if errors:
-        return fail(f"Migration stopped with errors={errors}.")
-
-    paths = [item.module.path for item in items]
-    remove_links = run_git(["rm", "--cached", "-r", "--ignore-unmatch", "--", *paths], root)
-    if remove_links.returncode != 0:
-        return fail(f"Could not remove gitlinks from parent index: {remove_links.stderr or remove_links.stdout}")
-
-    remove_gitmodules = run_git(["rm", "--ignore-unmatch", ".gitmodules"], root)
-    if remove_gitmodules.returncode != 0:
-        return fail(f"Could not remove .gitmodules: {remove_gitmodules.stderr or remove_gitmodules.stdout}")
-
-    removed_sections = remove_submodule_config_sections(root)
-    info(
-        "Summary: "
-        f"modules={len(items)} "
-        f"gitlinks_removed={len(paths)} "
-        f"submodule_config_sections_removed={removed_sections} "
-        "errors=0"
-    )
-    return 0
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="githelper",
@@ -915,21 +880,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_status.set_defaults(func=cmd_status)
 
     p_init = subparsers.add_parser("init", help="Clone missing workspace repositories from workspace.ini.")
-    p_init.add_argument("--branch", help="Use the branch profile with this name while cloning.")
+    p_init.add_argument("--set", dest="branch_set", help="Use this branch-set while cloning.")
+    p_init.add_argument("--branch", dest="legacy_branch", help=argparse.SUPPRESS)
     p_init.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
     p_init.set_defaults(func=cmd_init)
 
     p_sync = subparsers.add_parser(
         "sync",
-        help="Sync modules to the current parent branch profile, or to module defaults if no profile exists.",
+        help="Sync modules to the current parent branch-set, or to module defaults if no branch-set exists.",
     )
-    p_sync.add_argument("--branch", help="Target profile name. Defaults to parent current branch.")
+    p_sync.add_argument("--set", dest="branch_set", help="Target branch-set name. Defaults to parent current branch.")
+    p_sync.add_argument("--branch", dest="legacy_branch", help=argparse.SUPPRESS)
     p_sync.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
     p_sync.set_defaults(func=cmd_sync)
 
     p_switch = subparsers.add_parser(
         "switch",
-        help="Switch parent branch and apply the matching workspace profile when present.",
+        help="Switch parent branch and apply the matching workspace branch-set when present.",
     )
     p_switch.add_argument("branch", help="Target branch for the parent repository.")
     p_switch.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
@@ -973,16 +940,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_branch_create.set_defaults(func=cmd_branch_create)
 
-    p_migrate = subparsers.add_parser("migrate", help="Migration helpers for workspace layout changes.")
-    migrate_subparsers = p_migrate.add_subparsers(dest="migrate_command", required=True)
-    p_migrate_submodules = migrate_subparsers.add_parser(
-        "from-submodules",
-        help="Convert existing submodule worktrees into standalone clones.",
+    p_branch_set = subparsers.add_parser("branch-set", help="Capture and manage workspace branch sets.")
+    branch_set_subparsers = p_branch_set.add_subparsers(dest="branch_set_command", required=True)
+
+    p_branch_set_capture = branch_set_subparsers.add_parser(
+        "capture",
+        help="Capture current module branches into workspace.ini as a branch-set.",
     )
-    p_migrate_submodules.add_argument("--in-place", action="store_true", help="Convert the current worktree in place.")
-    p_migrate_submodules.add_argument("--dry-run", action="store_true", help="Preview migration steps.")
-    p_migrate_submodules.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
-    p_migrate_submodules.set_defaults(func=cmd_migrate_from_submodules)
+    p_branch_set_capture.add_argument("name", help="Branch-set name to create.")
+    p_branch_set_capture.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
+    p_branch_set_capture.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace the branch-set if it already exists.",
+    )
+    p_branch_set_capture.set_defaults(func=cmd_branch_set_capture)
 
     return parser
 
