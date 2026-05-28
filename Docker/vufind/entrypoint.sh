@@ -154,9 +154,9 @@ fi
 CONFIG_INI="${VUFIND_LOCAL_DIR}/config/vufind/config.ini"
 if [ ! -f "${CONFIG_INI}" ]; then
   cp "${VUFIND_HOME}/config/vufind/config.ini" "${CONFIG_INI}"
+  chmod -R a+rX "${VUFIND_LOCAL_DIR}"
 fi
 
-chmod -R a+rX "${VUFIND_LOCAL_DIR}"
 
 DB_DSN="mysql://${VUFIND_DB_USER}:${VUFIND_DB_PASSWORD}@${VUFIND_DB_HOST}:${VUFIND_DB_PORT}/${VUFIND_DB_NAME}"
 set_ini_value "System" "autoConfigure" "false" "${CONFIG_INI}"
