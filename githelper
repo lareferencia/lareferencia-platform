@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""githelper: unified Git/submodule workflow CLI."""
+"""githelper: unified Git workspace workflow CLI."""
 
 from __future__ import annotations
 
 import argparse
+import configparser
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
+
+
+MANIFEST_FILE = "workspace.ini"
 
 
 @dataclass
@@ -20,16 +24,35 @@ class CommandResult:
 
 
 @dataclass
-class SubmoduleMeta:
+class ModuleMeta:
     name: str
     path: str
     url: str
+    branch: str
+
+
+@dataclass
+class Workspace:
+    default_branch: str
+    modules: List[ModuleMeta]
+    branch_sets: Dict[str, Dict[str, str]]
+
+    def module_by_selector(self) -> Dict[str, ModuleMeta]:
+        selectors: Dict[str, ModuleMeta] = {}
+        for module in self.modules:
+            selectors[module.name] = module
+            selectors[module.path] = module
+        return selectors
 
 
 def run_git(args: Sequence[str], cwd: Path) -> CommandResult:
+    return run_command(["git", *args], cwd)
+
+
+def run_command(args: Sequence[str], cwd: Path) -> CommandResult:
     try:
         proc = subprocess.run(
-            ["git", *args],
+            list(args),
             cwd=str(cwd),
             text=True,
             stdout=subprocess.PIPE,
@@ -89,60 +112,125 @@ def remote_branch_exists(repo: Path, branch: str) -> bool:
     return result.returncode == 0
 
 
-def _submodule_name_from_key(key: str, suffix: str) -> Optional[str]:
-    # Expected key shape: submodule.<name>.<suffix>
-    prefix = "submodule."
-    if not key.startswith(prefix):
-        return None
-    tail = f".{suffix}"
-    if not key.endswith(tail):
-        return None
-    return key[len(prefix) : -len(tail)]
+def ensure_remote_refs(repo: Path) -> CommandResult:
+    return run_git(["fetch", "--prune", "origin"], repo)
 
 
-def submodule_paths(root: Path) -> List[str]:
-    result = run_git(["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"], root)
+def working_tree_dirty(repo: Path) -> bool:
+    result = run_git(["status", "--porcelain"], repo)
     if result.returncode != 0:
-        return []
-
-    paths: List[str] = []
-    for line in result.stdout.splitlines():
-        parts = line.split(maxsplit=1)
-        if len(parts) == 2:
-            paths.append(parts[1].strip())
-    return paths
+        return False
+    return bool(result.stdout.strip())
 
 
-def get_submodule_metadata(root: Path) -> List[SubmoduleMeta]:
-    paths_result = run_git(["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"], root)
-    urls_result = run_git(["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.url$"], root)
-    if paths_result.returncode != 0 or urls_result.returncode != 0:
-        return []
+def working_tree_status(repo: Path) -> str:
+    result = run_git(["status", "--porcelain"], repo)
+    if result.returncode != 0:
+        return "status?"
 
-    path_by_name = {}
-    for line in paths_result.stdout.splitlines():
-        parts = line.split(maxsplit=1)
-        if len(parts) != 2:
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        return "clean"
+    return f"dirty:{len(lines)}"
+
+
+def manifest_path(root: Path) -> Path:
+    return root / MANIFEST_FILE
+
+
+def read_manifest_parser(root: Path) -> configparser.ConfigParser:
+    path = manifest_path(root)
+    if not path.exists():
+        raise RuntimeError(f"{MANIFEST_FILE} not found in {root}.")
+
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.optionxform = str
+    read_files = parser.read(path)
+    if not read_files:
+        raise RuntimeError(f"Could not read {MANIFEST_FILE}.")
+    return parser
+
+
+def write_manifest_parser(root: Path, parser: configparser.ConfigParser) -> None:
+    with manifest_path(root).open("w", encoding="utf-8") as fh:
+        parser.write(fh)
+
+
+def validate_branch_set_name(name: str) -> str:
+    branch_set_name = name.strip()
+    if not branch_set_name:
+        raise RuntimeError("Branch-set name cannot be empty.")
+    if any(ch in branch_set_name for ch in "\r\n[]"):
+        raise RuntimeError(f"Invalid branch-set name: {name}")
+    return branch_set_name
+
+
+def validate_module_path(path: str) -> None:
+    module_path = Path(path)
+    if module_path.is_absolute():
+        raise RuntimeError(f"Module path must be relative: {path}")
+    if ".." in module_path.parts:
+        raise RuntimeError(f"Module path must stay inside the workspace: {path}")
+
+
+def load_workspace(root: Path) -> Workspace:
+    parser = read_manifest_parser(root)
+    default_branch = parser.get("workspace", "default_branch", fallback="main").strip() or "main"
+
+    modules: List[ModuleMeta] = []
+    for section in parser.sections():
+        if not section.startswith("module."):
             continue
-        name = _submodule_name_from_key(parts[0].strip(), "path")
-        if name:
-            path_by_name[name] = parts[1].strip()
 
-    url_by_name = {}
-    for line in urls_result.stdout.splitlines():
-        parts = line.split(maxsplit=1)
-        if len(parts) != 2:
+        name = section[len("module.") :].strip()
+        if not name:
+            raise RuntimeError(f"Invalid empty module section in {MANIFEST_FILE}.")
+
+        path = parser.get(section, "path", fallback=name).strip() or name
+        validate_module_path(path)
+
+        url = parser.get(section, "url", fallback="").strip()
+        if not url:
+            raise RuntimeError(f"{section} must define url.")
+
+        branch = parser.get(section, "branch", fallback=default_branch).strip() or default_branch
+        modules.append(ModuleMeta(name=name, path=path, url=url, branch=branch))
+
+    if not modules:
+        raise RuntimeError(f"{MANIFEST_FILE} does not define any [module.*] sections.")
+
+    branch_sets: Dict[str, Dict[str, str]] = {}
+    for section in parser.sections():
+        if not section.startswith("profile."):
             continue
-        name = _submodule_name_from_key(parts[0].strip(), "url")
-        if name:
-            url_by_name[name] = parts[1].strip()
+        branch_set_name = section[len("profile.") :].strip()
+        if not branch_set_name:
+            raise RuntimeError(f"Invalid empty legacy profile section in {MANIFEST_FILE}.")
 
-    modules: List[SubmoduleMeta] = []
-    for name, path in path_by_name.items():
-        url = url_by_name.get(name)
-        if url:
-            modules.append(SubmoduleMeta(name=name, path=path, url=url))
-    return modules
+        branch_set: Dict[str, str] = {}
+        for module_name, branch in parser.items(section):
+            module_name = module_name.strip()
+            branch = branch.strip()
+            if module_name and branch:
+                branch_set[module_name] = branch
+        branch_sets[branch_set_name] = branch_set
+
+    for section in parser.sections():
+        if not section.startswith("branch-set."):
+            continue
+        branch_set_name = section[len("branch-set.") :].strip()
+        if not branch_set_name:
+            raise RuntimeError(f"Invalid empty branch-set section in {MANIFEST_FILE}.")
+
+        branch_set: Dict[str, str] = {}
+        for module_name, branch in parser.items(section):
+            module_name = module_name.strip()
+            branch = branch.strip()
+            if module_name and branch:
+                branch_set[module_name] = branch
+        branch_sets[branch_set_name] = branch_set
+
+    return Workspace(default_branch=default_branch, modules=modules, branch_sets=branch_sets)
 
 
 def parse_modules_arg(raw_modules: Optional[str]) -> List[str]:
@@ -155,7 +243,6 @@ def parse_modules_arg(raw_modules: Optional[str]) -> List[str]:
         if token:
             parsed.append(token)
 
-    # Keep insertion order while deduplicating
     deduped: List[str] = []
     seen = set()
     for module in parsed:
@@ -165,32 +252,81 @@ def parse_modules_arg(raw_modules: Optional[str]) -> List[str]:
     return deduped
 
 
-def resolve_modules(root: Path, raw_modules: Optional[str]) -> List[str]:
-    available = submodule_paths(root)
+def select_modules(workspace: Workspace, raw_modules: Optional[str]) -> List[ModuleMeta]:
     requested = parse_modules_arg(raw_modules)
     if not requested:
-        return available
+        return workspace.modules
 
-    missing = [m for m in requested if m not in available]
+    by_selector = workspace.module_by_selector()
+    missing = [name for name in requested if name not in by_selector]
     if missing:
-        raise RuntimeError(
-            "Unknown modules: "
-            + ", ".join(missing)
-            + ". Available: "
-            + ", ".join(available)
-        )
-    return requested
+        available = ", ".join(module.name for module in workspace.modules)
+        raise RuntimeError("Unknown modules: " + ", ".join(missing) + ". Available: " + available)
+
+    return [by_selector[name] for name in requested]
 
 
-def ensure_remote_refs(repo: Path) -> None:
-    run_git(["fetch", "--prune", "origin"], repo)
+def branch_set_exists(workspace: Workspace, branch_set_name: Optional[str]) -> bool:
+    return bool(branch_set_name and branch_set_name in workspace.branch_sets)
 
 
-def working_tree_dirty(repo: Path) -> bool:
-    result = run_git(["status", "--porcelain"], repo)
-    if result.returncode != 0:
-        return False
-    return bool(result.stdout.strip())
+def target_branch_for_module(workspace: Workspace, branch_set_name: Optional[str], module: ModuleMeta) -> str:
+    branch_set = workspace.branch_sets.get(branch_set_name or "")
+    if branch_set:
+        if module.name in branch_set:
+            return branch_set[module.name]
+        if module.path in branch_set:
+            return branch_set[module.path]
+    return module.branch or workspace.default_branch
+
+
+def target_branches(workspace: Workspace, branch_set_name: Optional[str], modules: Iterable[ModuleMeta]) -> Dict[str, str]:
+    return {module.name: target_branch_for_module(workspace, branch_set_name, module) for module in modules}
+
+
+def capture_module_branches(root: Path, modules: Iterable[ModuleMeta]) -> Dict[str, str]:
+    captured: Dict[str, str] = {}
+    errors: List[str] = []
+
+    for module in modules:
+        repo = root / module.path
+        branch_state = format_branch(repo)
+        if branch_state in ("MISSING", "UNINITIALIZED", "DETACHED"):
+            errors.append(f"{module.name}: {branch_state}")
+            continue
+        captured[module.name] = branch_state
+
+    if errors:
+        raise RuntimeError("Cannot capture branch-set: " + "; ".join(errors))
+    return captured
+
+
+def write_branch_set(root: Path, branch_set_name: str, captured: Dict[str, str], force: bool = False) -> None:
+    parser = read_manifest_parser(root)
+    section = f"branch-set.{branch_set_name}"
+
+    if parser.has_section(section):
+        if not force:
+            raise RuntimeError(f"Branch-set '{branch_set_name}' already exists; use --force to replace it.")
+        parser.remove_section(section)
+
+    parser.add_section(section)
+    for module_name, branch in captured.items():
+        parser.set(section, module_name, branch)
+
+    write_manifest_parser(root, parser)
+
+
+def resolve_branch_set_arg(args: argparse.Namespace) -> Optional[str]:
+    branch_set = getattr(args, "branch_set", None)
+    legacy_branch = getattr(args, "legacy_branch", None)
+
+    if branch_set and legacy_branch:
+        raise RuntimeError("Use either --set or deprecated --branch, not both.")
+    if legacy_branch:
+        warn("--branch is deprecated for githelper branch sets; use --set.")
+        return legacy_branch
+    return branch_set
 
 
 def prompt_changes_policy(module: str) -> str:
@@ -272,6 +408,19 @@ def switch_to_branch(repo: Path, branch: str) -> CommandResult:
     return CommandResult(2, "", f"Branch '{branch}' not found locally or in origin")
 
 
+def ref_contains_path(repo: Path, ref: str, path: str) -> bool:
+    result = run_git(["cat-file", "-e", f"{ref}:{path}"], repo)
+    return result.returncode == 0
+
+
+def branch_contains_workspace_manifest(repo: Path, branch: str) -> bool:
+    if local_branch_exists(repo, branch) and ref_contains_path(repo, branch, MANIFEST_FILE):
+        return True
+    if remote_branch_exists(repo, branch) and ref_contains_path(repo, f"origin/{branch}", MANIFEST_FILE):
+        return True
+    return False
+
+
 def pull_repo(repo: Path) -> CommandResult:
     return run_git(["pull"], repo)
 
@@ -285,20 +434,26 @@ def format_branch(repo: Path) -> str:
     return branch if branch else "DETACHED"
 
 
-def print_status(root: Path, modules: Iterable[str]) -> int:
+def print_status(root: Path, modules: Iterable[ModuleMeta], dirty_only: bool = False) -> int:
     head = run_git(["rev-parse", "--short", "HEAD"], root)
     parent_branch = format_branch(root)
     parent_sha = head.stdout if head.returncode == 0 else "?"
-    info(f"parent | {parent_branch} | {parent_sha}")
+    parent_state = working_tree_status(root)
+    if not dirty_only or parent_state != "clean":
+        info(f"parent | {parent_branch} | {parent_sha} | {parent_state}")
 
     for module in modules:
-        repo = root / module
+        repo = root / module.path
         branch_state = format_branch(repo)
         if branch_state in ("MISSING", "UNINITIALIZED"):
-            info(f"{module} | {branch_state} | ?")
+            if not dirty_only:
+                info(f"{module.name} | {branch_state} | ? | status?")
             continue
         sha = run_git(["rev-parse", "--short", "HEAD"], repo)
-        info(f"{module} | {branch_state} | {sha.stdout if sha.returncode == 0 else '?'}")
+        state = working_tree_status(repo)
+        if dirty_only and state == "clean":
+            continue
+        info(f"{module.name} | {branch_state} | {sha.stdout if sha.returncode == 0 else '?'} | {state}")
 
     return 0
 
@@ -306,78 +461,136 @@ def print_status(root: Path, modules: Iterable[str]) -> int:
 def cmd_status(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
-        modules = resolve_modules(root, args.modules)
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
     except RuntimeError as err:
         return fail(str(err))
 
-    return print_status(root, modules)
+    return print_status(root, modules, dirty_only=args.dirty)
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
+        branch_set_name = resolve_branch_set_arg(args)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    cloned = 0
+    existing = 0
+    errors = 0
+
+    if branch_set_name and not branch_set_exists(workspace, branch_set_name):
+        info(f"No branch-set for '{branch_set_name}'; using module defaults.")
+
+    for module in modules:
+        repo = root / module.path
+        branch = target_branch_for_module(workspace, branch_set_name, module) if branch_set_name else module.branch
+
+        if repo.exists():
+            if is_git_repository(repo):
+                info(f"OK   {module.name}: repository already exists at {module.path}.")
+                existing += 1
+            else:
+                warn(f"{module.name}: path exists but is not a git repository: {module.path}")
+                errors += 1
+            continue
+
+        clone_result = run_git(["clone", "--branch", branch, module.url, module.path], root)
+        if clone_result.returncode == 0:
+            info(f"OK   {module.name}: cloned '{branch}' into {module.path}.")
+            cloned += 1
+        else:
+            warn(f"{module.name}: clone failed for branch '{branch}': {clone_result.stderr or clone_result.stdout}")
+            errors += 1
+
+    info(f"Summary: cloned={cloned} existing={existing} errors={errors}")
+    return 1 if errors else 0
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
-        modules = resolve_modules(root, args.modules)
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
+        branch_set_name = resolve_branch_set_arg(args)
     except RuntimeError as err:
         return fail(str(err))
 
-    branch = args.branch or get_current_branch(root)
-    if not branch:
-        return fail("Parent repository is in detached HEAD; pass --branch explicitly.")
+    branch_set_name = branch_set_name or get_current_branch(root)
+    if not branch_set_name:
+        return fail("Parent repository is in detached HEAD; pass --set explicitly.")
+
+    if not branch_set_exists(workspace, branch_set_name):
+        info(f"No branch-set for '{branch_set_name}'; using module defaults.")
 
     switched = 0
-    skipped = 0
+    unchanged = 0
     errors = 0
 
     for module in modules:
-        repo = root / module
-        if not repo.exists():
-            warn(f"{module}: submodule path not found; skipping.")
+        repo = root / module.path
+        branch = target_branch_for_module(workspace, branch_set_name, module)
+        if not repo.exists() or not is_git_repository(repo):
+            warn(f"{module.name}: repository missing or uninitialized; run './githelper init'.")
             errors += 1
             continue
-        ensure_remote_refs(repo)
 
-        has_target = local_branch_exists(repo, branch) or remote_branch_exists(repo, branch)
-        if not has_target:
-            info(f"SKIP {module}: branch '{branch}' does not exist, keeping '{format_branch(repo)}'.")
-            skipped += 1
+        fetch_result = ensure_remote_refs(repo)
+        if fetch_result.returncode != 0:
+            warn(f"{module.name}: fetch failed: {fetch_result.stderr or fetch_result.stdout}")
+            errors += 1
             continue
 
         result = switch_to_branch(repo, branch)
         if result.returncode == 0:
-            info(f"OK   {module}: now on '{branch}'.")
-            switched += 1
+            if result.stdout.startswith("Already on"):
+                info(f"OK   {module.name}: already on '{branch}'.")
+                unchanged += 1
+            else:
+                info(f"OK   {module.name}: now on '{branch}'.")
+                switched += 1
         else:
-            warn(f"{module}: could not switch to '{branch}': {result.stderr or result.stdout}")
+            warn(f"{module.name}: required branch '{branch}' not found: {result.stderr or result.stdout}")
             errors += 1
 
-    info(f"Summary: switched={switched} skipped={skipped} errors={errors}")
+    info(f"Summary: switched={switched} unchanged={unchanged} errors={errors}")
     return 1 if errors else 0
 
 
 def cmd_switch(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
-        modules = resolve_modules(root, args.modules)
+        workspace = load_workspace(root)
+        select_modules(workspace, args.modules)
     except RuntimeError as err:
         return fail(str(err))
 
     target = args.branch
     ensure_remote_refs(root)
 
+    if not branch_contains_workspace_manifest(root, target):
+        return fail(
+            f"branch '{target}' does not contain {MANIFEST_FILE}.\n"
+            "This branch uses the old submodule layout; use plain git switch if you really want to inspect it."
+        )
+
     parent_result = switch_to_branch(root, target)
     if parent_result.returncode != 0:
         return fail(f"Could not switch parent to '{target}': {parent_result.stderr or parent_result.stdout}")
 
     info(f"OK   parent: now on '{target}'.")
-    # Apply the exact rule requested for submodules.
-    sync_ns = argparse.Namespace(branch=target, modules=args.modules)
+    sync_ns = argparse.Namespace(branch_set=target, legacy_branch=None, modules=args.modules)
     return cmd_sync(sync_ns)
 
 
 def cmd_branch_create(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
-        modules = resolve_modules(root, args.modules)
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
     except RuntimeError as err:
         return fail(str(err))
 
@@ -394,23 +607,28 @@ def cmd_branch_create(args: argparse.Namespace) -> int:
     errors = 0
 
     for module in modules:
-        repo = root / module
-        if not repo.exists():
-            warn(f"{module}: submodule path not found; skipping.")
+        repo = root / module.path
+        if not repo.exists() or not is_git_repository(repo):
+            warn(f"{module.name}: repository missing or uninitialized; run './githelper init'.")
             errors += 1
             continue
-        ensure_remote_refs(repo)
+
+        fetch_result = ensure_remote_refs(repo)
+        if fetch_result.returncode != 0:
+            warn(f"{module.name}: fetch failed: {fetch_result.stderr or fetch_result.stdout}")
+            errors += 1
+            continue
 
         dirty = working_tree_dirty(repo)
         if dirty:
             try:
-                policy = prompt_changes_policy(module)
+                policy = prompt_changes_policy(module.name)
             except RuntimeError as err:
                 return fail(str(err))
             if policy == "keep":
                 if local_branch_exists(repo, branch):
                     info(
-                        f"OK   {module}: branch '{branch}' ya existía. "
+                        f"OK   {module.name}: branch '{branch}' ya existía. "
                         "Se mantienen cambios en la branch actual."
                     )
                     existing += 1
@@ -421,14 +639,14 @@ def cmd_branch_create(args: argparse.Namespace) -> int:
                     result = run_git(["branch", "--track", branch, f"origin/{branch}"], repo)
                     if result.returncode == 0:
                         info(
-                            f"OK   {module}: branch local '{branch}' creada desde 'origin/{branch}'. "
+                            f"OK   {module.name}: branch local '{branch}' creada desde 'origin/{branch}'. "
                             "Cambios permanecen en la branch actual."
                         )
                         created += 1
                         kept_changes += 1
                     else:
                         warn(
-                            f"{module}: no se pudo crear branch local '{branch}' "
+                            f"{module.name}: no se pudo crear branch local '{branch}' "
                             f"sin cambiar de branch: {result.stderr or result.stdout}"
                         )
                         errors += 1
@@ -437,14 +655,14 @@ def cmd_branch_create(args: argparse.Namespace) -> int:
                 result = run_git(["branch", branch], repo)
                 if result.returncode == 0:
                     info(
-                        f"OK   {module}: branch '{branch}' creada desde HEAD actual. "
+                        f"OK   {module.name}: branch '{branch}' creada desde HEAD actual. "
                         "Cambios permanecen en la branch actual."
                     )
                     created += 1
                     kept_changes += 1
                 else:
                     warn(
-                        f"{module}: no se pudo crear branch '{branch}' "
+                        f"{module.name}: no se pudo crear branch '{branch}' "
                         f"sin cambiar de branch: {result.stderr or result.stdout}"
                     )
                     errors += 1
@@ -453,39 +671,57 @@ def cmd_branch_create(args: argparse.Namespace) -> int:
         if local_branch_exists(repo, branch):
             result = run_git(["switch", branch], repo)
             if result.returncode == 0:
-                info(f"OK   {module}: branch '{branch}' already existed, switched to it.")
+                info(f"OK   {module.name}: branch '{branch}' already existed, switched to it.")
                 existing += 1
             else:
-                warn(f"{module}: branch '{branch}' exists but switch failed: {result.stderr or result.stdout}")
+                warn(f"{module.name}: branch '{branch}' exists but switch failed: {result.stderr or result.stdout}")
                 errors += 1
             continue
 
         if remote_branch_exists(repo, branch):
             result = run_git(["switch", "-c", branch, "--track", f"origin/{branch}"], repo)
             if result.returncode == 0:
-                info(f"OK   {module}: created local tracking branch '{branch}'.")
+                info(f"OK   {module.name}: created local tracking branch '{branch}'.")
                 created += 1
             else:
-                warn(f"{module}: could not create tracking branch '{branch}': {result.stderr or result.stdout}")
+                warn(f"{module.name}: could not create tracking branch '{branch}': {result.stderr or result.stdout}")
                 errors += 1
             continue
 
         result = run_git(["switch", "-c", branch], repo)
         if result.returncode == 0:
-            info(f"OK   {module}: created new branch '{branch}' from current HEAD.")
+            info(f"OK   {module.name}: created new branch '{branch}' from current HEAD.")
             created += 1
         else:
-            warn(f"{module}: could not create branch '{branch}': {result.stderr or result.stdout}")
+            warn(f"{module.name}: could not create branch '{branch}': {result.stderr or result.stdout}")
             errors += 1
 
     info(f"Summary: created={created} existing={existing} kept_changes={kept_changes} errors={errors}")
     return 1 if errors else 0
 
 
+def cmd_branch_set_capture(args: argparse.Namespace) -> int:
+    try:
+        root = get_repo_root()
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
+        branch_set_name = validate_branch_set_name(args.name)
+        captured = capture_module_branches(root, modules)
+        write_branch_set(root, branch_set_name, captured, force=args.force)
+    except RuntimeError as err:
+        return fail(str(err))
+
+    for module_name, branch in captured.items():
+        info(f"OK   {module_name}: captured '{branch}'.")
+    info(f"OK   branch-set '{branch_set_name}': wrote {len(captured)} module branches to {MANIFEST_FILE}.")
+    return 0
+
+
 def cmd_pull(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
-        modules = resolve_modules(root, args.modules)
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
     except RuntimeError as err:
         return fail(str(err))
 
@@ -505,85 +741,47 @@ def cmd_pull(args: argparse.Namespace) -> int:
 
     info(f"OK   parent: pulled branch '{parent_branch}'.")
 
-    init_cmd = ["submodule", "update", "--init", "--recursive", *modules] if modules else [
-        "submodule",
-        "update",
-        "--init",
-        "--recursive",
-    ]
-    init_result = run_git(init_cmd, root)
-    if init_result.returncode != 0:
-        return fail(
-            "Submodule init/update failed. "
-            f"git {' '.join(init_cmd)} -> {init_result.stderr or init_result.stdout}"
-        )
-
-    pulled_on_parent_branch = 0
-    pulled_on_current_branch = 0
-    detached_fetched = 0
+    pulled = 0
     errors = 0
 
     for module in modules:
-        repo = root / module
+        repo = root / module.path
+        branch = target_branch_for_module(workspace, parent_branch, module)
         if not repo.exists() or not is_git_repository(repo):
-            warn(f"{module}: submodule not initialized; run './githelper pull' and retry.")
+            warn(f"{module.name}: repository missing or uninitialized; run './githelper init'.")
             errors += 1
             continue
-        ensure_remote_refs(repo)
 
-        has_parent_branch = local_branch_exists(repo, parent_branch) or remote_branch_exists(repo, parent_branch)
-        if has_parent_branch:
-            switch_result = switch_to_branch(repo, parent_branch)
-            if switch_result.returncode != 0:
-                warn(
-                    f"{module}: has branch '{parent_branch}' but could not switch: "
-                    f"{switch_result.stderr or switch_result.stdout}"
-                )
-                errors += 1
-                continue
-
-            pull_result = pull_repo(repo)
-            if pull_result.returncode == 0:
-                info(f"OK   {module}: pulled '{parent_branch}'.")
-                pulled_on_parent_branch += 1
-            else:
-                warn(f"{module}: pull failed on '{parent_branch}': {pull_result.stderr or pull_result.stdout}")
-                errors += 1
+        fetch_result = ensure_remote_refs(repo)
+        if fetch_result.returncode != 0:
+            warn(f"{module.name}: fetch failed: {fetch_result.stderr or fetch_result.stdout}")
+            errors += 1
             continue
 
-        current = get_current_branch(repo)
-        if not current:
-            fetch_result = run_git(["fetch", "--prune", "origin"], repo)
-            if fetch_result.returncode == 0:
-                info(f"SKIP {module}: detached HEAD, no parent branch; fetched only.")
-                detached_fetched += 1
-            else:
-                warn(f"{module}: detached HEAD and fetch failed: {fetch_result.stderr or fetch_result.stdout}")
-                errors += 1
+        switch_result = switch_to_branch(repo, branch)
+        if switch_result.returncode != 0:
+            warn(f"{module.name}: required branch '{branch}' not found: {switch_result.stderr or switch_result.stdout}")
+            errors += 1
             continue
 
         pull_result = pull_repo(repo)
         if pull_result.returncode == 0:
-            info(f"OK   {module}: parent branch missing, pulled current '{current}'.")
-            pulled_on_current_branch += 1
+            info(f"OK   {module.name}: pulled '{branch}'.")
+            pulled += 1
         else:
-            warn(f"{module}: pull failed on current '{current}': {pull_result.stderr or pull_result.stdout}")
+            warn(f"{module.name}: pull failed on '{branch}': {pull_result.stderr or pull_result.stdout}")
             errors += 1
 
-    info(
-        "Summary: "
-        f"parent_branch_pulls={pulled_on_parent_branch} "
-        f"current_branch_pulls={pulled_on_current_branch} "
-        f"detached_fetches={detached_fetched} "
-        f"errors={errors}"
-    )
+    info(f"Summary: pulled={pulled} errors={errors}")
     return 1 if errors else 0
 
 
 def cmd_url_rewrite(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
-        selected_modules = resolve_modules(root, args.modules)
+        workspace = load_workspace(root)
+        modules = select_modules(workspace, args.modules)
+        parser = read_manifest_parser(root)
     except RuntimeError as err:
         return fail(str(err))
 
@@ -616,68 +814,44 @@ def cmd_url_rewrite(args: argparse.Namespace) -> int:
                 else:
                     parent_changed += 1
 
-    submodules = get_submodule_metadata(root)
-    if not submodules:
-        warn("No submodule metadata found in .gitmodules; only parent remote was processed.")
-    by_path = {sm.path: sm for sm in submodules}
-    targets: List[SubmoduleMeta] = []
-    for module in selected_modules:
-        sm = by_path.get(module)
-        if sm:
-            targets.append(sm)
-        else:
-            warn(f"{module}: no metadata entry found in .gitmodules; skipping.")
-
     changed = 0
     unchanged = 0
     skipped = 0
     errors = 0
 
-    for sm in targets:
-        new_url = rewrite_url(sm.url, args.to)
+    for module in modules:
+        new_url = rewrite_url(module.url, args.to)
 
         if not new_url:
-            warn(f"{sm.path}: unsupported URL format '{sm.url}', skipping.")
+            warn(f"{module.name}: unsupported URL format '{module.url}', skipping.")
             skipped += 1
             continue
 
-        if new_url == sm.url:
-            info(f"OK   {sm.path}: already {args.to} ({sm.url})")
+        if new_url == module.url:
+            info(f"OK   {module.name}: already {args.to} ({module.url})")
             unchanged += 1
             continue
 
-        info(f"PLAN {sm.path}: {sm.url} -> {new_url}")
+        info(f"PLAN {module.name}: {module.url} -> {new_url}")
         if args.dry_run:
             changed += 1
             continue
 
-        write_modules = run_git(["config", "--file", ".gitmodules", f"submodule.{sm.name}.url", new_url], root)
-        if write_modules.returncode != 0:
-            warn(f"{sm.path}: failed updating .gitmodules URL: {write_modules.stderr or write_modules.stdout}")
-            errors += 1
-            continue
+        section = f"module.{module.name}"
+        parser.set(section, "url", new_url)
 
-        write_local = run_git(["config", f"submodule.{sm.name}.url", new_url], root)
-        if write_local.returncode != 0:
-            warn(f"{sm.path}: failed updating local git config URL: {write_local.stderr or write_local.stdout}")
-            errors += 1
-            continue
-
-        module_repo = root / sm.path
-        if module_repo.exists():
-            remote_set = run_git(["remote", "set-url", "origin", new_url], module_repo)
+        repo = root / module.path
+        if repo.exists() and is_git_repository(repo):
+            remote_set = run_git(["remote", "set-url", "origin", new_url], repo)
             if remote_set.returncode != 0:
-                warn(f"{sm.path}: failed updating submodule origin URL: {remote_set.stderr or remote_set.stdout}")
+                warn(f"{module.name}: failed updating origin URL: {remote_set.stderr or remote_set.stdout}")
                 errors += 1
                 continue
 
         changed += 1
 
-    if not args.dry_run:
-        sync_result = run_git(["submodule", "sync", "--recursive"], root)
-        if sync_result.returncode != 0:
-            warn(f"submodule sync failed: {sync_result.stderr or sync_result.stdout}")
-            errors += 1
+    if not args.dry_run and changed:
+        write_manifest_parser(root, parser)
 
     info(
         "Summary: "
@@ -696,51 +870,59 @@ def cmd_url_rewrite(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="githelper",
-        description="Unified helper for parent repo + submodule branch workflows.",
+        description="Unified helper for parent repo + multi-repo workspace workflows.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    p_status = subparsers.add_parser("status", help="Show parent and submodule branch/HEAD status.")
-    p_status.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_status = subparsers.add_parser("status", help="Show parent and module branch/HEAD status.")
+    p_status.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
+    p_status.add_argument("--dirty", action="store_true", help="Show only repositories with local changes.")
     p_status.set_defaults(func=cmd_status)
+
+    p_init = subparsers.add_parser("init", help="Clone missing workspace repositories from workspace.ini.")
+    p_init.add_argument("--set", dest="branch_set", help="Use this branch-set while cloning.")
+    p_init.add_argument("--branch", dest="legacy_branch", help=argparse.SUPPRESS)
+    p_init.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
+    p_init.set_defaults(func=cmd_init)
 
     p_sync = subparsers.add_parser(
         "sync",
-        help="Sync submodules to target branch when that branch exists; otherwise keep current branch.",
+        help="Sync modules to the current parent branch-set, or to module defaults if no branch-set exists.",
     )
-    p_sync.add_argument("--branch", help="Target branch. Defaults to parent current branch.")
-    p_sync.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_sync.add_argument("--set", dest="branch_set", help="Target branch-set name. Defaults to parent current branch.")
+    p_sync.add_argument("--branch", dest="legacy_branch", help=argparse.SUPPRESS)
+    p_sync.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
     p_sync.set_defaults(func=cmd_sync)
 
     p_switch = subparsers.add_parser(
         "switch",
-        help="Switch parent branch and then sync submodules if they contain that branch.",
+        help="Switch parent branch and apply the matching workspace branch-set when present.",
     )
     p_switch.add_argument("branch", help="Target branch for the parent repository.")
-    p_switch.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_switch.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
     p_switch.set_defaults(func=cmd_switch)
 
     p_pull = subparsers.add_parser(
         "pull",
-        help="Pull parent branch, then pull submodules on parent branch if available, else their current branch.",
+        help="Pull parent branch, then pull modules on their workspace target branches.",
     )
     p_pull.add_argument("--branch", help="Parent branch to use before pulling.")
-    p_pull.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_pull.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
     p_pull.set_defaults(func=cmd_pull)
 
-    p_url = subparsers.add_parser("url", help="Rewrite parent/submodule URLs between SSH and HTTPS.")
+    p_url = subparsers.add_parser("url", help="Rewrite parent/module URLs between SSH and HTTPS.")
     url_subparsers = p_url.add_subparsers(dest="url_command", required=True)
-    p_url_rewrite = url_subparsers.add_parser("rewrite", help="Rewrite parent origin and selected submodule URLs.")
+    p_url_rewrite = url_subparsers.add_parser("rewrite", help="Rewrite parent origin and selected module URLs.")
     p_url_rewrite.add_argument("--to", choices=("https", "ssh"), required=True, help="Target URL format.")
-    p_url_rewrite.add_argument("--modules", help="Comma-separated module list. Defaults to all submodules.")
+    p_url_rewrite.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
     p_url_rewrite.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview changes without writing .gitmodules or git config.",
+        help="Preview changes without writing workspace.ini or git remotes.",
     )
     p_url_rewrite.set_defaults(func=cmd_url_rewrite)
 
-    p_branch = subparsers.add_parser("branch", help="Branch management for submodules.")
+    p_branch = subparsers.add_parser("branch", help="Branch management for workspace modules.")
     branch_subparsers = p_branch.add_subparsers(dest="branch_command", required=True)
 
     p_branch_create = branch_subparsers.add_parser(
@@ -757,6 +939,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Branch name. Defaults to parent current branch.",
     )
     p_branch_create.set_defaults(func=cmd_branch_create)
+
+    p_branch_set = subparsers.add_parser("branch-set", help="Capture and manage workspace branch sets.")
+    branch_set_subparsers = p_branch_set.add_subparsers(dest="branch_set_command", required=True)
+
+    p_branch_set_capture = branch_set_subparsers.add_parser(
+        "capture",
+        help="Capture current module branches into workspace.ini as a branch-set.",
+    )
+    p_branch_set_capture.add_argument("name", help="Branch-set name to create.")
+    p_branch_set_capture.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
+    p_branch_set_capture.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace the branch-set if it already exists.",
+    )
+    p_branch_set_capture.set_defaults(func=cmd_branch_set_capture)
 
     return parser
 

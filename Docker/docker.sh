@@ -650,9 +650,9 @@ ensure_java_parent_modules_ready() {
   done
 
   if [ "${#missing[@]}" -gt 0 ]; then
-    echo "Missing initialized Java submodules (pom.xml absent):" >&2
+    echo "Missing initialized Java workspace modules (pom.xml absent):" >&2
     printf '  - %s\n' "${missing[@]}" >&2
-    echo "Run: ./githelper pull" >&2
+    echo "Run: ./githelper init" >&2
     return 1
   fi
 

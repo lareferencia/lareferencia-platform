@@ -28,9 +28,9 @@ ensure_java_parent_modules_ready() {
   done
 
   if [ "${#missing[@]}" -gt 0 ]; then
-    echo "Faltan submódulos Java inicializados (pom.xml ausente):" >&2
+    echo "Faltan modulos Java inicializados (pom.xml ausente):" >&2
     printf '  - %s\n' "${missing[@]}" >&2
-    echo "Ejecuta: ./githelper pull" >&2
+    echo "Ejecuta: ./githelper init" >&2
     exit 1
   fi
 }

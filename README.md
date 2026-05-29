@@ -352,9 +352,12 @@ RCAAP-specific Solr extensions (DISCONTINUED)
 ### Building the Platform
 
 ```bash
-# Clone the repository with submodules
-git clone --recursive https://github.com/lareferencia/lareferencia-platform.git
+# Clone the repository
+git clone https://github.com/lareferencia/lareferencia-platform.git
 cd lareferencia-platform
+
+# Clone workspace modules declared in workspace.ini
+./githelper init
 
 # Build all modules general implementation
 ./build.sh lareferencia
@@ -363,39 +366,45 @@ cd lareferencia-platform
 ./build.sh ibict
 ```
 
-## 📦 Git Submodules
+## 📦 Multi-Repo Workspace
 
-This project uses Git submodules for modular development. All submodules are tracked separately and can be developed independently.
+This project uses a multi-repo workspace for modular development. Each module is a normal Git clone in the project root and can be developed independently.
 
 ### Unified CLI: `githelper`
 
 The repository includes a single integrated CLI in the project root: `./githelper`.
 
 ```bash
-# Show parent/submodule status
+# Clone missing module repositories from workspace.ini
+./githelper init
+
+# Show parent/module status
 ./githelper status
 
-# Switch parent branch and move each submodule only if that branch exists there
+# Switch parent branch and apply the matching workspace branch-set if present
 ./githelper switch v5-semantic-indexing
 
-# Pull parent branch and then submodules:
-# - same parent branch if it exists in the submodule
-# - otherwise the submodule current branch
+# Pull parent branch and then modules on their workspace target branches
 ./githelper pull
+
+# Capture the current module branches as a reproducible branch-set
+./githelper branch-set capture semantic-demo
 
 # Create the parent branch name in specific modules
 ./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
 
-# Convert submodule URLs from SSH to HTTPS (for users without SSH access)
+# Convert module URLs from SSH to HTTPS (for users without SSH access)
 ./githelper url rewrite --to https
 ```
 
-### Checkout Specific Tagged Version (release workflow)
+Workspace modules and branch sets are declared in `workspace.ini`. By default modules use `main`; a section like `[branch-set.v5-semantic-indexing]` can point selected modules to feature branches for that parent branch. `./githelper branch-set capture <name>` takes a snapshot of the current module branches so the same combination can be reproduced with `./githelper sync --set <name>`. Maven build profiles such as `lareferencia`, `ibict`, and `rcaap` are separate and are only used by `build.sh`.
+
+### Checkout Specific Tagged Version
 
 ```bash
-# Checkout stable version 4.2.6
+# Checkout a platform version
 git checkout 4.2.6
-git submodule update --init --recursive
+./githelper init
 ```
 
 ## 🔧 Configuration
