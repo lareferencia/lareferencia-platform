@@ -709,16 +709,21 @@ exec_shell_command_interactive() {
 
 clean_data_preserving_tracked() {
   local rel_data_dir="${DATA_DIR#${ROOT_DIR}/}"
-  echo "--- Cleaning data in ${rel_data_dir} (preserving Maven cache) ---"
+  local rel_volume_dir="${VOLUME_DIR#${ROOT_DIR}/}"
+  echo "--- Cleaning data in ${rel_data_dir} and ${rel_volume_dir} ---"
 
   if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Git clean excluding the m2 directory
-    git -C "${ROOT_DIR}" clean -fdx -e "m2/" -- "${rel_data_dir}"
+    git -C "${ROOT_DIR}" clean -fdx -e "m2/" -- "${rel_data_dir}" "${rel_volume_dir}"
   else
     # Find/delete excluding the m2 path
-    find "${DATA_DIR}" -mindepth 1 -path "${DATA_DIR}/m2" -prune -o ! -name '.gitkeep' -type f -delete
-    find "${DATA_DIR}" -mindepth 1 -path "${DATA_DIR}/m2" -prune -o -type l -delete
-    find "${DATA_DIR}" -mindepth 1 -path "${DATA_DIR}/m2" -prune -o -type d -empty -delete
+    for dir in "${DATA_DIR}" "${VOLUME_DIR}"; do
+      if [ -d "${dir}" ]; then
+        find "${dir}" -mindepth 1 -path "${dir}/m2" -prune -o ! -name '.gitkeep' -type f -delete
+        find "${dir}" -mindepth 1 -path "${dir}/m2" -prune -o -type l -delete
+        find "${dir}" -mindepth 1 -path "${dir}/m2" -prune -o -type d -empty -delete
+      fi
+    done
   fi
 }
 

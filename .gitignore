@@ -38,6 +38,8 @@ pom.xml.versionsBackup
 ### Docker Data and Backups ###
 /Docker/data/*
 !/Docker/data/**/.gitkeep
+/Docker/volume/*
+!/Docker/volume/**/.gitkeep
 /Docker_pre_restoration/
 /*.bak
 /*.patch

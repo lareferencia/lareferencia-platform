@@ -23,6 +23,43 @@ echo "--- Initializing ${APP_MODULE} container ---"
 APP_DIR="/workspace/${APP_MODULE}"
 APP_CONFIG_DIR="${APP_CONFIG_DIR:-${APP_DIR}/config}"
 
+# --- PERMISSIONS & USER SETUP ---
+# Ensure runtime and log directories exist and are owned by the app user
+mkdir -p "${APP_RUN_CONFIG_DIR}"
+mkdir -p "${DATA_DIR:-/data}" "${LOG_DIR:-/var/log/harvester}"
+chown -R lareferencia:lareferencia "${APP_RUN_CONFIG_DIR}" "${DATA_DIR:-/data}" "${LOG_DIR:-/var/log/harvester}"
+
+# --- SEED EXTERNAL CONFIG VOLUME ---
+if [ -n "${EXTERNAL_CONFIG_DIR:-}" ]; then
+  if [ ! -d "${EXTERNAL_CONFIG_DIR}" ]; then
+    mkdir -p "${EXTERNAL_CONFIG_DIR}"
+  fi
+  
+  # Ensure the app user can write to the external volume
+  chown lareferencia:lareferencia "${EXTERNAL_CONFIG_DIR}"
+
+  # Ensure the volume has at least the base configuration files
+  # We use cp -ru (update) to fill in missing files. Since image defaults are older 
+  # than files in the volume, this preserves user modifications.
+  echo "Ensuring base configuration in ${EXTERNAL_CONFIG_DIR}..."
+  cp -ru "${APP_CONFIG_DIR}/." "${EXTERNAL_CONFIG_DIR}/" > /dev/null 2>&1
+  
+  # --- MERGE OVERRIDES INTO EXTERNAL VOLUME ---
+  # This allows persistent changes to the volume to be augmented by version-controlled overrides
+  OVERRIDE_MODULE_DIR="${DOCKER_OVERRIDES_DIR}/${APP_MODULE}"
+  if [ -d "${OVERRIDE_MODULE_DIR}" ]; then
+    echo "Merging overrides from ${OVERRIDE_MODULE_DIR} into ${EXTERNAL_CONFIG_DIR}..."
+    cp -a "${OVERRIDE_MODULE_DIR}/." "${EXTERNAL_CONFIG_DIR}/"
+  fi
+
+  # Switch base config source to the external volume
+  echo "Using external config from ${EXTERNAL_CONFIG_DIR}"
+  APP_CONFIG_DIR="${EXTERNAL_CONFIG_DIR}"
+  
+  # Re-ensure ownership of everything in the config dir after copies
+  chown -R lareferencia:lareferencia "${EXTERNAL_CONFIG_DIR}"
+fi
+
 is_truthy() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
     1|true|on|yes) return 0 ;;
@@ -33,15 +70,16 @@ is_truthy() {
 # If it's the shell module and idle is requested, wait
 if [ "${APP_MODULE}" = "lareferencia-shell" ] && is_truthy "${SHELL_IDLE}" && [ "${#APP_ARGS[@]}" -eq 0 ]; then
   echo "Starting ${APP_MODULE} in idle mode (SHELL_IDLE=true)."
-  exec tail -f /dev/null
+  exec gosu lareferencia tail -f /dev/null
 fi
 
 # Build isolated runtime config
 rm -rf "${APP_RUN_CONFIG_DIR}"
 mkdir -p "${APP_RUN_CONFIG_DIR}"
 if [ -d "${APP_CONFIG_DIR}" ]; then
-  echo "Copying default config from ${APP_CONFIG_DIR}"
+  echo "Copying config from ${APP_CONFIG_DIR} to runtime dir"
   cp -a "${APP_CONFIG_DIR}/." "${APP_RUN_CONFIG_DIR}/"
+  chown -R lareferencia:lareferencia "${APP_RUN_CONFIG_DIR}"
 fi
 
 JAVA_OVERRIDE_PROPS=()
@@ -102,13 +140,13 @@ cd "${APP_DIR}"
 
 # RUN LOGIC
 if [ -f "application/app.jar" ]; then
-  echo "Starting ${APP_MODULE} via single JAR..."
-  exec java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" -jar application/app.jar "${APP_ARGS[@]}"
+  echo "Starting ${APP_MODULE} via single JAR (as lareferencia)..."
+  exec gosu lareferencia java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" -jar application/app.jar "${APP_ARGS[@]}"
 else
-  echo "Starting ${APP_MODULE} via JarLauncher (Layers)..."
+  echo "Starting ${APP_MODULE} via JarLauncher (Layers) (as lareferencia)..."
   LAUNCHER="org.springframework.boot.loader.launch.JarLauncher"
   if ! java -cp . "${LAUNCHER}" --help >/dev/null 2>&1; then
       LAUNCHER="org.springframework.boot.loader.JarLauncher"
   fi
-  exec java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" "${LAUNCHER}" "${APP_ARGS[@]}"
+  exec gosu lareferencia java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" "${LAUNCHER}" "${APP_ARGS[@]}"
 fi

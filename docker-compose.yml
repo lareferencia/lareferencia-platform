@@ -153,6 +153,7 @@ services:
       APP_MODULE: lareferencia-lrharvester-app
       APP_JAR: lareferencia-lrharvester-app-5.0.0-beta.jar
       APP_CONFIG_DIR: /workspace/lareferencia-lrharvester-app/config
+      EXTERNAL_CONFIG_DIR: /config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
       DEFAULT_SOLR_SERVER: http://solr:8983/solr
@@ -162,7 +163,9 @@ services:
       - "${LR_PORT_HARVESTER:-8090}:8090"
     volumes:
       - ./Docker/config-overrides:/docker-overrides:ro
-      - ./Docker/data/shared/store:/workspace/Docker/data/shared/store
+      - ./Docker/volume/lareferencia-lrharvester-app/config:/config
+      - ./Docker/volume/lareferencia-lrharvester-app/data:/data
+      - ./Docker/volume/lareferencia-lrharvester-app/log:/var/log/harvester
     deploy:
       resources:
         limits:
