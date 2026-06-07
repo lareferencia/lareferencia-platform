@@ -10,6 +10,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # echo "DEBUG: ROOT_DIR=${ROOT_DIR}"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
 DATA_DIR="${ROOT_DIR}/Docker/data"
+VOLUME_DIR="${ROOT_DIR}/Docker/volume"
 ENV_FILE="${SCRIPT_DIR}/.env"
 ENV_EXAMPLE="${SCRIPT_DIR}/.env.example"
 
@@ -714,7 +715,13 @@ clean_data_preserving_tracked() {
 
   if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Git clean excluding the m2 directory
-    git -C "${ROOT_DIR}" clean -fdx -e "m2/" -- "${rel_data_dir}" "${rel_volume_dir}"
+    local paths_to_clean=()
+    [ -n "${rel_data_dir}" ] && paths_to_clean+=("${rel_data_dir}")
+    [ -n "${rel_volume_dir}" ] && paths_to_clean+=("${rel_volume_dir}")
+    
+    if [ ${#paths_to_clean[@]} -gt 0 ]; then
+      git -C "${ROOT_DIR}" clean -fdx -e "m2/" -- "${paths_to_clean[@]}"
+    fi
   else
     # Find/delete excluding the m2 path
     for dir in "${DATA_DIR}" "${VOLUME_DIR}"; do

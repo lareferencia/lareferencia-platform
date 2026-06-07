@@ -85,7 +85,10 @@ services:
     ports:
       - "${LR_PORT_SOLR:-8983}:8983"
     volumes:
-      - ./Docker/data/solr:/var/solr/data
+      - ./Docker/solr/cores:/opt/lr-solr-cores:ro
+      - ./Docker/volume/solr/data:/var/solr/data
+      - ./Docker/volume/solr/log:/var/solr/logs
+      - ./Docker/volume/solr/cache:/var/solr/cache
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8983/solr/admin/info/system | grep -q '\"status\":0' || exit 1"]
       interval: 20s
