@@ -37,7 +37,12 @@ services:
       - "${LR_PORT_VUFIND_WEB:-8080}:80"
     volumes:
       - ./vufind:/usr/local/vufind
-      - ./Docker/data/vufind/vendor:/usr/local/vufind/vendor
+      - ./Docker/volume/vufind/config:/usr/local/vufind/local/docker/config
+      - ./Docker/volume/vufind/cache:/usr/local/vufind/local/docker/cache
+      - ./Docker/volume/vufind/log:/usr/local/vufind/local/docker/logs
+      - ./Docker/volume/vufind/data/harvest:/usr/local/vufind/local/docker/harvest
+      - ./Docker/volume/vufind/data/import:/usr/local/vufind/local/docker/import
+      - ./Docker/volume/vufind/data/vendor:/usr/local/vufind/vendor
     deploy:
       resources:
         limits:
@@ -58,7 +63,7 @@ services:
     ports:
       - "${LR_PORT_VUFIND_DB:-3307}:3306"
     volumes:
-      - ./Docker/data/vufind-mariadb:/var/lib/mysql
+      - ./Docker/volume/vufind/data/db:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -120,7 +125,7 @@ services:
     ports:
       - "127.0.0.1:${LR_PORT_POSTGRES:-5432}:5432"
     volumes:
-      - ./Docker/data/postgres:/var/lib/postgresql/data
+      - ./Docker/volume/lareferencia/postgres/data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lrharvester -d lrharvester"]
       interval: 10s
@@ -166,9 +171,9 @@ services:
       - "${LR_PORT_HARVESTER:-8090}:8090"
     volumes:
       - ./Docker/config-overrides:/docker-overrides:ro
-      - ./Docker/volume/lareferencia-lrharvester-app/config:/config
-      - ./Docker/volume/lareferencia-lrharvester-app/data:/data
-      - ./Docker/volume/lareferencia-lrharvester-app/log:/var/log/harvester
+      - ./Docker/volume/lareferencia/lrharvester-app/config:/config
+      - ./Docker/volume/lareferencia/lrharvester-app/data:/data
+      - ./Docker/volume/lareferencia/lrharvester-app/log:/var/log/harvester
     deploy:
       resources:
         limits:
@@ -205,10 +210,15 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
       SOLR_HOST: http://solr:8983/solr
       ELASTIC_HOST: elasticsearch
+      EXTERNAL_CONFIG_DIR: /config
+      LOG_DIR: /var/log/dashboard
     ports:
       - "${LR_PORT_DASHBOARD:-8092}:8092"
     volumes:
       - ./Docker/config-overrides:/docker-overrides:ro
+      - ./Docker/volume/lareferencia/dashboard-rest/config:/config
+      - ./Docker/volume/lareferencia/dashboard-rest/data:/data
+      - ./Docker/volume/lareferencia/dashboard-rest/log:/var/log/dashboard
     deploy:
       resources:
         limits:
@@ -244,12 +254,16 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
       SPRING_DATASOURCE_PASSWORD: lrharvester
       SOLR_HOST: http://solr:8983/solr
-
       ELASTIC_HOST: elasticsearch
+      EXTERNAL_CONFIG_DIR: /config
+      LOG_DIR: /var/log/entity-rest
     ports:
       - "${LR_PORT_ENTITY_REST:-8094}:8094"
     volumes:
       - ./Docker/config-overrides:/docker-overrides:ro
+      - ./Docker/volume/lareferencia/entity-rest/config:/config
+      - ./Docker/volume/lareferencia/entity-rest/data:/data
+      - ./Docker/volume/lareferencia/entity-rest/log:/var/log/entity-rest
     deploy:
       resources:
         limits:
@@ -350,7 +364,8 @@ services:
     cap_add:
       - IPC_LOCK
     volumes:
-      - ./Docker/data/elasticsearch:/usr/share/elasticsearch/data
+      - ./Docker/volume/elasticsearch/data:/usr/share/elasticsearch/data
+      - ./Docker/volume/elasticsearch/log:/usr/share/elasticsearch/logs
     ports:
       - "${LR_PORT_ELASTIC_9200:-9200}:9200"
       - "${LR_PORT_ELASTIC_9300:-9300}:9300"
@@ -378,8 +393,8 @@ services:
       '
     volumes:
       - ./vufind:/usr/local/vufind
-      - ./Docker/data/vufind/node_modules:/usr/local/vufind/node_modules
-      - ./Docker/data/vufind/bootstrap5-node_modules:/usr/local/vufind/themes/bootstrap5/node_modules
+      - ./Docker/volume/vufind/data/node_modules:/usr/local/vufind/node_modules
+      - ./Docker/volume/vufind/data/themes-node_modules:/usr/local/vufind/themes/bootstrap5/node_modules
     profiles:
       - watch
     restart: unless-stopped
