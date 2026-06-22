@@ -30,7 +30,24 @@ ensure_java_parent_modules_ready() {
   if [ "${#missing[@]}" -gt 0 ]; then
     echo "Faltan modulos Java inicializados (pom.xml ausente):" >&2
     printf '  - %s\n' "${missing[@]}" >&2
-    echo "Ejecuta: ./githelper init" >&2
+    echo "Ejecutando: ./githelper init para clonar modulos..." >&2
+    if [ -x "${root_dir}/githelper" ]; then
+      "${root_dir}/githelper" init
+    else
+      python3 "${root_dir}/githelper" init
+    fi
+  fi
+
+  # Re-verificar
+  missing=()
+  for module in "${JAVA_PARENT_MODULES[@]}"; do
+    if [ ! -f "${root_dir}/${module}/pom.xml" ]; then
+      missing+=("${module}")
+    fi
+  done
+
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo "Error: Aun faltan modulos despues de la inicializacion." >&2
     exit 1
   fi
 }

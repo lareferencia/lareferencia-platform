@@ -22,7 +22,7 @@ fi
 DEFAULT_VUFIND_REPO_URL="https://github.com/vufind-org/vufind"
 DEFAULT_VUFIND_REF="v11.0.1"
 
-ALL_MODULES=(core harvester dashboard entity-rest shell vufind elastic watch)
+ALL_MODULES=(core solr harvester dashboard entity-rest shell vufind elastic watch)
 JAVA_PARENT_MODULES=(
   lareferencia-oclc-harvester
   lareferencia-core-lib
@@ -231,6 +231,7 @@ sync_compose_profiles() {
     if [ "$(get_module_state "${module}")" = "on" ]; then
       case "${module}" in
         core)         profiles+=(core) ;;
+        solr)         ;;
         harvester)    profiles+=(harvester) ;;
         dashboard)    profiles+=(dashboard) ;;
         entity-rest)  profiles+=(entity-rest) ;;
@@ -341,6 +342,7 @@ module_env_key() {
   local module="$1"
   case "${module}" in
     core) printf "DEV_MODULE_CORE\n" ;;
+    solr) printf "DEV_MODULE_SOLR\n" ;;
     harvester) printf "DEV_MODULE_HARVESTER\n" ;;
     dashboard) printf "DEV_MODULE_DASHBOARD\n" ;;
     entity-rest) printf "DEV_MODULE_ENTITY_REST\n" ;;
@@ -355,7 +357,7 @@ module_env_key() {
 module_default_state() {
   local module="$1"
   case "${module}" in
-    core|harvester|dashboard|shell) printf "on\n" ;;
+    core|solr|harvester|vufind) printf "on\n" ;;
     *) printf "off\n" ;;
   esac
 }
@@ -407,11 +409,12 @@ module_services() {
   local module="$1"
   case "${module}" in
     core)
-      local services="postgres"
+      printf "postgres\n"
+      ;;
+    solr)
       if [ -z "$(get_env_var SOLR_EXTERNAL_URL "")" ]; then
-        services="${services} solr"
+        printf "solr\n"
       fi
-      printf "%s\n" "${services}"
       ;;
     harvester)
       printf "harvester\n"
@@ -641,6 +644,7 @@ refresh_solr_for_vufind_assets() {
 }
 
 ensure_java_parent_modules_ready() {
+  local pull_existing="${1:-false}"
   local missing=()
   local module
 
@@ -653,7 +657,33 @@ ensure_java_parent_modules_ready() {
   if [ "${#missing[@]}" -gt 0 ]; then
     echo "Missing initialized Java workspace modules (pom.xml absent):" >&2
     printf '  - %s\n' "${missing[@]}" >&2
-    echo "Run: ./githelper init" >&2
+    echo "Cloning missing modules using githelper..." >&2
+    if [ -x "${ROOT_DIR}/githelper" ]; then
+      "${ROOT_DIR}/githelper" init
+    else
+      python3 "${ROOT_DIR}/githelper" init
+    fi
+  fi
+
+  if [ "${pull_existing}" = "true" ]; then
+    echo "Pulling updates for existing modules using githelper..." >&2
+    if [ -x "${ROOT_DIR}/githelper" ]; then
+      "${ROOT_DIR}/githelper" pull || true
+    else
+      python3 "${ROOT_DIR}/githelper" pull || true
+    fi
+  fi
+
+  # Re-verify after run
+  missing=()
+  for module in "${JAVA_PARENT_MODULES[@]}"; do
+    if [ ! -f "${ROOT_DIR}/${module}/pom.xml" ]; then
+      missing+=("${module}")
+    fi
+  done
+
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo "Error: Some modules are still missing after initialization." >&2
     return 1
   fi
 
@@ -812,7 +842,7 @@ execute_with_progress() {
     eval "$cmd" > "$log_file" 2>&1 &
     local pid=$!
     
-    local width=25
+    local width=15
     local i=0
     local cpu_val="0"
     local mem_val="0"
@@ -861,13 +891,14 @@ execute_with_progress() {
         local status_text="Initializing..."
         if [ -f "$log_file" ]; then
           local found
-          found=$(grep -E "Container|Building|#|Step" "$log_file" | tail -n 1 | sed -E 's/.*Container ([^ ]+).*/\1/; s/.*Building ([^ ]+).*/\1/; s/.*#[0-9]+ (\[[^]]+\]).*/\1/')
+          found=$(grep -E "Container|Building|#|Step|cloned|pulled|Cloning|Pulling" "$log_file" | tail -n 1 | sed -E 's/.*Container ([^ ]+).*/\1/; s/.*Building ([^ ]+).*/\1/; s/.*#[0-9]+ (\[[^]]+\]).*/\1/; s/.*OK[[:space:]]+(lareferencia-[^:]+): (cloned|pulled).*/\2 \1/; s/.*(Cloning|Pulling) (missing|updates)( for existing)? modules.*/\1 modules/; s/lareferencia-//g')
           if [ -n "$found" ]; then
              status_text="$found"
           fi
           status_text=${status_text//"${COMPOSE_PROJECT_NAME:-lr}-"/}
-          if [ ${#status_text} -gt 20 ]; then
-            status_text="${status_text:0:17}..."
+          status_text=$(echo "$status_text" | tr -d '\r\n')
+          if [ ${#status_text} -gt 15 ]; then
+            status_text="${status_text:0:12}..."
           fi
         fi
 
@@ -1019,20 +1050,22 @@ print_module_status_columns() {
     blocks+=("$(gum style --padding "0 1" --margin "0 2" --width 28 --foreground "$color" "$content")")
   done
 
-  # Split into rows (now we have 7 modules - 1 = 6 blocks)
+  # Split into rows
   local row1=("${blocks[@]:0:3}")
   local row2=("${blocks[@]:3:3}")
+  local row3=("${blocks[@]:6:3}")
 
   gum join --vertical \
     "$(gum join --horizontal "${row1[@]}")" \
-    "$(gum join --horizontal "${row2[@]}")"
+    "$(gum join --horizontal "${row2[@]}")" \
+    "$(gum join --horizontal "${row3[@]}")"
 }
 
 wizard_modules() {
   clear_screen
   draw_header
   
-  local optional_modules=("harvester" "dashboard" "entity-rest" "shell" "vufind" "elastic" "watch")
+  local optional_modules=("solr" "harvester" "dashboard" "entity-rest" "shell" "vufind" "elastic" "watch")
   local pre_selected=()
   for m in "${optional_modules[@]}"; do
     if [ "$(get_module_state "${m}")" = "on" ]; then
@@ -1044,7 +1077,7 @@ wizard_modules() {
   pre_selected_joined=$(IFS=,; echo "${pre_selected[*]}")
 
   echo -e "${C_BOLD}📦 MODULE MANAGEMENT${C_RESET}"
-  echo -e "${C_GRAY}The 'core' module (postgres, solr) is always active.${C_RESET}\n"
+  echo -e "${C_GRAY}The 'core' module (postgres database) is always active.${C_RESET}\n"
   
   local gum_args=(--no-limit)
   if [ -n "${pre_selected_joined}" ]; then
@@ -1063,9 +1096,18 @@ wizard_modules() {
   done
 
   # Activate selected ones
+  local has_vufind_or_harvester=false
   for m in ${choices}; do
     set_module_state "${m}" on
+    if [ "${m}" = "vufind" ] || [ "${m}" = "harvester" ]; then
+      has_vufind_or_harvester=true
+    fi
   done
+
+  # Auto-activate solr if vufind or harvester is selected
+  if [ "${has_vufind_or_harvester}" = true ]; then
+    set_module_state "solr" on
+  fi
   
   echo -e "\n${C_CYAN}Configuration updated.${C_RESET}"
   sleep 1
@@ -1130,7 +1172,7 @@ wizard_main() {
     case "$choice" in
       "🚀 Start Platform (up --build)")
         echo -e "\n${C_GREEN}🚀 Starting the platform...${C_RESET}"
-        local build_cmd="\"${BASH_SOURCE[0]}\" up --build"
+        local build_cmd="\"${BASH_SOURCE[0]}\" up --build --pull-modules"
         [ "${cache_state}" = "off" ] && build_cmd="${build_cmd} --no-cache"
         execute_with_progress "${build_cmd}" "Platform Build & Start"
         gum input --placeholder "Press Enter to continue..." > /dev/null
@@ -1303,6 +1345,7 @@ case "${cmd}" in
   up)
     build_flag=false
     no_cache_flag=false
+    pull_modules_flag=false
     explicit_vufind_request=false
     requested_modules=()
     services=()
@@ -1311,6 +1354,7 @@ case "${cmd}" in
       case "$1" in
         --build) build_flag=true ;;
         --no-cache) no_cache_flag=true ;;
+        --pull-modules) pull_modules_flag=true ;;
         --prefix=*) set_env_var "SERVICE_PREFIX" "${1#*=}" ;;
         --offset=*) set_env_var "SERVICES_PORT_OFFSET" "${1#*=}" ;;
         --module) shift; requested_modules+=("$1"); [ "$1" = "vufind" ] && explicit_vufind_request=true ;;
@@ -1325,11 +1369,26 @@ case "${cmd}" in
     if [ "${#services[@]}" -eq 0 ]; then
       modules=()
       if [ "${#requested_modules[@]}" -gt 0 ]; then
-        modules+=(core)
         for m in "${requested_modules[@]}"; do validate_module_name "$m" && ! contains_item "$m" "${modules[@]-}" && modules+=("$m"); done
       else
         while IFS= read -r m; do [ -n "$m" ] && modules+=("$m"); done < <(enabled_modules)
       fi
+
+      # --- Dependency Resolution ---
+      # 1. harvester, dashboard, entity-rest, and shell need postgres (core)
+      if contains_item "harvester" "${modules[@]-}" || contains_item "dashboard" "${modules[@]-}" || contains_item "entity-rest" "${modules[@]-}" || contains_item "shell" "${modules[@]-}"; then
+        if ! contains_item "core" "${modules[@]-}"; then
+          modules+=(core)
+        fi
+      fi
+
+      # 2. harvester, shell, and vufind need solr
+      if contains_item "harvester" "${modules[@]-}" || contains_item "shell" "${modules[@]-}" || contains_item "vufind" "${modules[@]-}"; then
+        if ! contains_item "solr" "${modules[@]-}"; then
+          modules+=(solr)
+        fi
+      fi
+
       collect_from_modules "${modules[@]}"
       services=("${COLLECTED_SERVICES[@]}")
 
@@ -1349,7 +1408,7 @@ case "${cmd}" in
     ensure_vufind_for_services "${services[@]}"
 
     if [ "${build_flag}" = true ]; then
-      ensure_java_parent_modules_ready
+      ensure_java_parent_modules_ready "${pull_modules_flag}"
       contains_item solr "${services[@]-}" && ensure_solr_build_context
       run_global_build
       run_init_db
@@ -1447,13 +1506,54 @@ case "${cmd}" in
     auto_yes=false
     [ "${1:-}" = "--yes" ] && auto_yes=true
     if [ "${auto_yes}" != true ]; then
-      echo -e "${C_RED}This will clear data in Docker/data and REMOVE ALL containers!${C_RESET}"
+      echo -e "${C_RED}This will clear data in Docker/data, REMOVE ALL containers, and DELETE cloned modules!${C_RESET}"
       read -r -p "Type RESET to confirm: " confirmation
       [ "${confirmation}" != "RESET" ] && exit 1
     fi
     echo "--- Stopping and removing all containers, networks and volumes ---"
     "${BASH_SOURCE[0]}" down v || true
     clean_data_preserving_tracked
+
+    echo "--- Removing cloned workspace modules ---"
+    if [ -f "${ROOT_DIR}/modules.txt" ]; then
+      while IFS= read -r module || [ -n "$module" ]; do
+        [ -z "$module" ] && continue
+        [[ "$module" =~ ^# ]] && continue
+        # Trim whitespace
+        module="${module#"${module%%[![:space:]]*}"}"
+        module="${module%"${module##*[![:space:]]}"}"
+        
+        module_dir="${ROOT_DIR}/${module}"
+        if [ -d "${module_dir}" ]; then
+          echo "Removing cloned module directory: ${module}"
+          rm -rf "${module_dir}"
+        fi
+      done < "${ROOT_DIR}/modules.txt"
+    else
+      # Fallback list if modules.txt is not found
+      fallback_modules=(
+        lareferencia-solr-cores
+        lareferencia-oclc-harvester
+        lareferencia-core-lib
+        lareferencia-entity-lib
+        lareferencia-contrib-rcaap
+        lareferencia-contrib-ibict
+        lareferencia-indexing-filters-lib
+        lareferencia-shell-entity-plugin
+        lareferencia-shell
+        lareferencia-dark-lib
+        lareferencia-lrharvester-app
+        lareferencia-entity-rest
+        lareferencia-dashboard-rest
+      )
+      for module in "${fallback_modules[@]}"; do
+        module_dir="${ROOT_DIR}/${module}"
+        if [ -d "${module_dir}" ]; then
+          echo "Removing cloned module directory: ${module}"
+          rm -rf "${module_dir}"
+        fi
+      done
+    fi
     ;;
 
   shell)
