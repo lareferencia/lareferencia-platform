@@ -525,6 +525,35 @@ enabled_modules() {
   done
 }
 
+are_images_built() {
+  local services=("$@")
+  if [ "${#services[@]}" -eq 0 ]; then
+    return 1
+  fi
+
+  local missing_image=false
+  local checked_any=false
+  local s
+  for s in "${services[@]}"; do
+    case "${s}" in
+      harvester|dashboard-rest|entity-rest|shell|solr|vufind-web|vufind-scss-watch)
+        checked_any=true
+        local img_id
+        img_id=$(dc images -q "${s}" 2>/dev/null || true)
+        if [ -z "${img_id}" ]; then
+          missing_image=true
+          break
+        fi
+        ;;
+    esac
+  done
+  
+  if [ "${checked_any}" = true ] && [ "${missing_image}" = false ]; then
+    return 0
+  fi
+  return 1
+}
+
 sync_solr_assets_from_vufind() {
   local src_import="${ROOT_DIR}/vufind/import"
   local src_jars="${ROOT_DIR}/vufind/solr/vufind/jars"
@@ -1155,7 +1184,8 @@ wizard_main() {
     choice=$(gum choose \
       --item.bold --selected.bold --selected.background 80 --selected.foreground 232 \
       --cursor.bold --cursor.foreground 80 --height 15 \
-      "🚀 Start Platform (up --build)" \
+      "🚀 Start Platform" \
+      "🔄 Rebuild & Start Platform" \
       "🛑 Stop Platform (down)" \
       "📦 Manage Modules (on/off)" \
       "🏗️ Build Cache: [${cache_display}]" \
@@ -1170,11 +1200,17 @@ wizard_main() {
       "🚪 Exit")
 
     case "$choice" in
-      "🚀 Start Platform (up --build)")
+      "🚀 Start Platform")
         echo -e "\n${C_GREEN}🚀 Starting the platform...${C_RESET}"
+        local build_cmd="\"${BASH_SOURCE[0]}\" up"
+        execute_with_progress "${build_cmd}" "Platform Start"
+        gum input --placeholder "Press Enter to continue..." > /dev/null
+        ;;
+      "🔄 Rebuild & Start Platform")
+        echo -e "\n${C_GREEN}🔄 Rebuilding and starting the platform...${C_RESET}"
         local build_cmd="\"${BASH_SOURCE[0]}\" up --build --pull-modules"
         [ "${cache_state}" = "off" ] && build_cmd="${build_cmd} --no-cache"
-        execute_with_progress "${build_cmd}" "Platform Build & Start"
+        execute_with_progress "${build_cmd}" "Platform Rebuild & Start"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
       "🛑 Stop Platform (down)")
@@ -1406,6 +1442,14 @@ case "${cmd}" in
 
     ensure_m2_cache_dir
     ensure_vufind_for_services "${services[@]}"
+
+    if [ "${build_flag}" = false ]; then
+      if ! are_images_built "${services[@]}"; then
+        echo -e "${C_YELLOW}⚠️  First-time run or missing Docker images detected. Forcing initial build...${C_RESET}"
+        build_flag=true
+        pull_modules_flag=true
+      fi
+    fi
 
     if [ "${build_flag}" = true ]; then
       ensure_java_parent_modules_ready "${pull_modules_flag}"
