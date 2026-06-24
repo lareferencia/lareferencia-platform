@@ -1,6 +1,7 @@
 .git
 .gitignore
 Docker/data
+Docker/volume
 Docker_pre_restoration
 **/target
 **/logs
