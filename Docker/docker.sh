@@ -1186,7 +1186,8 @@ wizard_main() {
       --cursor.bold --cursor.foreground 80 --height 15 \
       "🚀 Start Platform" \
       "🔄 Rebuild & Start Platform" \
-      "🛑 Stop Platform (down)" \
+      "🛑 Stop Platform (stop - fast)" \
+      "🧹 Teardown Platform (down - clean)" \
       "📦 Manage Modules (on/off)" \
       "🏗️ Build Cache: [${cache_display}]" \
       "📝 View Logs (follow)" \
@@ -1213,9 +1214,14 @@ wizard_main() {
         execute_with_progress "${build_cmd}" "Platform Rebuild & Start"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
-      "🛑 Stop Platform (down)")
-        echo -e "\n${C_RED}🛑 Stopping the platform...${C_RESET}"
-        execute_with_progress "\"${BASH_SOURCE[0]}\" down" "Stopping Platform"
+      "🛑 Stop Platform (stop - fast)")
+        echo -e "\n${C_RED}🛑 Stopping the platform (preserving containers)...${C_RESET}"
+        execute_with_progress "\"${BASH_SOURCE[0]}\" stop" "Stopping Platform"
+        gum input --placeholder "Press Enter to continue..." > /dev/null
+        ;;
+      "🧹 Teardown Platform (down - clean)")
+        echo -e "\n${C_RED}🧹 Tearing down the platform (removing containers)...${C_RESET}"
+        execute_with_progress "\"${BASH_SOURCE[0]}\" down" "Teardown Platform"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
       "📦 Manage Modules (on/off)")
