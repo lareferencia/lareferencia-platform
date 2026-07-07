@@ -1357,6 +1357,8 @@ Core Commands:
   res <profile>        Apply resource profile (low, medium, high, custom)
   init-db              Migrate database
   reset-data           Clean Docker/data
+  shell <service>      Start a bash shell in a running container
+  shell-interactive    Start interactive session in the shell container
 
 Variables in Docker/.env:
   SERVICE_PREFIX       Instance isolation
