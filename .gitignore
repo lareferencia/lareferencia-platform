@@ -65,3 +65,9 @@ pom.xml.versionsBackup
 /lareferencia-entity-rest/
 /lareferencia-dashboard-rest/
 /lareferencia-dark-lib/
+/vufind/local/docker/.installed
+/vufind/local/docker/config/vufind/config.ini
+/vufind/local/docker/httpd-vufind.conf
+/vufind/local/docker/import/import.properties
+/vufind/local/docker/import/import_auth.properties
+/vufind/local/docker/config/vufind/NoILS.ini

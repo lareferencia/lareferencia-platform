@@ -29,6 +29,14 @@ mkdir -p "${APP_RUN_CONFIG_DIR}"
 mkdir -p "${DATA_DIR:-/data}" "${LOG_DIR:-/var/log/harvester}"
 chown -R lareferencia:lareferencia "${APP_RUN_CONFIG_DIR}" "${DATA_DIR:-/data}" "${LOG_DIR:-/var/log/harvester}"
 
+# If standard input is a terminal, ensure the app user has permissions to read/write to it
+if [ -t 0 ]; then
+  CURRENT_TTY=$(tty)
+  if [ -c "${CURRENT_TTY}" ]; then
+    chown lareferencia:lareferencia "${CURRENT_TTY}"
+  fi
+fi
+
 # --- SEED EXTERNAL CONFIG VOLUME ---
 if [ -n "${EXTERNAL_CONFIG_DIR:-}" ]; then
   if [ ! -d "${EXTERNAL_CONFIG_DIR}" ]; then

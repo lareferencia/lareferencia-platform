@@ -759,12 +759,20 @@ ensure_shell_service_running() {
 
 exec_shell_command_noninteractive() {
   local cmd=("$@")
-  dc run --rm -T shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
+  if dc ps --status running --services 2>/dev/null | grep -q "^shell$"; then
+    dc exec -T -e SHELL_IDLE=false shell /usr/local/bin/lr-app-entrypoint.sh ${cmd+"${cmd[@]}"}
+  else
+    dc run --rm -T -e SHELL_IDLE=false shell ${cmd+"${cmd[@]}"}
+  fi
 }
 
 exec_shell_command_interactive() {
   local cmd=("$@")
-  dc run --rm shell /usr/local/bin/lr-app-entrypoint.sh "${cmd[@]}"
+  if dc ps --status running --services 2>/dev/null | grep -q "^shell$"; then
+    dc exec -e SHELL_IDLE=false shell /usr/local/bin/lr-app-entrypoint.sh ${cmd+"${cmd[@]}"}
+  else
+    dc run --rm -e SHELL_IDLE=false shell ${cmd+"${cmd[@]}"}
+  fi
 }
 
 clean_data_preserving_tracked() {
@@ -1142,6 +1150,52 @@ wizard_modules() {
   sleep 1
 }
 
+wizard_shell() {
+  while true; do
+    clear_screen
+    gum style \
+      --foreground 80 --border-foreground 80 --border double \
+      --align center --width 80 --margin "1 2" --padding "1 2" \
+      "💻 ENTER CONTAINER SHELL" \
+      "Select a running service or access the interactive platform shell"
+
+    local running_services=()
+    # Read running services into array
+    while IFS= read -r svc; do
+      [ -n "$svc" ] && running_services+=("$svc")
+    done < <(dc ps --status running --services 2>/dev/null)
+
+    local menu_options=()
+    menu_options+=("🐚 LA Referencia Interactive Shell (lrshell)")
+    for svc in "${running_services[@]}"; do
+      menu_options+=("$svc")
+    done
+    menu_options+=("🔙 Back")
+
+    echo "⚡ AVAILABLE SHELLS:"
+    echo
+    
+    local choice
+    choice=$(gum choose "${menu_options[@]}")
+
+    if [ "$choice" = "🔙 Back" ] || [ -z "$choice" ]; then
+      return
+    fi
+
+    if [ "$choice" = "🐚 LA Referencia Interactive Shell (lrshell)" ]; then
+      echo -e "\n${C_GREEN}Opening LA Referencia Interactive Shell... (type 'exit' to return)${C_RESET}"
+      "${BASH_SOURCE[0]}" lrshell-interactive || true
+    else
+      # Run shell for the selected service
+      echo -e "\n${C_GREEN}Opening bash shell in service '${choice}'... (type 'exit' to return)${C_RESET}"
+      dc exec "${choice}" bash || dc exec "${choice}" sh || true
+    fi
+    
+    echo
+    gum input --placeholder "Shell closed. Press Enter to continue..." > /dev/null
+  done
+}
+
 wizard_main() {
   # Set terminal title
   printf "\033]0;Lareferencia Docker Wizard\007"
@@ -1183,7 +1237,7 @@ wizard_main() {
     local choice
     choice=$(gum choose \
       --item.bold --selected.bold --selected.background 80 --selected.foreground 232 \
-      --cursor.bold --cursor.foreground 80 --height 15 \
+      --cursor.bold --cursor.foreground 80 \
       "🚀 Start Platform" \
       "🔄 Rebuild & Start Platform" \
       "🛑 Stop Platform (stop - fast)" \
@@ -1191,6 +1245,7 @@ wizard_main() {
       "📦 Manage Modules (on/off)" \
       "🏗️ Build Cache: [${cache_display}]" \
       "📝 View Logs (follow)" \
+      "💻 Enter Container Shell" \
       "🏷️ Change SERVICE_PREFIX" \
       "🔌 Change PORT_OFFSET" \
       "🏗️ Change BUILD_PROFILE" \
@@ -1238,6 +1293,9 @@ wizard_main() {
         echo -e "\n${C_CYAN}📝 Showing logs (Ctrl+C to stop)...${C_RESET}"
         "${BASH_SOURCE[0]}" logs -f
         gum input --placeholder "Logs stopped. Press Enter to return to menu..." > /dev/null
+        ;;
+      "💻 Enter Container Shell")
+        wizard_shell
         ;;
       "🏷️ Change SERVICE_PREFIX")
         if is_any_service_running; then
@@ -1358,7 +1416,7 @@ Core Commands:
   init-db              Migrate database
   reset-data           Clean Docker/data
   shell <service>      Start a bash shell in a running container
-  shell-interactive    Start interactive session in the shell container
+  lrshell-interactive  Start interactive session in the shell container
 
 Variables in Docker/.env:
   SERVICE_PREFIX       Instance isolation
@@ -1548,7 +1606,7 @@ case "${cmd}" in
     run_init_db "$@"
     ;;
 
-  shell-interactive)
+  lrshell-interactive)
     ensure_java_parent_modules_ready
     ensure_shell_service_running
     exec_shell_command_interactive "$@"
