@@ -720,10 +720,32 @@ ensure_java_parent_modules_ready() {
 }
 
 ensure_m2_cache_dir() {
-  mkdir -p "${ROOT_DIR}/Docker/data/m2/repository"
+  # No-op since we now use the shared named volume lr-maven-cache
+  return 0
+}
+
+compile_java_modules() {
+  echo "--- Compiling Java Modules (using named volume lr-maven-cache) ---"
+  
+  # Ensure the named volume exists
+  docker volume create lr-maven-cache >/dev/null 2>&1 || true
+  
+  local profile="${LR_BUILD_PROFILE:-lareferencia}"
+  
+  # Run maven compilation inside a container with the named volume
+  local compile_cmd="docker run --rm \
+    -v lr-maven-cache:/root/.m2 \
+    -v \"${ROOT_DIR}:/workspace\" \
+    -w /workspace \
+    maven:3.9.11-eclipse-temurin-17 \
+    mvn clean package -DskipTests -Dspring-boot.repackage.executable=false -P${profile}"
+    
+  eval "${compile_cmd}"
 }
 
 run_global_build() {
+  compile_java_modules
+
   echo "--- Building images using Multi-stage Dockerfiles ---"
   local profile_args=()
   profile_args+=(--profile tools)
@@ -740,16 +762,33 @@ run_global_build() {
 run_init_db() {
   local shell_cmd=("$@")
   if [ "${#shell_cmd[@]}" -eq 0 ]; then
-    shell_cmd=(database_migrate)
+    if [ -f "${ROOT_DIR}/Docker/config-overrides/lareferencia-shell/db_init_script.txt" ]; then
+      shell_cmd=(script /tmp/lr-config/lareferencia-shell/db_init_script.txt)
+    else
+      shell_cmd=(database_migrate)
+    fi
   fi
 
   echo "--- Cleaning up potential remnants from previous runs ---"
   # Garante que containers que possam estar em estado de erro ou travados sejam removidos
   dc --profile tools rm -f -s -v postgres solr shell db-init 2>/dev/null || true
-
   echo "--- Running Database Initialization ---"
   dc --profile tools up -d postgres solr
+  
+  # Executa a inicialização em foreground (logs capturados externamente se necessário)
   dc --profile tools run --rm -T --no-deps shell /usr/local/bin/lr-app-entrypoint.sh "${shell_cmd[@]}"
+  local exit_code=$?
+  
+  if [ "${exit_code}" -ne 0 ]; then
+    echo -e "\n\033[31m❌ Database initialization failed with exit code ${exit_code}.\033[0m"
+    echo -e "\033[33mLast log lines:\033[0m"
+    tail -n 15 "${init_log}" 2>/dev/null || true
+    rm -f "${init_log}"
+    exit "${exit_code}"
+  else
+    echo -e "\n\033[32m✔ Database initialization completed successfully.\033[0m"
+    rm -f "${init_log}"
+  fi
 }
 
 ensure_shell_service_running() {
@@ -872,7 +911,7 @@ show_current_config() {
 execute_with_progress() {
     local cmd="$1"
     local label="$2"
-    local log_file="/tmp/lareferencia-docker.log"
+    local log_file="${3:-/tmp/lareferencia-docker.log}"
     
     rm -f "$log_file"
     # Execute command in background and capture PID
@@ -890,9 +929,76 @@ execute_with_progress() {
       ncpu=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
     fi
 
+    # Determine terminal width (target exactly 78 to match the wizard header)
+    local total_width=78
+    local term_cols
+    term_cols=$(tput cols 2>/dev/null || echo 80)
+    if [ "${term_cols}" -lt 80 ]; then
+      total_width=$((term_cols - 2))
+    fi
+    [ "${total_width}" -lt 40 ] && total_width=40
+
+    local content_width=$((total_width - 4))
+    local bottom_len=$((total_width - 2))
+
+    # Hide cursor
+    printf "\033[?25l"
+
     # Disable exit on error temporarily to handle the wait manually
     set +e
     while kill -0 $pid 2>/dev/null; do
+        # Move cursor up 7 lines ONLY on subsequent iterations to avoid overlapping prior output on start
+        if [ $i -gt 0 ]; then
+          printf "\r\033[7A"
+        fi
+        
+        # Spinner character
+        local spinner_char="⠋"
+        case $((i % 10)) in
+            0) spinner_char="⠋" ;;
+            1) spinner_char="⠙" ;;
+            2) spinner_char="⠹" ;;
+            3) spinner_char="⠸" ;;
+            4) spinner_char="⠼" ;;
+            5) spinner_char="⠴" ;;
+            6) spinner_char="⠦" ;;
+            7) spinner_char="⠧" ;;
+            8) spinner_char="⠇" ;;
+            9) spinner_char="⠏" ;;
+        esac
+
+        # 1. Top border (clear line first to avoid ghosts)
+        local border_len=$((total_width - 9 - ${#label}))
+        if [ "${border_len}" -lt 2 ]; then border_len=2; fi
+        local border_str
+        border_str=$(printf '─%.0s' $(seq 1 ${border_len}))
+        printf "\033[K${C_CYAN}┌─ %s [%s] %s┐${C_RESET}\n" "${label}" "${spinner_char}" "${border_str}"
+
+        # 2. Get last 5 lines from log file portably
+        local lines=()
+        local idx=0
+        if [ -f "$log_file" ]; then
+          while IFS= read -r line || [ -n "${line}" ]; do
+            lines[idx]="${line}"
+            idx=$((idx + 1))
+          done < <(tail -n 5 "$log_file" 2>/dev/null)
+        fi
+        
+        for k in {0..4}; do
+          local line="${lines[$k]:-}"
+          line=$(echo "${line}" | tr -d '\r')
+          if [ "${#line}" -gt "${content_width}" ]; then
+            line="${line:0:$((content_width - 3))}..."
+          fi
+          printf "\033[K${C_CYAN}│${C_RESET} %-${content_width}s ${C_CYAN}│${C_RESET}\n" "${line}"
+        done
+
+        # 3. Bottom border
+        local bottom_str
+        bottom_str=$(printf '─%.0s' $(seq 1 ${bottom_len}))
+        printf "\033[K${C_CYAN}└%s┘${C_RESET}\n" "${bottom_str}"
+
+        # 4. Progress bar, status text, and CPU/MEM stats
         local progress=$(( (i % width) + 1 ))
         local remaining=$(( width - progress ))
         
@@ -907,7 +1013,7 @@ execute_with_progress() {
             mem_val=$(memory_pressure | grep "System-wide memory free percentage" | awk '{print 100-$5}' || echo "0")
           else
             # Linux fallback
-            cpu_val=$(top -bn1 | grep "Cpu(s)" | awk '{print $2+$4}' | cut -d. -f1 || echo "0")
+            cpu_val=$(top -bn1 | grep "Cpu(s)" | awk '{s+=$2+$4} END {print s}' | cut -d. -f1 || echo "0")
             mem_val=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100}' || echo "0")
           fi
         fi
@@ -939,24 +1045,16 @@ execute_with_progress() {
           fi
         fi
 
-        printf "\r  ${C_CYAN}${label}${C_RESET} ["
-        printf "${C_GREEN}"
+        printf "\r\033[K  [${C_GREEN}"
         for ((j=0; j<progress; j++)); do printf "━"; done
         printf "${C_GRAY}"
         for ((j=0; j<remaining; j++)); do printf " "; done
         printf "${C_RESET}] "
         
-        case $((i % 4)) in
-            0) printf "⠋" ;;
-            1) printf "⠙" ;;
-            2) printf "⠹" ;;
-            3) printf "⠸" ;;
-        esac
-
         # Info display: Status + CPU/MEM Mini Graphs
-        printf " ${C_GRAY}➜ ${C_BOLD}%-20s${C_RESET} " "$status_text"
+        printf " ${C_GRAY}➜ ${C_BOLD}%-15s${C_RESET} " "$status_text"
         printf "${C_GRAY}CPU:${C_RESET}$(draw_mini_graph $cpu_val)${C_GRAY}%-3s${C_RESET} " "$cpu_val%"
-        printf "${C_GRAY}MEM:${C_RESET}$(draw_mini_graph $mem_val)${C_GRAY}%-3s${C_RESET}\033[K" "$mem_val%"
+        printf "${C_GRAY}MEM:${C_RESET}$(draw_mini_graph $mem_val)${C_GRAY}%-3s${C_RESET}" "$mem_val%"
         
         i=$((i + 1))
         sleep 0.1
@@ -965,11 +1063,19 @@ execute_with_progress() {
     wait $pid
     local status=$?
     set -e # Re-enable exit on error
+    printf "\033[?25h" # Show cursor
     
+    # Clear all 8 lines of progress only if we actually drew the box
+    if [ $i -gt 0 ]; then
+      printf "\r\033[7A"
+      for k in {1..8}; do printf "\033[K\n"; done
+      printf "\r\033[8A"
+    fi
+
     if [ $status -eq 0 ]; then
-        printf "\r  ${C_GREEN}✅ ${label} Completed!%-60s${C_RESET}\n" " "
+        printf "\r  ${C_GREEN}✅ ${label} Completed!${C_RESET}\n"
     else
-        printf "\r  ${C_RED}❌ ${label} Failed! (See details below)%-60s${C_RESET}\n" " "
+        printf "\r  ${C_RED}❌ ${label} Failed! (See details below)${C_RESET}\n"
         echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
         echo -e "${C_RED}${C_BOLD}ERROR LOG (Last 20 lines):${C_RESET}"
         if [ -f "$log_file" ]; then
@@ -1532,7 +1638,7 @@ case "${cmd}" in
 
     if [ "${#COLLECTED_PROFILES[@]}" -gt 0 ]; then
       p_args=()
-      for p in "${COLLECTED_PROFILES[@]}"; do p_args+=(--profile "$p"); done
+      for p in "${COLLECTED_PROFILES[@]-}"; do p_args+=(--profile "$p"); done
       dc "${p_args[@]}" "${args[@]}" "${services[@]}"
     else
       dc "${args[@]}" "${services[@]}"
@@ -1581,7 +1687,7 @@ case "${cmd}" in
     ensure_vufind_for_services "${services[@]}"
     
     p_args=()
-    for p in "${COLLECTED_PROFILES[@]}"; do p_args+=(--profile "$p"); done
+    for p in "${COLLECTED_PROFILES[@]-}"; do p_args+=(--profile "$p"); done
     
     dc "${p_args[@]}" "${cmd}" "${services[@]}"
     ;;
@@ -1622,6 +1728,21 @@ case "${cmd}" in
     fi
     echo "--- Stopping and removing all containers, networks and volumes ---"
     "${BASH_SOURCE[0]}" down v || true
+
+    # Remove any compose containers matching the lareferencia-platform project name patterns
+    if command -v docker >/dev/null 2>&1; then
+      compose_containers=$(docker ps -a --filter "label=com.docker.compose.project" --format "{{.ID}} {{.Names}}" 2>/dev/null || true)
+      if [ -n "${compose_containers}" ]; then
+        echo "--- Cleaning up related compose containers from other project names ---"
+        while read -r cid cname; do
+          if [ -n "${cname}" ] && [[ "${cname}" == *"lareferencia"* || "${cname}" == "lr-"* || "${cname}" == "laref"* ]]; then
+            echo "Stopping & removing container: ${cname}"
+            docker rm -f "${cid}" >/dev/null 2>&1 || true
+          fi
+        done <<< "${compose_containers}"
+      fi
+    fi
+
     clean_data_preserving_tracked
 
     echo "--- Removing cloned workspace modules ---"

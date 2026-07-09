@@ -1,0 +1,24 @@
+{
+  "name": "Transformador Standard",
+  "description": "Transformador por defecto de la plataforma LA Referencia",
+  "rules": [
+    {
+      "name": "Remover títulos vacíos",
+      "description": "Remueve ocurrencias vacías del campo dc:title",
+      "runorder": 1,
+      "jsonserialization": "{\"@class\":\"org.lareferencia.core.worker.validation.transformer.RemoveEmptyOccrsRule\",\"fieldName\":\"dc:title\"}"
+    },
+    {
+      "name": "Remover creadores vacíos",
+      "description": "Remueve ocurrencias vacías del campo dc:creator",
+      "runorder": 2,
+      "jsonserialization": "{\"@class\":\"org.lareferencia.core.worker.validation.transformer.RemoveEmptyOccrsRule\",\"fieldName\":\"dc:creator\"}"
+    },
+    {
+      "name": "Remover duplicados de identificadores",
+      "description": "Remueve ocurrencias duplicadas del campo dc:identifier",
+      "runorder": 3,
+      "jsonserialization": "{\"@class\":\"org.lareferencia.core.worker.validation.transformer.RemoveDuplicateOccrsRule\",\"fieldName\":\"dc:identifier\"}"
+    }
+  ]
+}

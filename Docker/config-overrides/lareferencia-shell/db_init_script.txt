@@ -1,0 +1,3 @@
+database_migrate
+import-validator --filename /tmp/lr-config/lareferencia-shell/validator.json
+import-transformer --filename /tmp/lr-config/lareferencia-shell/transformer.json

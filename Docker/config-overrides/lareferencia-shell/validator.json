@@ -1,0 +1,27 @@
+{
+  "name": "Validador Standard",
+  "description": "Validador Standard de la plataforma LA Referencia",
+  "rules": [
+    {
+      "name": "Título Obligatorio",
+      "description": "Verifica que exista al menos un título no vacío",
+      "mandatory": true,
+      "quantifier": "ONE_OR_MORE",
+      "jsonserialization": "{\"@class\":\"org.lareferencia.core.worker.validation.validator.RegexFieldContentValidatorRule\",\"fieldname\":\"dc:title\",\"regexString\":\".+\"}"
+    },
+    {
+      "name": "Autor Obligatorio",
+      "description": "Verifica que exista al menos un autor/creador",
+      "mandatory": true,
+      "quantifier": "ONE_OR_MORE",
+      "jsonserialization": "{\"@class\":\"org.lareferencia.core.worker.validation.validator.RegexFieldContentValidatorRule\",\"fieldname\":\"dc:creator\",\"regexString\":\".+\"}"
+    },
+    {
+      "name": "Identificador Obligatorio",
+      "description": "Verifica que exista al menos un identificador",
+      "mandatory": true,
+      "quantifier": "ONE_OR_MORE",
+      "jsonserialization": "{\"@class\":\"org.lareferencia.core.worker.validation.validator.RegexFieldContentValidatorRule\",\"fieldname\":\"dc:identifier\",\"regexString\":\".+\"}"
+    }
+  ]
+}

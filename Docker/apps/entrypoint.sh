@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # 1. Execute custom system commands IMMEDIATELY if provided
-if [ "$#" -gt 0 ] && command -v "$1" >/dev/null 2>&1; then
+# Exclude Spring Shell built-in commands ('script', 'help', 'version') so they go to the Java application
+if [ "$#" -gt 0 ] && [ "$1" != "script" ] && [ "$1" != "help" ] && [ "$1" != "version" ] && command -v "$1" >/dev/null 2>&1; then
   echo "--- Entrypoint: Detected system command '$1'. Executing directly... ---"
   exec "$@"
 elif [ "$#" -gt 0 ]; then
