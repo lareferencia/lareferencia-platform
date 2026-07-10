@@ -1759,7 +1759,7 @@ case "${cmd}" in
     clean_data_preserving_tracked
 
     echo "--- Removing cloned workspace modules ---"
-    local modules_to_remove=()
+    modules_to_remove=()
     if [ -f "${ROOT_DIR}/modules.txt" ]; then
       while IFS= read -r module || [ -n "$module" ]; do
         [ -z "$module" ] && continue
@@ -1774,7 +1774,7 @@ case "${cmd}" in
       done < "${ROOT_DIR}/modules.txt"
     else
       # Fallback list if modules.txt is not found
-      local fallback_modules=(
+      fallback_modules=(
         lareferencia-solr-cores lareferencia-oclc-harvester lareferencia-core-lib
         lareferencia-entity-lib lareferencia-contrib-rcaap lareferencia-contrib-ibict
         lareferencia-indexing-filters-lib lareferencia-shell-entity-plugin lareferencia-shell
@@ -1790,7 +1790,7 @@ case "${cmd}" in
     if [ ${#modules_to_remove[@]} -gt 0 ]; then
       if command -v docker >/dev/null 2>&1; then
         echo "Fixing permissions for cloned modules using Docker..."
-        local chmod_args=""
+        chmod_args=""
         for module in "${modules_to_remove[@]}"; do
           chmod_args="${chmod_args} /workspace/${module}"
         done
