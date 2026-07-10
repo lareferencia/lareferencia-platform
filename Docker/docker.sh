@@ -1759,6 +1759,7 @@ case "${cmd}" in
     clean_data_preserving_tracked
 
     echo "--- Removing cloned workspace modules ---"
+    local modules_to_remove=()
     if [ -f "${ROOT_DIR}/modules.txt" ]; then
       while IFS= read -r module || [ -n "$module" ]; do
         [ -z "$module" ] && continue
@@ -1767,35 +1768,38 @@ case "${cmd}" in
         module="${module#"${module%%[![:space:]]*}"}"
         module="${module%"${module##*[![:space:]]}"}"
         
-        module_dir="${ROOT_DIR}/${module}"
-        if [ -d "${module_dir}" ]; then
-          echo "Removing cloned module directory: ${module}"
-          rm -rf "${module_dir}"
+        if [ -d "${ROOT_DIR}/${module}" ]; then
+          modules_to_remove+=("${module}")
         fi
       done < "${ROOT_DIR}/modules.txt"
     else
       # Fallback list if modules.txt is not found
-      fallback_modules=(
-        lareferencia-solr-cores
-        lareferencia-oclc-harvester
-        lareferencia-core-lib
-        lareferencia-entity-lib
-        lareferencia-contrib-rcaap
-        lareferencia-contrib-ibict
-        lareferencia-indexing-filters-lib
-        lareferencia-shell-entity-plugin
-        lareferencia-shell
-        lareferencia-dark-lib
-        lareferencia-lrharvester-app
-        lareferencia-entity-rest
-        lareferencia-dashboard-rest
+      local fallback_modules=(
+        lareferencia-solr-cores lareferencia-oclc-harvester lareferencia-core-lib
+        lareferencia-entity-lib lareferencia-contrib-rcaap lareferencia-contrib-ibict
+        lareferencia-indexing-filters-lib lareferencia-shell-entity-plugin lareferencia-shell
+        lareferencia-dark-lib lareferencia-lrharvester-app lareferencia-entity-rest lareferencia-dashboard-rest
       )
       for module in "${fallback_modules[@]}"; do
-        module_dir="${ROOT_DIR}/${module}"
-        if [ -d "${module_dir}" ]; then
-          echo "Removing cloned module directory: ${module}"
-          rm -rf "${module_dir}"
+        if [ -d "${ROOT_DIR}/${module}" ]; then
+          modules_to_remove+=("${module}")
         fi
+      done
+    fi
+
+    if [ ${#modules_to_remove[@]} -gt 0 ]; then
+      if command -v docker >/dev/null 2>&1; then
+        echo "Fixing permissions for cloned modules using Docker..."
+        local chmod_args=""
+        for module in "${modules_to_remove[@]}"; do
+          chmod_args="${chmod_args} /workspace/${module}"
+        done
+        docker run --rm -v "${ROOT_DIR}:/workspace" alpine sh -c "chmod -R ugo+rwX ${chmod_args} 2>/dev/null" || true
+      fi
+
+      for module in "${modules_to_remove[@]}"; do
+        echo "Removing cloned module directory: ${module}"
+        rm -rf "${ROOT_DIR}/${module}"
       done
     fi
     ;;
