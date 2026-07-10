@@ -819,6 +819,13 @@ clean_data_preserving_tracked() {
   local rel_volume_dir="${VOLUME_DIR#${ROOT_DIR}/}"
   echo "--- Cleaning data in ${rel_data_dir} and ${rel_volume_dir} ---"
 
+  # On Linux, containers (e.g. postgres) create files as root or internal UIDs (999).
+  # We must fix permissions using Docker before the host user can delete them.
+  if command -v docker >/dev/null 2>&1; then
+    echo "Fixing permissions for data directories using Docker..."
+    docker run --rm -v "${ROOT_DIR}:/workspace" alpine sh -c "chmod -R ugo+rwX /workspace/${rel_data_dir} /workspace/${rel_volume_dir} 2>/dev/null" || true
+  fi
+
   if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Git clean excluding the m2 directory
     local paths_to_clean=()
