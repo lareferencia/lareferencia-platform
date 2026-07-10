@@ -3,9 +3,9 @@
 Docker/data
 Docker/volume
 Docker_pre_restoration
-!**/target/
-**/target/*
-!**/target/*.jar
+!lareferencia-*/target/
+lareferencia-*/target/*
+!lareferencia-*/target/*.jar
 **/logs
 **/node_modules
 **/vendor

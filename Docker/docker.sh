@@ -781,13 +781,9 @@ run_init_db() {
   
   if [ "${exit_code}" -ne 0 ]; then
     echo -e "\n\033[31m❌ Database initialization failed with exit code ${exit_code}.\033[0m"
-    echo -e "\033[33mLast log lines:\033[0m"
-    tail -n 15 "${init_log}" 2>/dev/null || true
-    rm -f "${init_log}"
     exit "${exit_code}"
   else
     echo -e "\n\033[32m✔ Database initialization completed successfully.\033[0m"
-    rm -f "${init_log}"
   fi
 }
 
@@ -1082,7 +1078,11 @@ execute_with_progress() {
     if [ $status -eq 0 ]; then
         printf "\r  ${C_GREEN}✅ ${label} Completed!${C_RESET}\n"
     else
-        printf "\r  ${C_RED}❌ ${label} Failed! (See details below)${C_RESET}\n"
+        local rev="unknown"
+        if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR:-.}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          rev=$(git -C "${ROOT_DIR:-.}" describe --tags --always --dirty 2>/dev/null || echo "unknown")
+        fi
+        printf "\r  ${C_RED}❌ ${label} Failed! [Rev: %s] (See details below)${C_RESET}\n" "${rev}"
         echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
         echo -e "${C_RED}${C_BOLD}ERROR LOG (Last 20 lines):${C_RESET}"
         if [ -f "$log_file" ]; then
@@ -1320,11 +1320,17 @@ wizard_main() {
     checks=$(get_check_status)
     IFS='|' read -r c1 c2 c3 <<< "$checks"
 
+    local project_revision="unknown"
+    if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR:-.}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      project_revision=$(git -C "${ROOT_DIR:-.}" describe --tags --always --dirty 2>/dev/null || echo "unknown")
+    fi
+
     gum style \
       --foreground 80 --border-foreground 80 --border double \
       --align center --width 80 --margin "1 2" --padding "1 2" \
       "🐳 LA REFERENCIA PLATFORM" \
       "Docker Management Wizard" \
+      "Rev: ${project_revision}" \
       "" \
       "$(gum join --horizontal --align center "$c1   " "$c2   " "$c3")"
 
