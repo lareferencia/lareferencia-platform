@@ -1328,12 +1328,13 @@ wizard_harvester_users() {
     case "$choice" in
       "📋 List Users")
         echo -e "\n${C_CYAN}Current Users:${C_RESET}"
-        if [ -f "${users_file}" ]; then
-          grep -v "^#" "${users_file}" | grep "=" | cut -d'=' -f1 | while read -r user; do
+        local users_list=$(dc exec -T harvester cat /config/users.properties 2>/dev/null | grep -v "^#" | grep "=" | cut -d'=' -f1)
+        if [ -n "$users_list" ]; then
+          echo "$users_list" | while read -r user; do
             echo " - $user"
           done
         else
-          echo "No users found (file does not exist)."
+          echo "No users found (file does not exist or is empty)."
         fi
         echo
         gum input --placeholder "Press Enter to continue..." > /dev/null
@@ -1359,10 +1360,19 @@ wizard_harvester_users() {
         fi
         
         if [ -x "${add_user_script}" ] || command -v "${python_cmd}" >/dev/null 2>&1; then
-          USERS_FILE="${users_file}" "${python_cmd}" "${add_user_script}" "$username" "$password" "$role"
+          local tmp_file="/tmp/lr_users.properties"
+          dc exec -T harvester cat /config/users.properties > "${tmp_file}" 2>/dev/null || touch "${tmp_file}"
+          
+          USERS_FILE="${tmp_file}" "${python_cmd}" "${add_user_script}" "$username" "$password" "$role"
+          
+          # Write back using docker exec to avoid permission denied on host
+          cat "${tmp_file}" | dc exec -T harvester sh -c "cat > /config/users.properties"
+          
           # Sync to running container
           dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
           dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
+          
+          rm -f "${tmp_file}"
         else
           echo -e "${C_RED}Error: Python3 is required to create users.${C_RESET}"
         fi
@@ -1370,27 +1380,32 @@ wizard_harvester_users() {
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
       "🗑️  Delete User")
-        if [ ! -f "${users_file}" ]; then
-          echo "No users file found."
-          sleep 2
-          continue
-        fi
-        local users=$(grep -v "^#" "${users_file}" | grep "=" | cut -d'=' -f1)
+        local tmp_file="/tmp/lr_users.properties"
+        dc exec -T harvester cat /config/users.properties > "${tmp_file}" 2>/dev/null || touch "${tmp_file}"
+        
+        local users=$(grep -v "^#" "${tmp_file}" | grep "=" | cut -d'=' -f1)
         if [ -z "$users" ]; then
           echo "No users to delete."
           sleep 2
+          rm -f "${tmp_file}"
           continue
         fi
+        
         local user_to_delete=$(echo "$users" | gum choose)
         if [ -n "$user_to_delete" ]; then
           if gum confirm "Are you sure you want to delete user '$user_to_delete'?"; then
-            awk -v user="$user_to_delete" -F'=' '$1 != user' "$users_file" > "${users_file}.tmp" && mv "${users_file}.tmp" "$users_file"
+            awk -v user="$user_to_delete" -F'=' '$1 != user' "${tmp_file}" > "${tmp_file}.new" && mv "${tmp_file}.new" "${tmp_file}"
+            
+            # Write back via docker exec
+            cat "${tmp_file}" | dc exec -T harvester sh -c "cat > /config/users.properties"
+            
             # Sync to running container
             dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
             dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
             echo -e "${C_GREEN}User '$user_to_delete' deleted.${C_RESET}"
           fi
         fi
+        rm -f "${tmp_file}"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
       "🔙 Back to Main Menu")
