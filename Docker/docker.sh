@@ -1363,14 +1363,16 @@ wizard_harvester_users() {
           local tmp_file="/tmp/lr_users.properties"
           dc exec -T harvester cat /config/users.properties > "${tmp_file}" 2>/dev/null || touch "${tmp_file}"
           
-          USERS_FILE="${tmp_file}" "${python_cmd}" "${add_user_script}" "$username" "$password" "$role"
-          
-          # Write back using docker exec to avoid permission denied on host
-          cat "${tmp_file}" | dc exec -T harvester sh -c "cat > /config/users.properties"
-          
-          # Sync to running container
-          dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
-          dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
+          if USERS_FILE="${tmp_file}" "${python_cmd}" "${add_user_script}" "$username" "$password" "$role"; then
+            # Write back using docker exec to avoid permission denied on host
+            cat "${tmp_file}" | dc exec -T harvester sh -c "cat > /config/users.properties"
+            
+            # Sync to running container
+            dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
+            dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
+          else
+            echo -e "${C_RED}Falha ao criar o usuário. Ele não foi salvo no container.${C_RESET}"
+          fi
           
           rm -f "${tmp_file}"
         else
