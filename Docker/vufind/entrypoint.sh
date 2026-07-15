@@ -154,7 +154,6 @@ fi
 CONFIG_INI="${VUFIND_LOCAL_DIR}/config/vufind/config.ini"
 if [ ! -f "${CONFIG_INI}" ]; then
   cp "${VUFIND_HOME}/config/vufind/config.ini" "${CONFIG_INI}"
-  chmod -R a+rX "${VUFIND_LOCAL_DIR}"
 fi
 
 
@@ -166,6 +165,8 @@ set_ini_value "Site" "theme" "${VUFIND_THEME}" "${CONFIG_INI}"
 set_ini_value "Catalog" "driver" "NoILS" "${CONFIG_INI}"
 set_ini_value "Index" "url" "${VUFIND_SOLR_URL}" "${CONFIG_INI}"
 set_ini_value "Database" "database" "${DB_DSN}" "${CONFIG_INI}"
+
+chmod -R a+rX "${VUFIND_LOCAL_DIR}"
 
 NOILS_INI="${VUFIND_LOCAL_DIR}/config/vufind/NoILS.ini"
 if [ ! -f "${NOILS_INI}" ]; then
