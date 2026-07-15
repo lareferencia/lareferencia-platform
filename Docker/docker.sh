@@ -1309,6 +1309,97 @@ wizard_shell() {
   done
 }
 
+wizard_harvester_users() {
+  local users_file="${ROOT_DIR}/Docker/volume/lareferencia/lrharvester-app/config/users.properties"
+  local add_user_script="${ROOT_DIR}/lareferencia-lrharvester-app/config/add-user.py"
+
+  while true; do
+    clear_screen
+    gum style --foreground 80 --bold --underline "👥 Manage Harvester Users"
+    echo
+
+    local choice
+    choice=$(gum choose \
+      "📋 List Users" \
+      "➕ Create User" \
+      "🗑️  Delete User" \
+      "🔙 Back to Main Menu")
+
+    case "$choice" in
+      "📋 List Users")
+        echo -e "\n${C_CYAN}Current Users:${C_RESET}"
+        if [ -f "${users_file}" ]; then
+          grep -v "^#" "${users_file}" | grep "=" | cut -d'=' -f1 | while read -r user; do
+            echo " - $user"
+          done
+        else
+          echo "No users found (file does not exist)."
+        fi
+        echo
+        gum input --placeholder "Press Enter to continue..." > /dev/null
+        ;;
+      "➕ Create User")
+        local username=$(gum input --placeholder "Username")
+        if [ -z "$username" ]; then continue; fi
+        local password=$(gum input --password --placeholder "Password")
+        if [ -z "$password" ]; then continue; fi
+        local role=$(gum choose "ROLE_ADMIN" "ROLE_USER")
+        
+        echo "Creating user..."
+        
+        # Ensure bcrypt is available
+        local python_cmd="python3"
+        if ! python3 -c "import bcrypt" 2>/dev/null; then
+          echo -e "${C_YELLOW}bcrypt module not found. Setting up local venv...${C_RESET}"
+          if [ ! -d "${SCRIPT_DIR}/.bin/venv" ]; then
+            python3 -m venv "${SCRIPT_DIR}/.bin/venv"
+          fi
+          "${SCRIPT_DIR}/.bin/venv/bin/pip" install --quiet bcrypt
+          python_cmd="${SCRIPT_DIR}/.bin/venv/bin/python3"
+        fi
+        
+        if [ -x "${add_user_script}" ] || command -v "${python_cmd}" >/dev/null 2>&1; then
+          USERS_FILE="${users_file}" "${python_cmd}" "${add_user_script}" "$username" "$password" "$role"
+          # Sync to running container
+          dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
+          dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
+        else
+          echo -e "${C_RED}Error: Python3 is required to create users.${C_RESET}"
+        fi
+        echo
+        gum input --placeholder "Press Enter to continue..." > /dev/null
+        ;;
+      "🗑️  Delete User")
+        if [ ! -f "${users_file}" ]; then
+          echo "No users file found."
+          sleep 2
+          continue
+        fi
+        local users=$(grep -v "^#" "${users_file}" | grep "=" | cut -d'=' -f1)
+        if [ -z "$users" ]; then
+          echo "No users to delete."
+          sleep 2
+          continue
+        fi
+        local user_to_delete=$(echo "$users" | gum choose)
+        if [ -n "$user_to_delete" ]; then
+          if gum confirm "Are you sure you want to delete user '$user_to_delete'?"; then
+            awk -v user="$user_to_delete" -F'=' '$1 != user' "$users_file" > "${users_file}.tmp" && mv "${users_file}.tmp" "$users_file"
+            # Sync to running container
+            dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
+            dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
+            echo -e "${C_GREEN}User '$user_to_delete' deleted.${C_RESET}"
+          fi
+        fi
+        gum input --placeholder "Press Enter to continue..." > /dev/null
+        ;;
+      "🔙 Back to Main Menu")
+        break
+        ;;
+    esac
+  done
+}
+
 wizard_main() {
   # Set terminal title
   printf "\033]0;Lareferencia Docker Wizard\007"
@@ -1353,26 +1444,37 @@ wizard_main() {
     gum style --foreground 80 --bold --underline "⚡ SELECT ACTION"
     echo
 
+    local menu_options=(
+      "🚀 Start Platform"
+      "🔄 Rebuild & Start Platform"
+      "🛑 Stop Platform (stop - fast)"
+      "🧹 Teardown Platform (down - clean)"
+      "📦 Manage Modules (on/off)"
+      "🏗️ Build Cache: [${cache_display}]"
+      "📝 View Logs (follow)"
+      "💻 Enter Container Shell"
+    )
+
+    if dc ps --status running --services 2>/dev/null | grep -q "^harvester$"; then
+      menu_options+=("👥 Manage Harvester Users")
+    fi
+
+    menu_options+=(
+      "🏷️ Change SERVICE_PREFIX"
+      "🔌 Change PORT_OFFSET"
+      "🏗️ Change BUILD_PROFILE"
+      "⚡ Resource Profile: [${res_profile}]"
+      "📡 Configure External Solr"
+      "🛠️ Run Init-DB (migrations)"
+      "🧹 Reset Data (CLEAN ALL)"
+      "🚪 Exit"
+    )
+
     local choice
     choice=$(gum choose \
       --item.bold --selected.bold --selected.background 80 --selected.foreground 232 \
       --cursor.bold --cursor.foreground 80 \
-      "🚀 Start Platform" \
-      "🔄 Rebuild & Start Platform" \
-      "🛑 Stop Platform (stop - fast)" \
-      "🧹 Teardown Platform (down - clean)" \
-      "📦 Manage Modules (on/off)" \
-      "🏗️ Build Cache: [${cache_display}]" \
-      "📝 View Logs (follow)" \
-      "💻 Enter Container Shell" \
-      "🏷️ Change SERVICE_PREFIX" \
-      "🔌 Change PORT_OFFSET" \
-      "🏗️ Change BUILD_PROFILE" \
-      "⚡ Resource Profile: [${res_profile}]" \
-      "📡 Configure External Solr" \
-      "🛠️ Run Init-DB (migrations)" \
-      "🧹 Reset Data (CLEAN ALL)" \
-      "🚪 Exit")
+      "${menu_options[@]}")
 
     case "$choice" in
       "🚀 Start Platform")
@@ -1415,6 +1517,9 @@ wizard_main() {
         ;;
       "💻 Enter Container Shell")
         wizard_shell
+        ;;
+      "👥 Manage Harvester Users")
+        wizard_harvester_users
         ;;
       "🏷️ Change SERVICE_PREFIX")
         if is_any_service_running; then
