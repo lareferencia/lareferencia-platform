@@ -1,14 +1,21 @@
-name: Java CI with Maven
+name: Java CI and Release
 
 on:
   push:
     branches: [ "main" ]
+    tags: [ "4.2.*" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -20,39 +27,71 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Initialize release workspace
-        run: ./githelper init
+      - name: Test workspace tooling
+        run: python3 -B -m unittest -v test_githelper.py
 
-      - uses: avides/actions-project-version-check@v1.4.0
-        id: version_check
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          file-to-check: ./pom.xml
+      - name: Initialize workspace
+        run: |
+          ./githelper init
+          ./githelper status
 
       - name: Build with Maven
         run: ./build.sh lareferencia
 
-      - name: Compress build
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Test workspace tooling
+        run: python3 -B -m unittest -v test_githelper.py
+
+      - name: Initialize release workspace
         run: |
-          zip -r lareferencia-platform-${{ steps.version_check.outputs.version }}.zip . \
+          ./githelper init
+          ./githelper status
+
+      - name: Validate release tag
+        id: release_meta
+        shell: bash
+        run: |
+          project_version="$(python3 -c 'import xml.etree.ElementTree as ET; root = ET.parse("pom.xml").getroot(); print(root.find("{http://maven.apache.org/POM/4.0.0}version").text)')"
+          if [ "${GITHUB_REF_NAME}" != "${project_version}" ]; then
+            echo "Release tag ${GITHUB_REF_NAME} does not match pom.xml version ${project_version}." >&2
+            exit 1
+          fi
+          echo "version=${project_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build with Maven
+        run: ./build.sh lareferencia
+
+      - name: Compress release
+        run: |
+          zip -r "lareferencia-platform-${{ steps.release_meta.outputs.version }}.zip" . \
             -x "target/*" \
             -x "*/target/*" \
             -x ".git/*" \
-            -x "*/.git/*"
+            -x "*/.git/*" \
+            -x "lareferencia-platform-*.zip"
 
-      - name: Delete existing release if present
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release delete ${{ steps.version_check.outputs.version }} --yes --cleanup-tag || true
-
-      - name: Create release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version_check.outputs.version }}
-          name: Release ${{ steps.version_check.outputs.version }}
-          files: ./lareferencia-platform-${{ steps.version_check.outputs.version }}.zip
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          files: lareferencia-platform-${{ steps.release_meta.outputs.version }}.zip
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
