@@ -115,6 +115,123 @@ class WorkspaceParsingTests(unittest.TestCase):
 
             self.assertEqual([module.name for module in selected], ["mod-b", "mod-a"])
 
+    def test_workspace_accepts_pinned_tag_and_ref(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            commit = "a" * 40
+            (root / "workspace.ini").write_text(
+                textwrap.dedent(
+                    f"""
+                    [workspace]
+                    default_branch = main
+
+                    [module.mod-tag]
+                    url = https://example.test/mod-tag
+                    tag = 4.2.7
+                    commit = {commit}
+
+                    [module.mod-ref]
+                    url = https://example.test/mod-ref
+                    ref = refs/tags/4.2.7
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            workspace = githelper.load_workspace(root)
+            modules = {module.name: module for module in workspace.modules}
+
+            self.assertIsNone(modules["mod-tag"].branch)
+            self.assertEqual(modules["mod-tag"].tag, "4.2.7")
+            self.assertEqual(modules["mod-tag"].commit, commit)
+            self.assertEqual(modules["mod-ref"].tag, "4.2.7")
+
+    def test_workspace_rejects_branch_and_tag_together(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "workspace.ini").write_text(
+                textwrap.dedent(
+                    """
+                    [workspace]
+                    default_branch = main
+
+                    [module.mod]
+                    url = https://example.test/mod
+                    branch = main
+                    tag = 4.2.7
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "either branch or tag/ref"):
+                githelper.load_workspace(root)
+
+
+class PinnedTagWorkflowTests(unittest.TestCase):
+    def test_init_and_sync_pinned_tag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "module-src"
+            parent = root / "parent"
+
+            init_repo(source)
+            (source / "README.md").write_text("4.2.7\n", encoding="utf-8")
+            git(["add", "README.md"], source)
+            git(["commit", "-m", "release"], source)
+            release_sha = git(["rev-parse", "HEAD"], source).stdout.strip()
+            git(["tag", "-a", "4.2.7", "-m", "4.2.7"], source)
+
+            init_repo(parent)
+            (parent / "workspace.ini").write_text(
+                textwrap.dedent(
+                    f"""
+                    [workspace]
+                    default_branch = main
+
+                    [module.module]
+                    url = {source}
+                    tag = 4.2.7
+                    commit = {release_sha}
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            git(["add", "workspace.ini"], parent)
+            git(["commit", "-m", "add pinned workspace"], parent)
+
+            init_result = run([sys.executable, str(GITHELPER), "init"], parent)
+            self.assertIn("pinned to tag '4.2.7'", init_result.stdout)
+            self.assertEqual(git(["rev-parse", "HEAD"], parent / "module").stdout.strip(), release_sha)
+            self.assertIsNone(githelper.get_current_branch(parent / "module"))
+
+            bad_pin = githelper.ModuleMeta(
+                name="module",
+                path="module",
+                url=str(source),
+                branch=None,
+                tag="4.2.7",
+                commit="0" * 40,
+            )
+            mismatch = githelper.switch_to_tag(parent / "module", bad_pin)
+            self.assertEqual(mismatch.returncode, 3)
+            self.assertIn("expected", mismatch.stderr)
+
+            git(["switch", "main"], parent / "module")
+            sync_result = run([sys.executable, str(GITHELPER), "sync"], parent)
+            self.assertIn("tag '4.2.7'", sync_result.stdout)
+            self.assertEqual(git(["rev-parse", "HEAD"], parent / "module").stdout.strip(), release_sha)
+
+            git(["switch", "--detach"], parent)
+            detached_sync = run([sys.executable, str(GITHELPER), "sync"], parent)
+            self.assertIn("already on tag '4.2.7'", detached_sync.stdout)
+
+            status = run([sys.executable, str(GITHELPER), "status"], parent)
+            self.assertIn("module | tag:4.2.7", status.stdout)
+
 
 class MigrationSmokeTests(unittest.TestCase):
     def test_migrate_from_submodules_in_place(self):

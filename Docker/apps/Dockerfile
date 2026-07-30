@@ -5,11 +5,13 @@ WORKDIR /build
 # Copy the pre-compiled JAR directly from the host's build context
 ARG APP_MODULE
 COPY ${APP_MODULE}/target/${APP_MODULE}-*.jar /tmp/app.jar
+COPY ${APP_MODULE}/target/docker-build-info.properties /tmp/docker-build-info.properties
 
 # Extração das camadas (Modern Spring Boot 3.x)
 RUN \
     java -Djarmode=tools -jar /tmp/app.jar extract --layers --launcher --destination /build/extracted/ || \
     (mkdir -p /build/extracted/application && cp /tmp/app.jar /build/extracted/application/app.jar)
+RUN cp /tmp/docker-build-info.properties /build/extracted/docker-build-info.properties
 
 # --- Stage 2: Runtime ---
 FROM eclipse-temurin:17-jre

@@ -162,7 +162,7 @@ services:
           - harvester
     environment:
       APP_MODULE: lareferencia-lrharvester-app
-      APP_JAR: lareferencia-lrharvester-app-5.0.0-beta.jar
+      APP_JAR: lareferencia-lrharvester-app-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-lrharvester-app/config
       EXTERNAL_CONFIG_DIR: /config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
@@ -208,7 +208,7 @@ services:
           - dashboard-rest
     environment:
       APP_MODULE: lareferencia-dashboard-rest
-      APP_JAR: lareferencia-dashboard-rest-5.0.0-beta.jar
+      APP_JAR: lareferencia-dashboard-rest-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-dashboard-rest/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
@@ -252,7 +252,7 @@ services:
           - entity-rest
     environment:
       APP_MODULE: lareferencia-entity-rest
-      APP_JAR: lareferencia-entity-rest-5.0.0-beta.jar
+      APP_JAR: lareferencia-entity-rest-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-entity-rest/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       SERVER_PORT: 8094
@@ -296,7 +296,7 @@ services:
           - db-init
     environment:
       APP_MODULE: lareferencia-shell
-      APP_JAR: lareferencia-shell-5.0.0-beta.jar
+      APP_JAR: lareferencia-shell-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-shell/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
@@ -332,7 +332,7 @@ services:
           - shell
     environment:
       APP_MODULE: lareferencia-shell
-      APP_JAR: lareferencia-shell-5.0.0-beta.jar
+      APP_JAR: lareferencia-shell-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-shell/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
       SHELL_IDLE: ${SHELL_IDLE:-true}

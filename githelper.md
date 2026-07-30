@@ -26,15 +26,25 @@ default_branch = main
 url = https://github.com/lareferencia/lareferencia-core-lib
 branch = main
 
+[module.lareferencia-entity-lib]
+url = https://github.com/lareferencia/lareferencia-entity-lib
+tag = 4.2.7
+commit = 0123456789abcdef0123456789abcdef01234567
+
 [branch-set.v5-semantic-indexing]
 lareferencia-core-lib = v5-semantic-indexing
-lareferencia-entity-lib = v5-semantic-indexing
 ```
 
 - `default_branch` se usa cuando un modulo no declara `branch`.
-- Cada `[module.<name>]` declara `url` y opcionalmente `branch`.
+- Cada `[module.<name>]` declara `url` y uno de estos destinos:
+  - `branch`: rama de desarrollo actualizable.
+  - `tag`: tag de release, que se mantiene en detached HEAD.
+  - `ref = refs/tags/<tag>`: forma equivalente y explicita de declarar una tag.
+- Un modulo fijado por tag puede declarar `commit` con el SHA Git completo de 40 caracteres. `githelper` verifica que la tag resuelva exactamente a ese commit.
+- `branch` y `tag`/`ref` son mutuamente excluyentes.
 - Cada `[branch-set.<branch>]` articula ramas por modulo para una rama del repo padre.
 - Si no existe un branch-set para la rama del padre, los modulos usan su `branch` o `main`.
+- Los modulos fijados por tag no son modificados por los branch sets.
 - Los profiles Maven (`lareferencia`, `ibict`, `rcaap`) son independientes de los branch sets de `githelper`.
 
 ## Comandos
@@ -69,7 +79,7 @@ Con `--dirty`, muestra solo el padre y/o modulos con cambios locales.
 ./githelper init --set v5-semantic-indexing
 ```
 
-Clona los repos declarados en `workspace.ini` que no existan localmente. Por defecto usa la rama del modulo; con `--set` usa el branch-set correspondiente si existe.
+Clona los repos declarados en `workspace.ini` que no existan localmente. Por defecto usa la rama o tag del modulo; con `--set` usa el branch-set correspondiente para los modulos basados en ramas. Las tags quedan en detached HEAD y se verifica `commit` cuando esta declarado.
 
 ### 3) Cambiar branch en el padre y aplicar branch-set
 
@@ -94,7 +104,7 @@ Si una rama requerida por el manifest/branch-set no existe localmente ni en `ori
 ./githelper sync --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-Sin `--set`, usa la branch actual del padre como nombre de branch-set. Si no existe branch-set, aplica defaults.
+Sin `--set`, usa la branch actual del padre como nombre de branch-set. Si no existe branch-set, aplica defaults. Los modulos fijados por tag se cambian a esa tag y se verifica su commit. Si todos los modulos seleccionados usan tags, tambien funciona cuando el repositorio padre esta en detached HEAD.
 
 ### 5) Guardar un mapa de ramas del workspace
 
@@ -121,7 +131,7 @@ Si el branch-set ya existe, el comando falla salvo que uses `--force`. Los modul
 ./githelper pull --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-Hace `pull` del padre y luego de cada modulo en su rama objetivo segun `workspace.ini`.
+Hace `pull` del padre y luego de cada modulo en su rama objetivo segun `workspace.ini`. Para modulos fijados por tag no ejecuta `pull`: descarga tags, verifica el commit y restaura el detached HEAD esperado.
 
 ### 7) Crear branch en modulos especificos
 

@@ -397,7 +397,7 @@ The repository includes a single integrated CLI in the project root: `./githelpe
 ./githelper url rewrite --to https
 ```
 
-Workspace modules and branch sets are declared in `workspace.ini`. By default modules use `main`; a section like `[branch-set.v5-semantic-indexing]` can point selected modules to feature branches for that parent branch. `./githelper branch-set capture <name>` takes a snapshot of the current module branches so the same combination can be reproduced with `./githelper sync --set <name>`. Maven build profiles such as `lareferencia`, `ibict`, and `rcaap` are separate and are only used by `build.sh`.
+Workspace modules and branch sets are declared in `workspace.ini`. Development modules normally use `branch = main`; release modules can instead use `tag = <version>` (or `ref = refs/tags/<version>`) plus an optional full `commit` SHA for immutable verification. A section like `[branch-set.v5-semantic-indexing]` can point branch-based modules to feature branches for that parent branch. `./githelper branch-set capture <name>` takes a snapshot of the current module branches so the same combination can be reproduced with `./githelper sync --set <name>`. Maven build profiles such as `lareferencia`, `ibict`, and `rcaap` are separate and are only used by `build.sh`.
 
 ### Checkout Specific Tagged Version
 

@@ -741,6 +741,65 @@ compile_java_modules() {
     mvn clean package -DskipTests -Dspring-boot.repackage.executable=false -P${profile}"
     
   eval "${compile_cmd}"
+  write_java_build_manifests
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+write_java_build_manifests() {
+  local app_modules=(
+    lareferencia-lrharvester-app
+    lareferencia-dashboard-rest
+    lareferencia-entity-rest
+    lareferencia-shell
+  )
+  local git_commit
+  git_commit="$(git -C "${ROOT_DIR}" rev-parse --verify HEAD 2>/dev/null || printf 'unknown')"
+
+  for module in "${app_modules[@]}"; do
+    local app_jar
+    app_jar="$(find "${ROOT_DIR}/${module}/target" -maxdepth 1 -name "${module}-*.jar" \
+      ! -name '*-javadoc.jar' ! -name '*-sources.jar' -type f -print -quit)"
+    if [ -z "${app_jar}" ]; then
+      echo "Error: packaged JAR not found for ${module}" >&2
+      return 1
+    fi
+    {
+      printf 'git.commit=%s\n' "${git_commit}"
+      printf 'application.sha256=%s\n' "$(sha256_file "${app_jar}")"
+    } > "${ROOT_DIR}/${module}/target/docker-build-info.properties"
+  done
+
+  local harvester_jar
+  local dark_jar
+  local dark_entry
+  local packaged_dark_hash
+  harvester_jar="$(find "${ROOT_DIR}/lareferencia-lrharvester-app/target" -maxdepth 1 \
+    -name 'lareferencia-lrharvester-app-*.jar' ! -name '*-javadoc.jar' ! -name '*-sources.jar' -type f -print -quit)"
+  dark_jar="$(find "${ROOT_DIR}/lareferencia-dark-lib/target" -maxdepth 1 \
+    -name 'lareferencia-dark-lib-*.jar' ! -name '*-javadoc.jar' ! -name '*-sources.jar' -type f -print -quit)"
+  dark_entry="$(unzip -Z1 "${harvester_jar}" | awk '/BOOT-INF\\/lib\\/lareferencia-dark-lib-.*\\.jar$/ {print}')"
+  if [ -z "${dark_jar}" ] || [ -z "${dark_entry}" ]; then
+    echo "Error: unable to verify lareferencia-dark-lib packaged in harvester" >&2
+    return 1
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    packaged_dark_hash="$(unzip -p "${harvester_jar}" "${dark_entry}" | sha256sum | awk '{print $1}')"
+  else
+    packaged_dark_hash="$(unzip -p "${harvester_jar}" "${dark_entry}" | shasum -a 256 | awk '{print $1}')"
+  fi
+  if [ "${packaged_dark_hash}" != "$(sha256_file "${dark_jar}")" ]; then
+    echo "Error: harvester contains a stale lareferencia-dark-lib artifact" >&2
+    return 1
+  fi
+  printf 'dark-lib.sha256=%s\n' "${packaged_dark_hash}" \
+    >> "${ROOT_DIR}/lareferencia-lrharvester-app/target/docker-build-info.properties"
 }
 
 run_global_build() {
@@ -1820,6 +1879,10 @@ case "${cmd}" in
     
     ensure_m2_cache_dir
     ensure_vufind_for_services "${services[@]}"
+    if [ "${cmd}" = "build" ]; then
+      ensure_java_parent_modules_ready false
+      compile_java_modules
+    fi
     
     p_args=()
     for p in "${COLLECTED_PROFILES[@]-}"; do p_args+=(--profile "$p"); done

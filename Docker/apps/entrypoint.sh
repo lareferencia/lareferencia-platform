@@ -23,6 +23,10 @@ echo "--- Initializing ${APP_MODULE} container ---"
 
 APP_DIR="/workspace/${APP_MODULE}"
 APP_CONFIG_DIR="${APP_CONFIG_DIR:-${APP_DIR}/config}"
+if [ -f "${APP_DIR}/docker-build-info.properties" ]; then
+  echo "--- Packaged build identity ---"
+  sed 's/^/  /' "${APP_DIR}/docker-build-info.properties"
+fi
 
 # --- PERMISSIONS & USER SETUP ---
 # Ensure runtime and log directories exist and are owned by the app user

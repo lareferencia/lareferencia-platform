@@ -28,7 +28,9 @@ class ModuleMeta:
     name: str
     path: str
     url: str
-    branch: str
+    branch: Optional[str]
+    tag: Optional[str]
+    commit: Optional[str]
 
 
 @dataclass
@@ -113,7 +115,7 @@ def remote_branch_exists(repo: Path, branch: str) -> bool:
 
 
 def ensure_remote_refs(repo: Path) -> CommandResult:
-    return run_git(["fetch", "--prune", "origin"], repo)
+    return run_git(["fetch", "--prune", "--tags", "origin"], repo)
 
 
 def working_tree_dirty(repo: Path) -> bool:
@@ -173,6 +175,24 @@ def validate_module_path(path: str) -> None:
         raise RuntimeError(f"Module path must stay inside the workspace: {path}")
 
 
+def normalize_tag_ref(raw_ref: str) -> str:
+    ref = raw_ref.strip()
+    prefix = "refs/tags/"
+    if ref.startswith(prefix):
+        ref = ref[len(prefix) :]
+    validation = run_command(["git", "check-ref-format", f"refs/tags/{ref}"], Path.cwd())
+    if not ref or ref.startswith("refs/") or validation.returncode != 0:
+        raise RuntimeError(f"Invalid tag ref: {raw_ref}")
+    return ref
+
+
+def validate_commit(commit: str) -> str:
+    value = commit.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise RuntimeError("Pinned module commit must be a full 40-character Git SHA.")
+    return value
+
+
 def load_workspace(root: Path) -> Workspace:
     parser = read_manifest_parser(root)
     default_branch = parser.get("workspace", "default_branch", fallback="main").strip() or "main"
@@ -193,8 +213,34 @@ def load_workspace(root: Path) -> Workspace:
         if not url:
             raise RuntimeError(f"{section} must define url.")
 
-        branch = parser.get(section, "branch", fallback=default_branch).strip() or default_branch
-        modules.append(ModuleMeta(name=name, path=path, url=url, branch=branch))
+        explicit_branch = parser.get(section, "branch", fallback="").strip()
+        explicit_tag = parser.get(section, "tag", fallback="").strip()
+        explicit_ref = parser.get(section, "ref", fallback="").strip()
+
+        if explicit_tag and explicit_ref:
+            raise RuntimeError(f"{section} must define either tag or ref, not both.")
+        if explicit_branch and (explicit_tag or explicit_ref):
+            raise RuntimeError(f"{section} must define either branch or tag/ref, not both.")
+
+        raw_tag = explicit_tag or explicit_ref
+        tag = normalize_tag_ref(raw_tag) if raw_tag else None
+        branch = None if tag else (explicit_branch or default_branch)
+
+        raw_commit = parser.get(section, "commit", fallback="").strip()
+        if raw_commit and not tag:
+            raise RuntimeError(f"{section} can only define commit together with tag/ref.")
+        commit = validate_commit(raw_commit) if raw_commit else None
+
+        modules.append(
+            ModuleMeta(
+                name=name,
+                path=path,
+                url=url,
+                branch=branch,
+                tag=tag,
+                commit=commit,
+            )
+        )
 
     if not modules:
         raise RuntimeError(f"{MANIFEST_FILE} does not define any [module.*] sections.")
@@ -271,6 +317,8 @@ def branch_set_exists(workspace: Workspace, branch_set_name: Optional[str]) -> b
 
 
 def target_branch_for_module(workspace: Workspace, branch_set_name: Optional[str], module: ModuleMeta) -> str:
+    if module.tag:
+        raise RuntimeError(f"{module.name} is pinned to tag '{module.tag}', not to a branch.")
     branch_set = workspace.branch_sets.get(branch_set_name or "")
     if branch_set:
         if module.name in branch_set:
@@ -289,9 +337,12 @@ def capture_module_branches(root: Path, modules: Iterable[ModuleMeta]) -> Dict[s
     errors: List[str] = []
 
     for module in modules:
+        if module.tag:
+            errors.append(f"{module.name}: pinned to tag '{module.tag}'")
+            continue
         repo = root / module.path
         branch_state = format_branch(repo)
-        if branch_state in ("MISSING", "UNINITIALIZED", "DETACHED"):
+        if branch_state in ("MISSING", "UNINITIALIZED", "DETACHED") or branch_state.startswith("tag:"):
             errors.append(f"{module.name}: {branch_state}")
             continue
         captured[module.name] = branch_state
@@ -408,6 +459,34 @@ def switch_to_branch(repo: Path, branch: str) -> CommandResult:
     return CommandResult(2, "", f"Branch '{branch}' not found locally or in origin")
 
 
+def resolve_tag_commit(repo: Path, tag: str) -> CommandResult:
+    return run_git(["rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"], repo)
+
+
+def switch_to_tag(repo: Path, module: ModuleMeta) -> CommandResult:
+    if not module.tag:
+        return CommandResult(2, "", f"{module.name} does not define a tag")
+
+    resolved = resolve_tag_commit(repo, module.tag)
+    if resolved.returncode != 0:
+        return CommandResult(2, "", f"Tag '{module.tag}' not found")
+
+    resolved_sha = resolved.stdout.strip().lower()
+    if module.commit and resolved_sha != module.commit:
+        return CommandResult(
+            3,
+            "",
+            f"Tag '{module.tag}' resolves to {resolved_sha}, expected {module.commit}",
+        )
+
+    current = run_git(["rev-parse", "--verify", "HEAD"], repo)
+    current_branch = get_current_branch(repo)
+    if current.returncode == 0 and current.stdout.strip().lower() == resolved_sha and current_branch is None:
+        return CommandResult(0, f"Already on tag '{module.tag}'", "")
+
+    return run_git(["switch", "--detach", resolved_sha], repo)
+
+
 def ref_contains_path(repo: Path, ref: str, path: str) -> bool:
     result = run_git(["cat-file", "-e", f"{ref}:{path}"], repo)
     return result.returncode == 0
@@ -431,7 +510,19 @@ def format_branch(repo: Path) -> str:
     if not is_git_repository(repo):
         return "UNINITIALIZED"
     branch = get_current_branch(repo)
-    return branch if branch else "DETACHED"
+    if branch:
+        return branch
+    tag = run_git(["describe", "--tags", "--exact-match", "HEAD"], repo)
+    return f"tag:{tag.stdout}" if tag.returncode == 0 and tag.stdout else "DETACHED"
+
+
+def format_module_ref(repo: Path, module: ModuleMeta) -> str:
+    if module.tag and repo.exists() and is_git_repository(repo):
+        current = run_git(["rev-parse", "--verify", "HEAD"], repo)
+        tagged = resolve_tag_commit(repo, module.tag)
+        if current.returncode == 0 and tagged.returncode == 0 and current.stdout == tagged.stdout:
+            return f"tag:{module.tag}"
+    return format_branch(repo)
 
 
 def print_status(root: Path, modules: Iterable[ModuleMeta], dirty_only: bool = False) -> int:
@@ -444,7 +535,7 @@ def print_status(root: Path, modules: Iterable[ModuleMeta], dirty_only: bool = F
 
     for module in modules:
         repo = root / module.path
-        branch_state = format_branch(repo)
+        branch_state = format_module_ref(repo, module)
         if branch_state in ("MISSING", "UNINITIALIZED"):
             if not dirty_only:
                 info(f"{module.name} | {branch_state} | ? | status?")
@@ -487,23 +578,48 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     for module in modules:
         repo = root / module.path
-        branch = target_branch_for_module(workspace, branch_set_name, module) if branch_set_name else module.branch
+        branch = None
+        if not module.tag:
+            branch = target_branch_for_module(workspace, branch_set_name, module) if branch_set_name else module.branch
 
         if repo.exists():
             if is_git_repository(repo):
-                info(f"OK   {module.name}: repository already exists at {module.path}.")
+                if module.tag:
+                    fetch_result = ensure_remote_refs(repo)
+                    if fetch_result.returncode != 0:
+                        warn(f"{module.name}: fetch failed: {fetch_result.stderr or fetch_result.stdout}")
+                        errors += 1
+                        continue
+                    tag_result = switch_to_tag(repo, module)
+                    if tag_result.returncode != 0:
+                        warn(f"{module.name}: {tag_result.stderr or tag_result.stdout}")
+                        errors += 1
+                        continue
+                    info(f"OK   {module.name}: repository exists and is pinned to tag '{module.tag}'.")
+                else:
+                    info(f"OK   {module.name}: repository already exists at {module.path}.")
                 existing += 1
             else:
                 warn(f"{module.name}: path exists but is not a git repository: {module.path}")
                 errors += 1
             continue
 
-        clone_result = run_git(["clone", "--branch", branch, module.url, module.path], root)
+        target = module.tag or branch
+        clone_result = run_git(["clone", "--branch", target, "--", module.url, module.path], root)
         if clone_result.returncode == 0:
-            info(f"OK   {module.name}: cloned '{branch}' into {module.path}.")
+            if module.tag:
+                tag_result = switch_to_tag(repo, module)
+                if tag_result.returncode != 0:
+                    warn(f"{module.name}: {tag_result.stderr or tag_result.stdout}")
+                    errors += 1
+                    continue
+                info(f"OK   {module.name}: cloned and pinned to tag '{module.tag}' in {module.path}.")
+            else:
+                info(f"OK   {module.name}: cloned branch '{branch}' into {module.path}.")
             cloned += 1
         else:
-            warn(f"{module.name}: clone failed for branch '{branch}': {clone_result.stderr or clone_result.stdout}")
+            kind = "tag" if module.tag else "branch"
+            warn(f"{module.name}: clone failed for {kind} '{target}': {clone_result.stderr or clone_result.stdout}")
             errors += 1
 
     info(f"Summary: cloned={cloned} existing={existing} errors={errors}")
@@ -520,10 +636,11 @@ def cmd_sync(args: argparse.Namespace) -> int:
         return fail(str(err))
 
     branch_set_name = branch_set_name or get_current_branch(root)
-    if not branch_set_name:
+    has_branch_modules = any(not module.tag for module in modules)
+    if not branch_set_name and has_branch_modules:
         return fail("Parent repository is in detached HEAD; pass --set explicitly.")
 
-    if not branch_set_exists(workspace, branch_set_name):
+    if branch_set_name and not branch_set_exists(workspace, branch_set_name):
         info(f"No branch-set for '{branch_set_name}'; using module defaults.")
 
     switched = 0
@@ -532,7 +649,6 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
     for module in modules:
         repo = root / module.path
-        branch = target_branch_for_module(workspace, branch_set_name, module)
         if not repo.exists() or not is_git_repository(repo):
             warn(f"{module.name}: repository missing or uninitialized; run './githelper init'.")
             errors += 1
@@ -544,16 +660,23 @@ def cmd_sync(args: argparse.Namespace) -> int:
             errors += 1
             continue
 
-        result = switch_to_branch(repo, branch)
+        if module.tag:
+            result = switch_to_tag(repo, module)
+            target_description = f"tag '{module.tag}'"
+        else:
+            branch = target_branch_for_module(workspace, branch_set_name, module)
+            result = switch_to_branch(repo, branch)
+            target_description = f"branch '{branch}'"
+
         if result.returncode == 0:
             if result.stdout.startswith("Already on"):
-                info(f"OK   {module.name}: already on '{branch}'.")
+                info(f"OK   {module.name}: already on {target_description}.")
                 unchanged += 1
             else:
-                info(f"OK   {module.name}: now on '{branch}'.")
+                info(f"OK   {module.name}: now on {target_description}.")
                 switched += 1
         else:
-            warn(f"{module.name}: required branch '{branch}' not found: {result.stderr or result.stdout}")
+            warn(f"{module.name}: required {target_description} unavailable: {result.stderr or result.stdout}")
             errors += 1
 
     info(f"Summary: switched={switched} unchanged={unchanged} errors={errors}")
@@ -742,11 +865,11 @@ def cmd_pull(args: argparse.Namespace) -> int:
     info(f"OK   parent: pulled branch '{parent_branch}'.")
 
     pulled = 0
+    pinned = 0
     errors = 0
 
     for module in modules:
         repo = root / module.path
-        branch = target_branch_for_module(workspace, parent_branch, module)
         if not repo.exists() or not is_git_repository(repo):
             warn(f"{module.name}: repository missing or uninitialized; run './githelper init'.")
             errors += 1
@@ -758,6 +881,17 @@ def cmd_pull(args: argparse.Namespace) -> int:
             errors += 1
             continue
 
+        if module.tag:
+            tag_result = switch_to_tag(repo, module)
+            if tag_result.returncode == 0:
+                info(f"OK   {module.name}: verified pinned tag '{module.tag}' (no pull).")
+                pinned += 1
+            else:
+                warn(f"{module.name}: {tag_result.stderr or tag_result.stdout}")
+                errors += 1
+            continue
+
+        branch = target_branch_for_module(workspace, parent_branch, module)
         switch_result = switch_to_branch(repo, branch)
         if switch_result.returncode != 0:
             warn(f"{module.name}: required branch '{branch}' not found: {switch_result.stderr or switch_result.stdout}")
@@ -772,7 +906,7 @@ def cmd_pull(args: argparse.Namespace) -> int:
             warn(f"{module.name}: pull failed on '{branch}': {pull_result.stderr or pull_result.stdout}")
             errors += 1
 
-    info(f"Summary: pulled={pulled} errors={errors}")
+    info(f"Summary: pulled={pulled} pinned={pinned} errors={errors}")
     return 1 if errors else 0
 
 
