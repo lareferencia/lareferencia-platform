@@ -293,6 +293,22 @@ RESTful API providing monitoring, statistics, and administrative data for dashbo
 
 [View detailed documentation](https://github.com/lareferencia/lareferencia-dashboard-rest)
 
+#### **lareferencia-oai-pmh**
+
+Standalone OAI-PMH 2.0 data provider backed by the Platform publication index in Solr.
+
+**Key Features:**
+
+- `Identify`, `ListSets`, `ListMetadataFormats`, `ListIdentifiers`, `ListRecords`, and `GetRecord`
+- Default, LA Referencia accepted-document-types, and thesis contexts
+- Configurable metadata crosswalks and browser presentation
+- Standalone executable JAR while also participating in the Platform Maven reactor
+
+**Configuration:** Copy `config/application.properties.model` to the ignored
+`config/application.properties` file and adjust the local repository and Solr values.
+
+[View detailed documentation](https://github.com/lareferencia/lareferencia-oai-pmh)
+
 ### Infrastructure Modules
 
 #### **lareferencia-indexing-filters-lib**
@@ -362,6 +378,10 @@ cd lareferencia-platform
 # Build all modules general implementation
 ./build.sh lareferencia
 
+# Build or test only the OAI-PMH provider from the Platform reactor
+mvn -pl lareferencia-oai-pmh package
+mvn -pl lareferencia-oai-pmh test
+
 # Or build specific contribution (e.g., ibict)
 ./build.sh ibict
 ```
@@ -397,7 +417,7 @@ The repository includes a single integrated CLI in the project root: `./githelpe
 ./githelper url rewrite --to https
 ```
 
-Workspace modules and branch sets are declared in `workspace.ini`. Development modules normally use `branch = main`; release modules can instead use `tag = <version>` (or `ref = refs/tags/<version>`) plus an optional full `commit` SHA for immutable verification. A section like `[branch-set.v5-semantic-indexing]` can point branch-based modules to feature branches for that parent branch. `./githelper branch-set capture <name>` takes a snapshot of the current module branches so the same combination can be reproduced with `./githelper sync --set <name>`. Maven build profiles such as `lareferencia`, `ibict`, and `rcaap` are separate and are only used by `build.sh`.
+Workspace modules and branch sets are declared in `workspace.ini`. Development modules normally use `branch = main`; release modules can instead use `tag = <version>` (or `ref = refs/tags/<version>`) plus an optional full `commit` SHA for immutable verification. A section like `[branch-set.v5-semantic-indexing]` can point branch-based modules to feature branches for that parent branch. `./githelper branch-set capture <name>` takes a snapshot of the current module branches so the same combination can be reproduced with `./githelper sync --set <name>`. Maven build profiles such as `lareferencia`, `ibict`, and `rcaap` are separate and are only used by `build.sh`. The `lareferencia-oai-pmh` repository keeps its standalone version and build, but is also included in the Platform reactor and release bundle.
 
 ### Checkout Specific Tagged Version
 
@@ -411,7 +431,7 @@ git checkout 4.2.6
 
 ### Configuration Directory Structure
 
-The platform uses a **flexible configuration system** based on a configurable base directory. Each application module (`lareferencia-lrharvester-app`, `lareferencia-shell`, `lareferencia-dashboard-rest`, `lareferencia-entity-rest`) has its own `config/` directory.
+The platform uses a **flexible configuration system** based on a configurable base directory. Each application module (`lareferencia-lrharvester-app`, `lareferencia-shell`, `lareferencia-dashboard-rest`, `lareferencia-entity-rest`, `lareferencia-oai-pmh`) has its own `config/` directory.
 
 **Standard Configuration Directory Structure:**
 

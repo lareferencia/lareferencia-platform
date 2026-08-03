@@ -76,6 +76,7 @@ Con `--dirty`, muestra solo el padre y/o modulos con cambios locales.
 ```bash
 ./githelper init
 ./githelper init --modules lareferencia-core-lib,lareferencia-shell
+./githelper init --modules lareferencia-oai-pmh
 ./githelper init --set v5-semantic-indexing
 ```
 
