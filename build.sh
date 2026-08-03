@@ -12,6 +12,7 @@ JAVA_PARENT_MODULES=(
   lareferencia-lrharvester-app
   lareferencia-entity-rest
   lareferencia-dashboard-rest
+  lareferencia-oai-pmh
 )
 
 ensure_java_parent_modules_ready() {

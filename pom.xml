@@ -187,6 +187,7 @@
 		<module>lareferencia-lrharvester-app</module>
 		<module>lareferencia-entity-rest</module>
 		<module>lareferencia-dashboard-rest</module>
+		<module>lareferencia-oai-pmh</module>
 	</modules>
 
 	<repositories>
