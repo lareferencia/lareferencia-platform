@@ -11,3 +11,4 @@ lareferencia-dark-lib
 lareferencia-lrharvester-app
 lareferencia-entity-rest
 lareferencia-dashboard-rest
+lareferencia-oai-pmh

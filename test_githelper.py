@@ -47,6 +47,13 @@ def init_repo(path):
 
 
 class WorkspaceParsingTests(unittest.TestCase):
+    def test_platform_workspace_includes_oai_provider(self):
+        workspace = githelper.load_workspace(ROOT)
+        module = workspace.module_by_selector()["lareferencia-oai-pmh"]
+
+        self.assertEqual(module.url, "https://github.com/lareferencia/lareferencia-oai-pmh")
+        self.assertEqual(module.branch, "main")
+
     def test_workspace_defaults_and_profile_overlay(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
