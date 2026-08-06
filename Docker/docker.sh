@@ -22,7 +22,7 @@ fi
 DEFAULT_VUFIND_REPO_URL="https://github.com/vufind-org/vufind"
 DEFAULT_VUFIND_REF="v11.0.1"
 
-ALL_MODULES=(core solr harvester dashboard entity-rest shell vufind elastic watch)
+ALL_MODULES=(core solr harvester dashboard entity-rest shell vufind elastic watch oai)
 JAVA_PARENT_MODULES=(
   lareferencia-oclc-harvester
   lareferencia-core-lib
@@ -34,6 +34,7 @@ JAVA_PARENT_MODULES=(
   lareferencia-lrharvester-app
   lareferencia-entity-rest
   lareferencia-dashboard-rest
+  lareferencia-oai-pmh
 )
 
 COLLECTED_SERVICES=()
@@ -183,7 +184,7 @@ export_service_prefix() {
 }
 
 export_salted_ports() {
-  unset LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300
+  unset LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300 LR_PORT_OAI
 
   local salt
   salt="$(get_env_var SERVICES_PORT_OFFSET 0)"
@@ -198,6 +199,7 @@ export_salted_ports() {
   local base_entity_rest=8094
   local base_elastic_9200=9200
   local base_elastic_9300=9300
+  local base_oai=8096
 
   if [ -z "${salt}" ] || [ "${salt}" -eq 0 ]; then
     salt=0
@@ -212,6 +214,7 @@ export_salted_ports() {
   export LR_PORT_ENTITY_REST=$((base_entity_rest + salt))
   export LR_PORT_ELASTIC_9200=$((base_elastic_9200 + salt))
   export LR_PORT_ELASTIC_9300=$((base_elastic_9300 + salt))
+  export LR_PORT_OAI=$((base_oai + salt))
 
   set_env_var "LR_PORT_VUFIND_WEB" "${LR_PORT_VUFIND_WEB}"
   set_env_var "LR_PORT_VUFIND_DB" "${LR_PORT_VUFIND_DB}"
@@ -222,6 +225,7 @@ export_salted_ports() {
   set_env_var "LR_PORT_ENTITY_REST" "${LR_PORT_ENTITY_REST}"
   set_env_var "LR_PORT_ELASTIC_9200" "${LR_PORT_ELASTIC_9200}"
   set_env_var "LR_PORT_ELASTIC_9300" "${LR_PORT_ELASTIC_9300}"
+  set_env_var "LR_PORT_OAI" "${LR_PORT_OAI}"
 }
 
 sync_compose_profiles() {
@@ -239,6 +243,7 @@ sync_compose_profiles() {
         vufind)       profiles+=(vufind) ;;
         elastic)      profiles+=(elastic) ;;
         watch)        profiles+=(watch) ;;
+        oai)          profiles+=(oai) ;;
       esac
     fi
   done
@@ -350,6 +355,7 @@ module_env_key() {
     vufind) printf "DEV_MODULE_VUFIND\n" ;;
     elastic) printf "DEV_MODULE_ELASTIC\n" ;;
     watch) printf "DEV_MODULE_WATCH\n" ;;
+    oai) printf "DEV_MODULE_OAI\n" ;;
     *) return 1 ;;
   esac
 }
@@ -357,7 +363,7 @@ module_env_key() {
 module_default_state() {
   local module="$1"
   case "${module}" in
-    core|solr|harvester|vufind) printf "on\n" ;;
+    core|solr|harvester|vufind|oai) printf "on\n" ;;
     *) printf "off\n" ;;
   esac
 }
@@ -437,6 +443,9 @@ module_services() {
     watch)
       printf "vufind-scss-watch\n"
       ;;
+    oai)
+      printf "oai-pmh\n"
+      ;;
     *)
       return 1
       ;;
@@ -457,6 +466,9 @@ module_profiles() {
       ;;
     watch)
       printf "watch\n"
+      ;;
+    oai)
+      printf "oai\n"
       ;;
     *)
       return 0
@@ -536,7 +548,7 @@ are_images_built() {
   local s
   for s in "${services[@]}"; do
     case "${s}" in
-      harvester|dashboard-rest|entity-rest|shell|solr|vufind-web|vufind-scss-watch)
+      harvester|dashboard-rest|entity-rest|shell|solr|vufind-web|vufind-scss-watch|oai-pmh)
         checked_any=true
         local img_id
         img_id=$(dc images -q "${s}" 2>/dev/null || true)
@@ -758,6 +770,7 @@ write_java_build_manifests() {
     lareferencia-dashboard-rest
     lareferencia-entity-rest
     lareferencia-shell
+    lareferencia-oai-pmh
   )
   local git_commit
   git_commit="$(git -C "${ROOT_DIR}" rev-parse --verify HEAD 2>/dev/null || printf 'unknown')"
@@ -784,7 +797,7 @@ write_java_build_manifests() {
     -name 'lareferencia-lrharvester-app-*.jar' ! -name '*-javadoc.jar' ! -name '*-sources.jar' -type f -print -quit)"
   dark_jar="$(find "${ROOT_DIR}/lareferencia-dark-lib/target" -maxdepth 1 \
     -name 'lareferencia-dark-lib-*.jar' ! -name '*-javadoc.jar' ! -name '*-sources.jar' -type f -print -quit)"
-  dark_entry="$(unzip -Z1 "${harvester_jar}" | awk '/BOOT-INF\\/lib\\/lareferencia-dark-lib-.*\\.jar$/ {print}')"
+  dark_entry="$(unzip -Z1 "${harvester_jar}" | grep -E '^BOOT-INF/lib/lareferencia-dark-lib-.*\.jar$')"
   if [ -z "${dark_jar}" ] || [ -z "${dark_entry}" ]; then
     echo "Error: unable to verify lareferencia-dark-lib packaged in harvester" >&2
     return 1
@@ -1211,6 +1224,7 @@ get_service_port() {
     dashboard-rest) printf ":%s" $((8092 + salt)) ;;
     entity-rest)    printf ":%s" $((8094 + salt)) ;;
     elasticsearch)  printf ":%s" $((9200 + salt)) ;;
+    oai-pmh)        printf ":%s" $((8096 + salt)) ;;
     *)              printf "" ;;
   esac
 }
@@ -1263,18 +1277,22 @@ print_module_status_columns() {
   local row1=("${blocks[@]:0:3}")
   local row2=("${blocks[@]:3:3}")
   local row3=("${blocks[@]:6:3}")
+  local row4=("${blocks[@]:9:3}")
 
-  gum join --vertical \
-    "$(gum join --horizontal "${row1[@]}")" \
-    "$(gum join --horizontal "${row2[@]}")" \
-    "$(gum join --horizontal "${row3[@]}")"
+  local rendered_rows=()
+  [ ${#row1[@]} -gt 0 ] && rendered_rows+=("$(gum join --horizontal "${row1[@]}")")
+  [ ${#row2[@]} -gt 0 ] && rendered_rows+=("$(gum join --horizontal "${row2[@]}")")
+  [ ${#row3[@]} -gt 0 ] && rendered_rows+=("$(gum join --horizontal "${row3[@]}")")
+  [ ${#row4[@]} -gt 0 ] && rendered_rows+=("$(gum join --horizontal "${row4[@]}")")
+
+  gum join --vertical "${rendered_rows[@]}"
 }
 
 wizard_modules() {
   clear_screen
   draw_header
   
-  local optional_modules=("solr" "harvester" "dashboard" "entity-rest" "shell" "vufind" "elastic" "watch")
+  local optional_modules=("solr" "harvester" "dashboard" "entity-rest" "shell" "vufind" "elastic" "watch" "oai")
   local pre_selected=()
   for m in "${optional_modules[@]}"; do
     if [ "$(get_module_state "${m}")" = "on" ]; then
@@ -1555,12 +1573,26 @@ wizard_main() {
     case "$choice" in
       "🚀 Start Platform")
         echo -e "\n${C_GREEN}🚀 Starting the platform...${C_RESET}"
+        
+        # Remove default admin user when starting via wizard
+        if [ -f "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties" ]; then
+          sed -i.bak '/^admin=/d' "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties" 2>/dev/null || sed -i '/^admin=/d' "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties"
+          rm -f "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties.bak"
+        fi
+        
         local build_cmd="\"${BASH_SOURCE[0]}\" up"
         execute_with_progress "${build_cmd}" "Platform Start"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
       "🔄 Rebuild & Start Platform")
         echo -e "\n${C_GREEN}🔄 Rebuilding and starting the platform...${C_RESET}"
+        
+        # Remove default admin user when starting via wizard
+        if [ -f "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties" ]; then
+          sed -i.bak '/^admin=/d' "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties" 2>/dev/null || sed -i '/^admin=/d' "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties"
+          rm -f "${ROOT_DIR}/lareferencia-lrharvester-app/config/users.properties.bak"
+        fi
+        
         local build_cmd="\"${BASH_SOURCE[0]}\" up --build --pull-modules"
         [ "${cache_state}" = "off" ] && build_cmd="${build_cmd} --no-cache"
         execute_with_progress "${build_cmd}" "Platform Rebuild & Start"
@@ -1711,7 +1743,7 @@ Core Commands:
   down                 Stop and remove containers
   start/stop/restart   Manage existing containers
   ps / logs / health   Monitoring
-  modules <on|off>     Enable/disable modules (vufind, elastic, watch)
+  modules <on|off>     Enable/disable modules (vufind, elastic, watch, oai)
   res <profile>        Apply resource profile (low, medium, high, custom)
   init-db              Migrate database
   reset-data           Clean Docker/data
@@ -1763,6 +1795,7 @@ case "${cmd}" in
         --vufind) requested_modules+=(vufind); explicit_vufind_request=true ;;
         --elastic) requested_modules+=(elastic) ;;
         --watch) requested_modules+=(watch); explicit_vufind_request=true ;;
+        --oai) requested_modules+=(oai) ;;
         *) services+=("$1"); service_requires_vufind "$1" && explicit_vufind_request=true ;;
       esac
       shift
@@ -1902,6 +1935,7 @@ case "${cmd}" in
     curl -fsS -o /dev/null -w "VuFind: http://localhost:${LR_PORT_VUFIND_WEB:-8080} -> %{http_code}\n" http://localhost:${LR_PORT_VUFIND_WEB:-8080}/ || true
     curl -fsS -o /dev/null -w "Harvester: http://localhost:${LR_PORT_HARVESTER:-8090} -> %{http_code}\n" http://localhost:${LR_PORT_HARVESTER:-8090}/ || true
     curl -fsS -o /dev/null -w "Entity REST: http://localhost:${LR_PORT_ENTITY_REST:-8094} -> %{http_code}\n" http://localhost:${LR_PORT_ENTITY_REST:-8094}/ || true
+    curl -fsS -o /dev/null -w "OAI PMH: http://localhost:${LR_PORT_OAI:-8096} -> %{http_code}\n" http://localhost:${LR_PORT_OAI:-8096}/ || true
     ;;
 
   init-db)

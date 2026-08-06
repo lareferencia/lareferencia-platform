@@ -276,6 +276,47 @@ services:
           cpus: "${LR_CPU_ENTITY:-0.5}"
     restart: unless-stopped
 
+  oai-pmh:
+    profiles:
+      - oai
+    build:
+      context: .
+      dockerfile: Docker/apps/Dockerfile
+      args:
+        APP_MODULE: lareferencia-oai-pmh
+        LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/oai-pmh:${LR_BUILD_PROFILE:-lareferencia}
+    container_name: ${COMPOSE_PROJECT_NAME:-lr}-oai-pmh
+    depends_on:
+      solr:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - oai-pmh
+    environment:
+      APP_MODULE: lareferencia-oai-pmh
+      APP_JAR: lareferencia-oai-pmh-5.0.0-rc.jar
+      APP_CONFIG_DIR: /workspace/lareferencia-oai-pmh/config
+      LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
+      SERVER_PORT: 8092
+      SOLR_URL: http://solr:8983/solr/oai
+      EXTERNAL_CONFIG_DIR: /config
+      LOG_DIR: /var/log/oai-pmh
+    ports:
+      - "${LR_PORT_OAI:-8096}:8092"
+    volumes:
+      - ./Docker/config-overrides:/docker-overrides:ro
+      - ./Docker/volume/lareferencia/oai-pmh/config:/config
+      - ./Docker/volume/lareferencia/oai-pmh/data:/data
+      - ./Docker/volume/lareferencia/oai-pmh/log:/var/log/oai-pmh
+    deploy:
+      resources:
+        limits:
+          memory: ${LR_MEM_OAI:-1G}
+          cpus: "${LR_CPU_OAI:-0.5}"
+    restart: unless-stopped
+
   db-init:
     build:
       context: .
