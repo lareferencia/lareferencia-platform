@@ -753,6 +753,12 @@ compile_java_modules() {
     mvn clean package -DskipTests -Dspring-boot.repackage.executable=false -P${profile}"
     
   eval "${compile_cmd}"
+  
+  # Fix permissions for generated files in target/ since maven ran as root
+  if [ "$(id -u)" != "0" ]; then
+    docker run --rm -v "${ROOT_DIR}:/workspace" -w /workspace alpine sh -c "chown -R $(id -u):$(id -g) */target 2>/dev/null || true"
+  fi
+
   write_java_build_manifests
 }
 
