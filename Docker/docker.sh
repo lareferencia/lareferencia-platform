@@ -1512,6 +1512,160 @@ wizard_harvester_users() {
   done
 }
 
+wizard_backup() {
+  while true; do
+    clear_screen
+    gum style --foreground 80 --bold --underline "💾 System Backup"
+    echo
+    gum style --foreground 245 "This module configures a full backup of your LA Referencia environment,"
+    gum style --foreground 245 "including Source Code (Git), DB Dumps, Indices, and configs."
+    gum style --foreground 245 "Target build directories are safely excluded."
+    echo
+    
+    if ! gum confirm "Do you want to configure the backup plan?"; then
+      return
+    fi
+
+    # Pre-flight check
+    local missing=false
+    for cmd in tar crontab docker docker-compose; do
+      if ! command -v "$cmd" &> /dev/null; then
+        gum style --foreground 204 "❌ Error: '$cmd' is required but not installed."
+        missing=true
+      fi
+    done
+    if [ "$missing" = true ]; then
+      gum input --placeholder "Press Enter to return..." > /dev/null
+      return
+    fi
+
+    local instance_name=$(basename "${ROOT_DIR}")
+    local default_dest="/var/backups/${instance_name}"
+    
+    echo "Where should the backups be saved?"
+    local dest_dir=$(gum input --placeholder "Destination path" --value "$default_dest")
+    if [ -z "$dest_dir" ]; then
+      echo "Aborted."
+      sleep 1
+      return
+    fi
+
+    # Ensure directory exists and is writable
+    if ! mkdir -p "$dest_dir" 2>/dev/null || [ ! -w "$dest_dir" ]; then
+      echo
+      gum style --foreground 204 "❌ Error: The current user does not have write permissions for '$dest_dir'."
+      gum style --foreground 245 "Please grant permissions (e.g. sudo mkdir -p $dest_dir && sudo chown \$(whoami) $dest_dir) or choose another path."
+      gum input --placeholder "Press Enter to return..." > /dev/null
+      return
+    fi
+
+    local do_cron=false
+    echo
+    if gum confirm "Enable automatic daily backup via Cron at a random time (03:xx AM)?"; then
+      do_cron=true
+    fi
+
+    echo
+    echo -e "${C_CYAN}Generating system backup script (.system_backup.sh)...${C_RESET}"
+    cat << EOF > "${ROOT_DIR}/.system_backup.sh"
+#!/usr/bin/env bash
+# Auto-generated full-state backup script for LA Referencia
+set -e
+
+PROJECT_DIR="${ROOT_DIR}"
+DEST_DIR="${dest_dir}"
+DATE=\$(date +"%Y%m%d_%H%M")
+BACKUP_PATH="\$DEST_DIR/\$DATE"
+SNAPSHOT_NAME="lareferencia_snapshot_\$DATE.tar.gz"
+
+mkdir -p "\$BACKUP_PATH"
+
+echo "1. Exporting Database Dumps..."
+cd "\$PROJECT_DIR"
+docker-compose exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" || true
+docker-compose exec -T mariadb mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" || true
+
+echo "2. Pausing indexers safely..."
+docker-compose stop solr elasticsearch vufind || true
+
+echo "3. Packaging absolute snapshot (Git, Configs, Volumes)..."
+tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
+    --exclude="*/target" \\
+    --exclude="./Docker/volume/lareferencia/postgres" \\
+    --exclude="./Docker/volume/vufind/data/db" \\
+    --exclude="./.idea" \\
+    -C "\$PROJECT_DIR" . \\
+    -C "\$BACKUP_PATH" postgres_dump.sql mysql_vufind_dump.sql
+
+rm -f "\$BACKUP_PATH/postgres_dump.sql" "\$BACKUP_PATH/mysql_vufind_dump.sql"
+
+echo "4. Restarting services..."
+docker-compose start || true
+
+echo "5. Generating autonomous restore script..."
+cat << 'RESTORE_EOF' > "\$BACKUP_PATH/restore.sh"
+#!/usr/bin/env bash
+echo "Restoring LA Referencia Full State Snapshot..."
+TAR_FILE=\$(ls *.tar.gz | head -n 1)
+if [ -z "\$TAR_FILE" ]; then
+  echo "Error: Snapshot tar.gz not found!"
+  exit 1
+fi
+
+echo "Extracting snapshot..."
+tar -xzf "\$TAR_FILE"
+
+echo "Booting Databases..."
+docker-compose up -d postgres mariadb
+echo "Waiting 15s for databases to initialize..."
+sleep 15
+
+echo "Restoring Dumps..."
+cat postgres_dump.sql | docker-compose exec -T postgres psql -U lrharvester -d lrharvester || true
+cat mysql_vufind_dump.sql | docker-compose exec -T mariadb mysql -u vufind -pvufind vufind || true
+
+echo "Booting remaining infrastructure..."
+docker-compose up -d
+echo "Restore complete! Environment is ready."
+RESTORE_EOF
+
+chmod +x "\$BACKUP_PATH/restore.sh"
+
+echo "Cleaning old backups (keeping 7 days)..."
+find "\$DEST_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} \;
+EOF
+
+    chmod +x "${ROOT_DIR}/.system_backup.sh"
+
+    if [ "$do_cron" = true ]; then
+      local random_min=$((RANDOM % 60))
+      local cron_job="$random_min 3 * * * cd ${ROOT_DIR} && bash .system_backup.sh >> ${ROOT_DIR}/.cron_backup.log 2>&1"
+      (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" ; echo "$cron_job") | crontab -
+      gum style --foreground 114 "✅ Cron job successfully configured for: ${random_min} 3 * * *"
+    else
+      (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh") | crontab - || true
+      gum style --foreground 222 "⚠️ Daily Cron backup is disabled."
+    fi
+
+    echo
+    if gum confirm "Execute the first backup right now?"; then
+      if ! mkdir -p "$dest_dir" 2>/dev/null; then
+         echo -e "${C_RED}Error: No permission to write to $dest_dir.${C_RESET}"
+         echo -e "Please create it manually: sudo mkdir -p $dest_dir && sudo chown $(whoami) $dest_dir"
+      else
+         echo -e "\n${C_CYAN}Running full backup... (this may take a while)${C_RESET}"
+         bash "${ROOT_DIR}/.system_backup.sh"
+         local dstr=$(date +"%Y%m%d")
+         gum style --foreground 114 "✅ Backup complete! Dest: $dest_dir"
+      fi
+    fi
+    
+    echo
+    gum input --placeholder "Press Enter to return to main menu..." > /dev/null
+    return
+  done
+}
+
 wizard_main() {
   # Set terminal title
   printf "\033]0;Lareferencia Docker Wizard\007"
@@ -1565,6 +1719,7 @@ wizard_main() {
       "🏗️ Build Cache: [${cache_display}]"
       "📝 View Logs (follow)"
       "💻 Enter Container Shell"
+      "💾 System Backup"
     )
 
     if dc ps --status running --services 2>/dev/null | grep -q "^harvester$"; then
@@ -1643,6 +1798,9 @@ wizard_main() {
         ;;
       "💻 Enter Container Shell")
         wizard_shell
+        ;;
+      "💾 System Backup")
+        wizard_backup
         ;;
       "👥 Manage Harvester Users")
         wizard_harvester_users
