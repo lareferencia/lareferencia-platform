@@ -241,8 +241,11 @@ DARK (descentrilized ARK) library for persistent identifier minting and manageme
 - OAI identifier to DARK identifier mapping
 - Credential management for DARK services
 - Worker integration for batch PID assignment
+- Import of legacy ARK mappings with first-stage metadata delivery
 
 [View detailed documentation](https://github.com/lareferencia/lareferencia-dark-lib)
+
+[Legacy ARK import runbook](docs/DARK_LEGACY_ARK_IMPORT.md)
 
 ### Application Modules
 
