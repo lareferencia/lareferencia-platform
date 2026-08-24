@@ -141,6 +141,7 @@ For complete reference, see [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAM
   - In-memory user cache with copy-on-read to prevent credential corruption
   - Secure logout with session invalidation
 - **Documentation**: Complete setup guide in [AUTENTICACION_FILE_BASED.md](docs/AUTENTICACION_FILE_BASED.md)
+- **Harvester Management API v5**: Explicit DTO-based administrative API, documented in [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md)
 
 **Core Library Package Structure Refactoring (v5.0)**
 
