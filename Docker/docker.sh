@@ -1439,7 +1439,7 @@ wizard_harvester_users() {
         if [ -z "$username" ]; then continue; fi
         local password=$(gum input --password --placeholder "Password")
         if [ -z "$password" ]; then continue; fi
-        local role=$(gum choose "ROLE_ADMIN" "ROLE_USER")
+        local role=$(gum choose "ROLE_ADMIN" "ROLE_VIEWER" "ROLE_USER")
         
         echo "Creating user..."
         
