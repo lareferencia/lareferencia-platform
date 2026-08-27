@@ -142,6 +142,7 @@ For complete reference, see [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAM
   - Secure logout with session invalidation
 - **Documentation**: Complete setup guide in [AUTENTICACION_FILE_BASED.md](docs/AUTENTICACION_FILE_BASED.md)
 - **Harvester Management API v5**: Explicit DTO-based administrative API, documented in [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md)
+- **Harvester Admin Web v5**: Deep analysis and implementation roadmap for replacing the AngularJS administration UI, documented in [HARVESTER_ADMIN_WEB_V5_TECHNICAL_PLAN.md](docs/HARVESTER_ADMIN_WEB_V5_TECHNICAL_PLAN.md)
 
 **Core Library Package Structure Refactoring (v5.0)**
 

@@ -59,6 +59,14 @@ Todas las respuestas son JSON normal. Las colecciones paginadas usan el mismo en
 | GET | `/api/v5/networks/{id}/runtime` | Estado de procesos de la red. |
 | POST | `/api/v5/networks/{id}/commands` | Ejecuta una acción operativa. |
 
+Para el dashboard de la nueva aplicación se incorporó una proyección agregada que evita que el cliente consulte por separado configuración, snapshots y runtime para cada fila:
+
+```text
+GET /api/v5/network-summaries?page=0&size=25&sort=name,asc
+```
+
+Admite `q`, `acronym`, `name`, `institutionName`, `published`, `snapshotStatus` e `indexStatus`. Cada elemento contiene el último snapshot, el identificador y fecha del último snapshot válido y los conteos/listas de procesos en ejecución, cola y agenda.
+
 Ejemplo de creación o reemplazo:
 
 ```json
@@ -96,13 +104,15 @@ La eliminación devuelve `202 Accepted`, invoca `NETWORK_DELETE_ACTION` y queda 
 
 | Recurso | Operaciones |
 |---|---|
-| `/api/v5/validators` | Lista, crea, consulta, reemplaza y elimina validadores. |
+| `/api/v5/validators` | Lista y crea validadores; `GET`, `PUT` y `PATCH` sobre `/{id}` consultan o modifican el agregado completo. |
 | `/api/v5/validators/{id}/clone` | Crea una copia con sus reglas. |
-| `/api/v5/validators/{id}/rules` | Crea reglas de validación. |
+| `/api/v5/validators/{id}/usage` | Expone las redes y relaciones que impiden borrarlo. |
+| `/api/v5/validators/{id}/rules` | Lista o crea reglas de validación. |
 | `/api/v5/validators/{id}/rules/{ruleId}` | Actualiza o elimina una regla. |
 | `/api/v5/validators/{id}/rules/order` | Reordena las reglas del validador. |
-| `/api/v5/transformers` | Operaciones equivalentes para transformadores. |
-| `/api/v5/transformers/{id}/rules` | Crea reglas de transformación. |
+| `/api/v5/transformers` | Operaciones equivalentes para transformadores, incluido `PATCH /{id}`. |
+| `/api/v5/transformers/{id}/usage` | Expone las redes y relaciones que impiden borrarlo. |
+| `/api/v5/transformers/{id}/rules` | Lista o crea reglas de transformación. |
 | `/api/v5/transformers/{id}/rules/{ruleId}` | Actualiza o elimina una regla. |
 | `/api/v5/transformers/{id}/rules/order` | Recalcula `runOrder` de reglas de transformación. |
 
@@ -125,14 +135,15 @@ Las reglas usan un contrato explícito:
 }
 ```
 
-Se acepta `typeId` o `className`; si llegan ambos deben resolver al mismo tipo. `typeId` es la opción recomendada. La API genera y valida internamente la serialización que el motor actual requiere.
+Se acepta `typeId` o `className`; si llegan ambos deben resolver al mismo tipo. `typeId` es la opción recomendada. En un reemplazo de agregado, las reglas existentes incluyen su `id`: la API conserva esas identidades y elimina únicamente las que ya no se envían. En altas individuales no se acepta `id`, y en una actualización individual, si se envía, debe coincidir con el identificador de la ruta. La API genera y valida internamente la serialización que el motor actual requiere.
 
 El catálogo se obtiene desde:
 
 - `GET /api/v5/rule-types?kind=validator|transformer&locale=es`
 - `GET /api/v5/rule-types/{typeId}`
+- `POST /api/v5/rule-types/{typeId}/validate`
 
-Cada entrada contiene nombre, clase, identificador y JSON Schema generado a partir de las implementaciones de regla instaladas.
+El último endpoint comprueba una `configuration` sin persistir cambios. Cada entrada contiene nombre, clase, identificador y JSON Schema generado a partir de las implementaciones de regla instaladas. También publica `help` y `uiSchema`: una representación neutral de la ayuda, orden y widgets del formulario legacy, apta para renderizadores JSON Schema modernos como RJSF. No expone la definición específica de Angular Schema Form.
 
 ### Snapshots, logs y diagnóstico
 
@@ -147,7 +158,29 @@ Los snapshots son solo de lectura: los crea el workflow de cosecha.
 | GET/POST | `/api/v5/snapshots/{snapshotId}/diagnostics/rules/{ruleId}/occurrences` y `/occurrences/query` |
 | GET | `/api/v5/snapshots/{snapshotId}/diagnostics/records/metadata?identifier=...` |
 
-Las variantes `POST .../query` aceptan filtros como arreglo y los traducen al formato que utiliza internamente `IValidationStatisticsService`. La variante de metadata devuelve `application/xml` y obtiene el XML publicado del registro diagnosticado.
+Las variantes `POST .../query` aceptan filtros tipados y los traducen al formato que utiliza internamente `IValidationStatisticsService`. El formato interno no se expone:
+
+```json
+{
+  "filters": [
+    { "field": "IDENTIFIER", "operator": "CONTAINS", "value": "oai:test" },
+    { "field": "VALID", "operator": "EQ", "value": true },
+    { "field": "RULE_INVALID", "operator": "EQ", "value": 42 }
+  ],
+  "page": 0,
+  "size": 25
+}
+```
+
+Los campos disponibles en esta iteración son `IDENTIFIER`, `VALID`, `TRANSFORMED`, `RULE_VALID` y `RULE_INVALID`. Summary, records y occurrences poseen DTOs explícitos en OpenAPI; ya no se publican como un `JsonNode` opaco. La variante de metadata devuelve `application/xml`.
+
+### Identidad y perfiles de atributos
+
+- `GET /api/v5/me` devuelve usuario, roles normalizados y modo de autenticación.
+- `GET /api/v5/attribute-profiles` lista los perfiles instalados.
+- `GET /api/v5/attribute-profiles/{typeId}` devuelve JSON Schema y UI Schema.
+
+Los perfiles se cargan desde `config/api-v5-attribute-profiles.json`, configurable mediante `api-v5.attribute-profiles-location`. Si una instalación actualiza el JAR sin copiar ese archivo, v5 utiliza perfiles internos mínimos de compatibilidad y el proceso continúa arrancando. Al escribir una red, si `attributes` no está vacío, `attributes.@class` debe identificar uno de los perfiles instalados. La validación exhaustiva contra JSON Schema queda como endurecimiento posterior.
 
 ### Operación y runtime
 
@@ -229,6 +262,8 @@ Los errores de validación incluyen además `violations` con los campos afectado
 cd lareferencia-lrharvester-app
 mvn -f pom.xml -Dtest=ApiV5ManagementControllerTest clean test
 ```
+
+La iteración de estabilización añade pruebas de la proyección de dashboard, fechas ISO-8601 UTC, identidad, carga de perfiles y traducción segura de filtros de diagnóstico. OpenAPI queda limitado al paquete y rutas de v5 y declara autenticación Basic y Bearer/JWT.
 
 La propuesta de arquitectura se documentó y validó con OpenSpec bajo `lareferencia-core-lib/openspec/changes/add-harvester-management-api-v5/`. Ese directorio está ignorado por la política actual de Git de `lareferencia-core-lib`, pero queda disponible localmente como referencia de diseño.
 
