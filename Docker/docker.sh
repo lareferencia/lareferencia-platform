@@ -756,7 +756,7 @@ compile_java_modules() {
   
   # Fix permissions for generated files in target/ since maven ran as root
   if [ "$(id -u)" != "0" ]; then
-    docker run --rm -v "${ROOT_DIR}:/workspace" -w /workspace alpine sh -c "chown -R $(id -u):$(id -g) */target 2>/dev/null || true"
+    docker run --rm -v "${ROOT_DIR}:/workspace" -w /workspace alpine sh -c "chown -R $(id -u):$(id -g) */target 2>/dev/null; chmod -R ugo+rwX */target 2>/dev/null || true"
   fi
 
   write_java_build_manifests
