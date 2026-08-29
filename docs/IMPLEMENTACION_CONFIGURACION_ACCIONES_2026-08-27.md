@@ -190,3 +190,45 @@ En `/actions`, la sección se denomina **Configuraciones de workers**. El botón
 Durante la reconciliación inicial, si existían valores de worker anidados en la configuración global de una acción, se copian a la fila global correspondiente y después se eliminan del registro de la acción. Las propiedades por fuente y los modificadores funcionales de `network_action` permanecen separados.
 
 Este cambio no altera las tablas `network`, los XML legacy ni los contratos de static. El único efecto operativo nuevo es que los parámetros técnicos modificados en la aplicación se aplican globalmente a las siguientes ejecuciones de todas las fuentes.
+
+## Actualización: edición independiente de reglas
+
+Fecha de actualización: 29 de agosto de 2026
+
+La edición de validadores y transformadores se ajustó para evitar que una operación sobre las reglas reemplace accidentalmente toda la configuración.
+
+### Separación de responsabilidades
+
+- **Guardar configuración** modifica únicamente el nombre y la descripción del validador o transformador existente.
+- **Guardar esta regla** crea o actualiza una regla mediante su subrecurso v5.
+- El borrado de una regla persistida se realiza mediante `DELETE` y requiere confirmación en la UI.
+- El reordenamiento se realiza exclusivamente con los botones subir/bajar y se persiste como una operación atómica de orden.
+- Se eliminó el campo numérico redundante de orden en el formulario de transformadores.
+
+Para configuraciones nuevas se conserva el guardado agregado inicial, ya que todavía no existe un identificador de la configuración al que asociar reglas individuales.
+
+### Nuevos endpoints de metadatos
+
+Se agregaron endpoints administrativos que no tocan las reglas hijas:
+
+- `PUT /api/v5/validators/{id}/metadata`
+- `PUT /api/v5/transformers/{id}/metadata`
+
+Los endpoints reciben únicamente `name` y `description`. Los endpoints agregados previamente para reglas continúan siendo:
+
+- `POST .../{id}/rules`;
+- `PUT .../{id}/rules/{ruleId}`;
+- `DELETE .../{id}/rules/{ruleId}`;
+- `PUT .../{id}/rules/order`.
+
+### Compatibilidad
+
+La API agregada `PUT /api/v5/validators/{id}` y su equivalente de transformadores se mantiene para clientes existentes, incluyendo reemplazo completo de reglas. La nueva interfaz React utiliza los endpoints separados para evitar conflictos y no cambia los controladores legacy, Spring Data REST, las entidades existentes ni el formato `jsonserialization` interno.
+
+La UI muestra mensajes de éxito o error para cada operación. En caso de fallo al guardar, borrar o reordenar, la respuesta `ProblemDetail` de la API se presenta al usuario sin ocultar el motivo.
+
+### Verificación adicional
+
+- Build de producción React (`tsc -b` y `vite build`): correcto.
+- Compilación Maven de `lareferencia-lrharvester-app` con sus dependencias: correcta.
+- No se modificó el comportamiento de los workers ni de los motores Legacy/Flowable.
