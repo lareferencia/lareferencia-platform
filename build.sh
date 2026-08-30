@@ -9,6 +9,7 @@ JAVA_PARENT_MODULES=(
   lareferencia-shell-entity-plugin
   lareferencia-shell
   lareferencia-dark-lib
+  lareferencia-lrharvester-admin-web
   lareferencia-lrharvester-app
   lareferencia-entity-rest
   lareferencia-dashboard-rest
