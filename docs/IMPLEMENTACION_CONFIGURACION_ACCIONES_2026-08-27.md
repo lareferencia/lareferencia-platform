@@ -232,3 +232,9 @@ La UI muestra mensajes de éxito o error para cada operación. En caso de fallo 
 - Build de producción React (`tsc -b` y `vite build`): correcto.
 - Compilación Maven de `lareferencia-lrharvester-app` con sus dependencias: correcta.
 - No se modificó el comportamiento de los workers ni de los motores Legacy/Flowable.
+
+## Actualización: idioma de los schemas en la UI v5
+
+La interfaz React ya no solicita los tipos de regla con `locale=es` fijo. Usa el idioma activo de la aplicación (`es`, `en` o `pt`) y lo incorpora a la caché de React Query, evitando reutilizar un schema traducido para otro idioma.
+
+El backend sigue reutilizando `ValidatorRuleSchemaService` y los bundles externos `config/i18n/messages*.properties`, por lo que static y la API legacy conservan su funcionamiento y contrato. Si falta una traducción, Spring mantiene el texto base como fallback.
