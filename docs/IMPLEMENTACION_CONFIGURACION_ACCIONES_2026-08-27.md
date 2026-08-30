@@ -238,3 +238,11 @@ La UI muestra mensajes de éxito o error para cada operación. En caso de fallo 
 La interfaz React ya no solicita los tipos de regla con `locale=es` fijo. Usa el idioma activo de la aplicación (`es`, `en` o `pt`) y lo incorpora a la caché de React Query, evitando reutilizar un schema traducido para otro idioma.
 
 El backend sigue reutilizando `ValidatorRuleSchemaService` y los bundles externos `config/i18n/messages*.properties`, por lo que static y la API legacy conservan su funcionamiento y contrato. Si falta una traducción, Spring mantiene el texto base como fallback.
+
+## Actualización: textos de reglas centralizados fuera de Java
+
+Las anotaciones `@ValidatorRuleMeta` y `@SchemaProperty` permanecen únicamente como marcadores técnicos de descubrimiento, tipo, orden, valor por defecto y widget. Los textos visibles —nombre, ayuda, título y descripción— ya no se usan desde las clases Java: se resuelven exclusivamente desde `config/i18n/messages.properties`, `messages_en.properties` y `messages_pt.properties`.
+
+También se externalizaron los textos de los elementos heredados y anidados (`AbstractValidatorFieldContentRule`, `Translation`) y las etiquetas genéricas de listas. Para extensiones que no aporten un bundle, el backend genera un fallback técnico legible a partir de la clase o propiedad, sin impedir que la regla se descubra.
+
+El cambio conserva los endpoints legacy `/public/validation/*-rules-schemas` y los endpoints v5 `/api/v5/rule-types`; ambos siguen pidiendo el mismo catálogo de schemas y aceptando el parámetro `locale`.
