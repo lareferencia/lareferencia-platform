@@ -246,3 +246,5 @@ Las anotaciones `@ValidatorRuleMeta` y `@SchemaProperty` permanecen únicamente 
 También se externalizaron los textos de los elementos heredados y anidados (`AbstractValidatorFieldContentRule`, `Translation`) y las etiquetas genéricas de listas. Para extensiones que no aporten un bundle, el backend genera un fallback técnico legible a partir de la clase o propiedad, sin impedir que la regla se descubra.
 
 El cambio conserva los endpoints legacy `/public/validation/*-rules-schemas` y los endpoints v5 `/api/v5/rule-types`; ambos siguen pidiendo el mismo catálogo de schemas y aceptando el parámetro `locale`.
+
+La UI React traduce ahora también la experiencia propia de edición de validadores y transformadores: tablas, botones, diálogos, cuantificadores, mensajes de éxito/error y formularios individuales. Los schemas de cada tipo continúan llegando localizados desde la API, sin duplicar sus textos en React.
