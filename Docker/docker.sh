@@ -298,8 +298,12 @@ dc() {
   if [ -f "${ENV_FILE}" ]; then
     env_args+=(--env-file "${ENV_FILE}")
   fi
+  local compose_cmd=("docker" "compose")
+  if ! docker compose version >/dev/null 2>&1 && command -v docker-compose >/dev/null 2>&1; then
+    compose_cmd=("docker-compose")
+  fi
   
-  docker compose -f "${COMPOSE_FILE}" "${env_args[@]}" "$@"
+  "${compose_cmd[@]}" -f "${COMPOSE_FILE}" "${env_args[@]}" "$@"
 }
 
 # --- Core Logic ---
@@ -1191,8 +1195,8 @@ ensure_docker_installed() {
   if ! command -v docker >/dev/null 2>&1; then
     missing+=("docker (Engine)")
   fi
-  if ! docker compose version >/dev/null 2>&1; then
-    missing+=("docker compose (Plugin V2)")
+  if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+    missing+=("docker compose or docker-compose (V1/V2)")
   fi
 
   if [ "${#missing[@]}" -gt 0 ]; then
@@ -1215,7 +1219,7 @@ get_check_status() {
     docker_ok="${C_RED}✗${C_RESET} Docker"
   fi
 
-  if ! docker compose version >/dev/null 2>&1; then
+  if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
     compose_ok="${C_RED}✗${C_RESET} Compose"
   fi
 
@@ -1528,12 +1532,16 @@ wizard_backup() {
 
     # Pre-flight check
     local missing=false
-    for cmd in tar crontab docker docker-compose; do
+    for cmd in tar crontab docker; do
       if ! command -v "$cmd" &> /dev/null; then
         gum style --foreground 204 "❌ Error: '$cmd' is required but not installed."
         missing=true
       fi
     done
+    if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+      gum style --foreground 204 "❌ Error: 'docker compose' or 'docker-compose' is required but not installed."
+      missing=true
+    fi
     if [ "$missing" = true ]; then
       gum input --placeholder "Press Enter to return..." > /dev/null
       return
@@ -1572,6 +1580,15 @@ wizard_backup() {
 # Auto-generated full-state backup script for LA Referencia
 set -e
 
+if docker compose version >/dev/null 2>&1; then
+  DC_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC_CMD="docker-compose"
+else
+  echo "Error: docker compose or docker-compose not found."
+  exit 1
+fi
+
 PROJECT_DIR="${ROOT_DIR}"
 DEST_DIR="${dest_dir}"
 DATE=\$(date +"%Y%m%d_%H%M")
@@ -1582,11 +1599,11 @@ mkdir -p "\$BACKUP_PATH"
 
 echo "1. Exporting Database Dumps..."
 cd "\$PROJECT_DIR"
-docker-compose exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" || true
-docker-compose exec -T mariadb mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" || true
+\$DC_CMD exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" || true
+\$DC_CMD exec -T mariadb mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" || true
 
 echo "2. Pausing indexers safely..."
-docker-compose stop solr elasticsearch vufind || true
+\$DC_CMD stop solr elasticsearch vufind || true
 
 echo "3. Packaging absolute snapshot (Git, Configs, Volumes)..."
 tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
@@ -1600,11 +1617,21 @@ tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
 rm -f "\$BACKUP_PATH/postgres_dump.sql" "\$BACKUP_PATH/mysql_vufind_dump.sql"
 
 echo "4. Restarting services..."
-docker-compose start || true
+\$DC_CMD start || true
 
 echo "5. Generating autonomous restore script..."
 cat << 'RESTORE_EOF' > "\$BACKUP_PATH/restore.sh"
 #!/usr/bin/env bash
+
+if docker compose version >/dev/null 2>&1; then
+  DC_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC_CMD="docker-compose"
+else
+  echo "Error: docker compose or docker-compose not found."
+  exit 1
+fi
+
 echo "Restoring LA Referencia Full State Snapshot..."
 TAR_FILE=\$(ls *.tar.gz | head -n 1)
 if [ -z "\$TAR_FILE" ]; then
@@ -1616,16 +1643,16 @@ echo "Extracting snapshot..."
 tar -xzf "\$TAR_FILE"
 
 echo "Booting Databases..."
-docker-compose up -d postgres mariadb
+\$DC_CMD up -d postgres mariadb
 echo "Waiting 15s for databases to initialize..."
 sleep 15
 
 echo "Restoring Dumps..."
-cat postgres_dump.sql | docker-compose exec -T postgres psql -U lrharvester -d lrharvester || true
-cat mysql_vufind_dump.sql | docker-compose exec -T mariadb mysql -u vufind -pvufind vufind || true
+cat postgres_dump.sql | \$DC_CMD exec -T postgres psql -U lrharvester -d lrharvester || true
+cat mysql_vufind_dump.sql | \$DC_CMD exec -T mariadb mysql -u vufind -pvufind vufind || true
 
 echo "Booting remaining infrastructure..."
-docker-compose up -d
+\$DC_CMD up -d
 echo "Restore complete! Environment is ready."
 RESTORE_EOF
 
