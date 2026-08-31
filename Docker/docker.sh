@@ -1532,12 +1532,16 @@ wizard_backup() {
 
     # Pre-flight check
     local missing=false
-    for cmd in tar crontab docker; do
+    for cmd in tar docker; do
       if ! command -v "$cmd" &> /dev/null; then
         gum style --foreground 204 "❌ Error: '$cmd' is required but not installed."
         missing=true
       fi
     done
+    if ! command -v crontab &> /dev/null && ! command -v systemctl &> /dev/null; then
+      gum style --foreground 204 "❌ Error: Either 'crontab' or 'systemctl' is required for scheduling backups."
+      missing=true
+    fi
     if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
       gum style --foreground 204 "❌ Error: 'docker compose' or 'docker-compose' is required but not installed."
       missing=true
@@ -1666,12 +1670,54 @@ EOF
 
     if [ "$do_cron" = true ]; then
       local random_min=$((RANDOM % 60))
-      local cron_job="$random_min 3 * * * cd ${ROOT_DIR} && bash .system_backup.sh >> ${ROOT_DIR}/.cron_backup.log 2>&1"
-      (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" ; echo "$cron_job") | crontab -
-      gum style --foreground 114 "✅ Cron job successfully configured for: ${random_min} 3 * * *"
+      
+      if command -v crontab >/dev/null 2>&1; then
+        local cron_job="$random_min 3 * * * cd ${ROOT_DIR} && bash .system_backup.sh >> ${ROOT_DIR}/.cron_backup.log 2>&1"
+        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" ; echo "$cron_job") | crontab -
+        gum style --foreground 114 "✅ Cron job successfully configured for: 03:${random_min} AM"
+      elif command -v systemctl >/dev/null 2>&1; then
+        local systemd_dir="${HOME}/.config/systemd/user"
+        mkdir -p "$systemd_dir"
+        
+        cat << SYSTEMD_SVC > "$systemd_dir/lareferencia-backup.service"
+[Unit]
+Description=LA Referencia Backup Service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash ${ROOT_DIR}/.system_backup.sh
+WorkingDirectory=${ROOT_DIR}
+StandardOutput=append:${ROOT_DIR}/.cron_backup.log
+StandardError=append:${ROOT_DIR}/.cron_backup.log
+SYSTEMD_SVC
+
+        cat << SYSTEMD_TMR > "$systemd_dir/lareferencia-backup.timer"
+[Unit]
+Description=Runs LA Referencia Backup Daily
+
+[Timer]
+OnCalendar=*-*-* 03:${random_min}:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+SYSTEMD_TMR
+
+        systemctl --user daemon-reload
+        systemctl --user enable --now lareferencia-backup.timer
+        loginctl enable-linger \$(whoami) 2>/dev/null || true
+        gum style --foreground 114 "✅ Systemd timer successfully configured for: 03:${random_min} AM"
+      fi
     else
-      (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh") | crontab - || true
-      gum style --foreground 222 "⚠️ Daily Cron backup is disabled."
+      if command -v crontab >/dev/null 2>&1; then
+        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh") | crontab - || true
+      fi
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user disable --now lareferencia-backup.timer 2>/dev/null || true
+        rm -f "${HOME}/.config/systemd/user/lareferencia-backup.service" "${HOME}/.config/systemd/user/lareferencia-backup.timer"
+        systemctl --user daemon-reload 2>/dev/null || true
+      fi
+      gum style --foreground 222 "⚠️ Daily automatic backup is disabled."
     fi
 
     echo
