@@ -43,7 +43,33 @@ To remove already-indexed deleted entities from one index, and remove nested ref
 remove_deleted_entities_from_index --indexName brc-nov2025-person
 ```
 
-Run the command once per target index that must be cleaned.
+For large indexes, use a larger page size and request timeout:
+
+```bash
+remove_deleted_entities_from_index --indexName brc-nov2025-person --pageSize 10000 --timeoutSeconds 900
+```
+
+For very large indexes where the deleted entities are known to appear in specific nested relation fields, restrict the cleanup to those fields. For example, to remove deleted journal references stored under `journal.id`:
+
+```bash
+remove_deleted_entities_from_index --indexName brc-nov2025-journal-v2 --pageSize 10000 --timeoutSeconds 900 --relationFields journal
+```
+
+Parameters:
+
+- `--indexName`: target Elasticsearch/OpenSearch index. Required.
+- `--pageSize`: number of deleted entity IDs processed per batch. Default: `1000`.
+- `--timeoutSeconds`: REST request timeout for delete/update-by-query operations. Default: `300`.
+- `--relationFields`: optional comma-separated relation object field names to clean, such as `journal` or `journal,publisher`. When provided, the command queries `<field>.id` instead of scanning the whole index.
+
+Operational notes:
+
+- Run the command once per target index that must be cleaned.
+- The command deletes root documents whose `_id` matches a deleted entity UUID.
+- It also removes nested relationship entries with an `id` matching a deleted entity UUID from documents in the same index.
+- Relationship cleanup uses `_update_by_query`; on large indexes, use `--relationFields` when the deleted entity type maps to known relation fields.
+- If the Elasticsearch/OpenSearch endpoint uses HTTPS, set `elastic.useSSL=true`.
+- The command is idempotent and can be safely re-run; already removed documents or relationships become no-ops.
 
 ## Expected Behavior
 
