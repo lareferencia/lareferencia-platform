@@ -180,7 +180,7 @@ Los campos disponibles en esta iteración son `IDENTIFIER`, `VALID`, `TRANSFORME
 - `GET /api/v5/attribute-profiles` lista los perfiles instalados.
 - `GET /api/v5/attribute-profiles/{typeId}` devuelve JSON Schema y UI Schema.
 
-Los perfiles se cargan desde `config/api-v5-attribute-profiles.json`, configurable mediante `api-v5.attribute-profiles-location`. Si una instalación actualiza el JAR sin copiar ese archivo, v5 utiliza perfiles internos mínimos de compatibilidad y el proceso continúa arrancando. Al escribir una red, si `attributes` no está vacío, `attributes.@class` debe identificar uno de los perfiles instalados. La validación exhaustiva contra JSON Schema queda como endurecimiento posterior.
+Los perfiles se cargan individualmente desde `config/attribute-profiles/*.json`, configurable mediante `api-v5.attribute-profiles-location` (la carpeta es ahora la única fuente canónica; no se mantiene un archivo agregado duplicado). Si una instalación actualiza el JAR sin copiar esa carpeta, v5 utiliza perfiles internos mínimos de compatibilidad y el proceso continúa arrancando. Al escribir una red, si `attributes` no está vacío, `attributes.@class` debe identificar uno de los perfiles instalados. La validación exhaustiva contra JSON Schema queda como endurecimiento posterior.
 
 ### Operación y runtime
 
