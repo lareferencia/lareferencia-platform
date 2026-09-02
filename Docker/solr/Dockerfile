@@ -2,8 +2,7 @@ FROM solr:9.8.0
 
 USER root
 
-# Install wget and gosu
-RUN apt-get update && apt-get install -y wget gosu && rm -rf /var/lib/apt/lists/*
+# solr:9.8.0 already includes wget and gosu.
 
 # Copy local assets from Docker context (synced by docker.sh)
 COPY Docker/solr/cores /opt/lr-solr-cores

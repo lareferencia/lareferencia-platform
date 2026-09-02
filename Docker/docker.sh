@@ -298,8 +298,12 @@ dc() {
   if [ -f "${ENV_FILE}" ]; then
     env_args+=(--env-file "${ENV_FILE}")
   fi
+  local compose_cmd=("docker" "compose")
+  if ! docker compose version >/dev/null 2>&1 && command -v docker-compose >/dev/null 2>&1; then
+    compose_cmd=("docker-compose")
+  fi
   
-  docker compose -f "${COMPOSE_FILE}" "${env_args[@]}" "$@"
+  "${compose_cmd[@]}" -f "${COMPOSE_FILE}" "${env_args[@]}" "$@"
 }
 
 # --- Core Logic ---
@@ -756,7 +760,7 @@ compile_java_modules() {
   
   # Fix permissions for generated files in target/ since maven ran as root
   if [ "$(id -u)" != "0" ]; then
-    docker run --rm -v "${ROOT_DIR}:/workspace" -w /workspace alpine sh -c "chown -R $(id -u):$(id -g) */target 2>/dev/null || true"
+    docker run --rm -v "${ROOT_DIR}:/workspace" -w /workspace alpine sh -c "chown -R $(id -u):$(id -g) */target 2>/dev/null; chmod -R ugo+rwX */target 2>/dev/null || true"
   fi
 
   write_java_build_manifests
@@ -1191,8 +1195,8 @@ ensure_docker_installed() {
   if ! command -v docker >/dev/null 2>&1; then
     missing+=("docker (Engine)")
   fi
-  if ! docker compose version >/dev/null 2>&1; then
-    missing+=("docker compose (Plugin V2)")
+  if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+    missing+=("docker compose or docker-compose (V1/V2)")
   fi
 
   if [ "${#missing[@]}" -gt 0 ]; then
@@ -1215,7 +1219,7 @@ get_check_status() {
     docker_ok="${C_RED}✗${C_RESET} Docker"
   fi
 
-  if ! docker compose version >/dev/null 2>&1; then
+  if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
     compose_ok="${C_RED}✗${C_RESET} Compose"
   fi
 
@@ -1528,12 +1532,20 @@ wizard_backup() {
 
     # Pre-flight check
     local missing=false
-    for cmd in tar crontab docker docker-compose; do
+    for cmd in tar docker; do
       if ! command -v "$cmd" &> /dev/null; then
         gum style --foreground 204 "❌ Error: '$cmd' is required but not installed."
         missing=true
       fi
     done
+    if ! command -v crontab &> /dev/null && ! command -v systemctl &> /dev/null; then
+      gum style --foreground 204 "❌ Error: Either 'crontab' or 'systemctl' is required for scheduling backups."
+      missing=true
+    fi
+    if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+      gum style --foreground 204 "❌ Error: 'docker compose' or 'docker-compose' is required but not installed."
+      missing=true
+    fi
     if [ "$missing" = true ]; then
       gum input --placeholder "Press Enter to return..." > /dev/null
       return
@@ -1572,6 +1584,15 @@ wizard_backup() {
 # Auto-generated full-state backup script for LA Referencia
 set -e
 
+if docker compose version >/dev/null 2>&1; then
+  DC_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC_CMD="docker-compose"
+else
+  echo "Error: docker compose or docker-compose not found."
+  exit 1
+fi
+
 PROJECT_DIR="${ROOT_DIR}"
 DEST_DIR="${dest_dir}"
 DATE=\$(date +"%Y%m%d_%H%M")
@@ -1582,11 +1603,11 @@ mkdir -p "\$BACKUP_PATH"
 
 echo "1. Exporting Database Dumps..."
 cd "\$PROJECT_DIR"
-docker-compose exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" || true
-docker-compose exec -T mariadb mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" || true
+\$DC_CMD exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" || true
+\$DC_CMD exec -T mariadb mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" || true
 
 echo "2. Pausing indexers safely..."
-docker-compose stop solr elasticsearch vufind || true
+\$DC_CMD stop solr elasticsearch vufind || true
 
 echo "3. Packaging absolute snapshot (Git, Configs, Volumes)..."
 tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
@@ -1600,11 +1621,21 @@ tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
 rm -f "\$BACKUP_PATH/postgres_dump.sql" "\$BACKUP_PATH/mysql_vufind_dump.sql"
 
 echo "4. Restarting services..."
-docker-compose start || true
+\$DC_CMD start || true
 
 echo "5. Generating autonomous restore script..."
 cat << 'RESTORE_EOF' > "\$BACKUP_PATH/restore.sh"
 #!/usr/bin/env bash
+
+if docker compose version >/dev/null 2>&1; then
+  DC_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC_CMD="docker-compose"
+else
+  echo "Error: docker compose or docker-compose not found."
+  exit 1
+fi
+
 echo "Restoring LA Referencia Full State Snapshot..."
 TAR_FILE=\$(ls *.tar.gz | head -n 1)
 if [ -z "\$TAR_FILE" ]; then
@@ -1616,16 +1647,16 @@ echo "Extracting snapshot..."
 tar -xzf "\$TAR_FILE"
 
 echo "Booting Databases..."
-docker-compose up -d postgres mariadb
+\$DC_CMD up -d postgres mariadb
 echo "Waiting 15s for databases to initialize..."
 sleep 15
 
 echo "Restoring Dumps..."
-cat postgres_dump.sql | docker-compose exec -T postgres psql -U lrharvester -d lrharvester || true
-cat mysql_vufind_dump.sql | docker-compose exec -T mariadb mysql -u vufind -pvufind vufind || true
+cat postgres_dump.sql | \$DC_CMD exec -T postgres psql -U lrharvester -d lrharvester || true
+cat mysql_vufind_dump.sql | \$DC_CMD exec -T mariadb mysql -u vufind -pvufind vufind || true
 
 echo "Booting remaining infrastructure..."
-docker-compose up -d
+\$DC_CMD up -d
 echo "Restore complete! Environment is ready."
 RESTORE_EOF
 
@@ -1639,12 +1670,54 @@ EOF
 
     if [ "$do_cron" = true ]; then
       local random_min=$((RANDOM % 60))
-      local cron_job="$random_min 3 * * * cd ${ROOT_DIR} && bash .system_backup.sh >> ${ROOT_DIR}/.cron_backup.log 2>&1"
-      (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" ; echo "$cron_job") | crontab -
-      gum style --foreground 114 "✅ Cron job successfully configured for: ${random_min} 3 * * *"
+      
+      if command -v crontab >/dev/null 2>&1; then
+        local cron_job="$random_min 3 * * * cd ${ROOT_DIR} && bash .system_backup.sh >> ${ROOT_DIR}/.cron_backup.log 2>&1"
+        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" ; echo "$cron_job") | crontab -
+        gum style --foreground 114 "✅ Cron job successfully configured for: 03:${random_min} AM"
+      elif command -v systemctl >/dev/null 2>&1; then
+        local systemd_dir="${HOME}/.config/systemd/user"
+        mkdir -p "$systemd_dir"
+        
+        cat << SYSTEMD_SVC > "$systemd_dir/lareferencia-backup.service"
+[Unit]
+Description=LA Referencia Backup Service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash ${ROOT_DIR}/.system_backup.sh
+WorkingDirectory=${ROOT_DIR}
+StandardOutput=append:${ROOT_DIR}/.cron_backup.log
+StandardError=append:${ROOT_DIR}/.cron_backup.log
+SYSTEMD_SVC
+
+        cat << SYSTEMD_TMR > "$systemd_dir/lareferencia-backup.timer"
+[Unit]
+Description=Runs LA Referencia Backup Daily
+
+[Timer]
+OnCalendar=*-*-* 03:${random_min}:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+SYSTEMD_TMR
+
+        systemctl --user daemon-reload
+        systemctl --user enable --now lareferencia-backup.timer
+        loginctl enable-linger \$(whoami) 2>/dev/null || true
+        gum style --foreground 114 "✅ Systemd timer successfully configured for: 03:${random_min} AM"
+      fi
     else
-      (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh") | crontab - || true
-      gum style --foreground 222 "⚠️ Daily Cron backup is disabled."
+      if command -v crontab >/dev/null 2>&1; then
+        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh") | crontab - || true
+      fi
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user disable --now lareferencia-backup.timer 2>/dev/null || true
+        rm -f "${HOME}/.config/systemd/user/lareferencia-backup.service" "${HOME}/.config/systemd/user/lareferencia-backup.timer"
+        systemctl --user daemon-reload 2>/dev/null || true
+      fi
+      gum style --foreground 222 "⚠️ Daily automatic backup is disabled."
     fi
 
     echo
