@@ -25,6 +25,18 @@ jobs:
 
     - name: Init workspace modules
       run: ./githelper init
+
+    - name: Reject retired storage references
+      run: |
+        if rg -n -i "parquet|org\\.apache\\.parquet|repository\\.parquet|parquet-hadoop" \
+          --glob '!Docker/data/**' \
+          --glob '!**/target/**' \
+          --glob '!**/node_modules/**' \
+          --glob '!.github/workflows/maven.yml' \
+          .; then
+          echo "Retired storage references found in source, configuration, or documentation"
+          exit 1
+        fi
     - name: Set up JDK 21
       uses: actions/setup-java@v3
       with:

@@ -4,17 +4,17 @@ LA Referencia is a comprehensive platform for harvesting, processing, and indexi
 
 ## 🚀 Current Status
 
-### Latest Stable Release: **v4.2.6**
-The stable version 4.2.6 is tagged and ready for production use. This version provides:
+### Current development version: **5.0.0-rc**
+This release candidate is the current development baseline. It provides:
 - Full support for OAI-PMH harvesting
 - Entity-based metadata processing
 - Elasticsearch and Solr indexing
 - PostgreSQL-based metadata storage
 - Comprehensive validation and transformation pipelines
 
-### Development Branch: **main** (v5.0 - Work in Progress)
+### Development Branch: **main** (5.0 release candidate)
 
-The main branch is actively being developed for version 5.0, which includes significant architectural improvements and modernization:
+The main branch contains the 5.0 release-candidate implementation and its architectural modernization:
 
 #### 🔧 Major Upgrades
 - **Spring Boot 3.5**: Migration from Spring Boot 2.x to 3.5
@@ -24,9 +24,9 @@ The main branch is actively being developed for version 5.0, which includes sign
 #### 🗑️ Deprecated Features
 - **Spring Data Solr**: Removed due to official discontinuation by Spring team
 - **Solr Entity Indexing**: Elasticsearch is now the primary indexing engine
-- **IBICT and RCAAP Contrib Modules**: API modules for Solr-based entity services are no longer supported
-  - Code remains in repository but is excluded from compilation
-  - Existing deployments should migrate to Elasticsearch-based APIs
+- **IBICT and RCAAP Contrib Modules**: legacy API modules for Solr-based entity services
+  - They are excluded from the default parent build, although compatibility profiles may still reference them
+  - New deployments should use the OpenSearch/Elasticsearch-compatible APIs
 
 #### ✨ New Features & Improvements
 
@@ -36,7 +36,7 @@ The main branch is actively being developed for version 5.0, which includes sign
 - Reduced central database load and improved query performance with indexes
 
 **Snapshot Logging System Refactoring**
-- **New file-based snapshot logging**: Logs now stored as text files alongside Parquet data instead of database tables
+- **File-based snapshot logging**: Logs are stored as text files under the configured `store.basepath` instead of database tables
 - **Location**: `{basePath}/{NETWORK}/snapshots/snapshot_{id}/snapshot.log`
 - **Format**: Plain text with timestamps `[2025-11-12 12:45:30.123] message`
 - **Benefits**: 
@@ -151,7 +151,7 @@ For complete reference, see [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAM
 
 ```text
 ├── domain/       - Domain models and entities
-├── repository/   - Data access (JPA + Parquet)
+├── repository/   - Data access (JPA/SQLite)
 ├── service/      - Business logic (harvesting, validation, indexing, management)
 ├── metadata/     - Metadata storage abstraction
 ├── worker/       - Async processors (harvesting, validation, indexing, management)
@@ -195,7 +195,7 @@ Core library module providing fundamental domain models, metadata processing, va
 **Architecture (v5.0)**:
 - **Simplified package structure**: Reorganized from `backend.*` to `core.*` with 7 core packages:
   - `domain/` - Domain models (entities, value objects)
-  - `repository/` - Data access layer (JPA + SQLite + Parquet)
+  - `repository/` - Data access layer (JPA + SQLite)
   - `service/` - Business logic (organized by functionality)
   - `metadata/` - Metadata storage abstraction
   - `worker/` - Asynchronous job processing (organized by functionality)
@@ -264,7 +264,7 @@ Main web application for OAI-PMH metadata harvesting, validation, transformation
 - Elasticsearch indexing
 - Multi-language UI (Spanish/English)
 
-**Access:** `http://localhost:8080/harvester`
+**Access:** `http://localhost:8090/harvester`
 
 [View detailed documentation](https://github.com/lareferencia/lareferencia-lrharvester-app)
 
@@ -445,9 +445,9 @@ config/
 ├── application.properties          # Local/Private (gitignored)
 ├── application.properties.model    # Template/Reference (versioned)
 ├── application.properties.d/       # Deep/Modular configuration (versioned)
-│   ├── 01-database.properties
-│   ├── 02-storage.properties
-│   ├── 03-elasticsearch.properties
+│   ├── 00-server.properties
+│   ├── 01-dbconnection.properties
+│   ├── 02-catalog.properties
 │   └── ...
 ├── beans/
 │   ├── mdformats.xml              # Metadata format definitions
@@ -499,7 +499,7 @@ java -Dapp.config.dir=/app/config -jar harvester.jar
 
 ### Elasticsearch Configuration (v5.0)
 
-Configure Elasticsearch in `application.properties` or `application.properties.d/03-elasticsearch.properties`:
+Configure the OpenSearch/Elasticsearch-compatible endpoint in the indexing configuration files under `config/`:
 
 ```properties
 elastic.host=localhost
@@ -528,7 +528,7 @@ cd lareferencia-entity-lib
 mvn test
 ```
 
-## 📝 Migration Guide: v4.2.6 → v5.0
+## 📝 Migration Guide: v4.x → 5.0.0-rc
 
 ### Required Actions
 
@@ -623,7 +623,7 @@ For technical support, questions, bug reports, or contributions, please contact 
 ### What to Include in Support Requests
 
 When requesting support, please include:
-- **Platform version**: Specify if you're using v4.2.6 (stable) or v5.0 (development)
+- **Platform version**: Specify the exact release or commit, for example `5.0.0-rc`
 - **Module affected**: Which component is experiencing issues
 - **Error logs**: Relevant log excerpts showing the problem
 - **Configuration**: Relevant configuration snippets (remove sensitive data)
@@ -642,7 +642,7 @@ When requesting support, please include:
 
 ---
 
-**Note**: For production deployments, always use tagged releases (v4.2.6). The main branch contains ongoing development for v5.0 and may include unstable features.
+**Note**: This checkout is a release candidate. Production deployments should use a tagged release validated by the project maintainers.
 
 **License**: GNU Affero General Public License v3.0 (AGPL-3.0)  
 **Contact**: soporte@lareferencia.redclara.net
