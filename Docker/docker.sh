@@ -1705,7 +1705,7 @@ SYSTEMD_TMR
 
         systemctl --user daemon-reload
         systemctl --user enable --now lareferencia-backup.timer
-        loginctl enable-linger \$(whoami) 2>/dev/null || true
+        loginctl enable-linger $(whoami) 2>/dev/null || true
         gum style --foreground 114 "✅ Systemd timer successfully configured for: 03:${random_min} AM"
       fi
     else
