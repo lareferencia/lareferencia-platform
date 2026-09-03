@@ -1,0 +1,93 @@
+services:
+  maven-builder:
+    image: maven:3.9.11-eclipse-temurin-17
+    profiles: ["developer-builder"]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - lr-maven-cache-dev:/root/.m2
+    entrypoint: ["mvn"]
+
+  harvester: &java-dev
+    build:
+      context: .
+      dockerfile: Docker/apps/Dockerfile.dev
+    image: lareferencia/app-runtime-dev:${LR_BUILD_PROFILE:-lareferencia}
+    environment:
+      DEV_MODE: "true"
+      DEV_DEFAULT_ADMIN: "true"
+    volumes:
+      - .:/workspace:ro
+      - ${DEV_DATA_ROOT}:/dev-data
+      - ${DEV_DATA_ROOT}/lareferencia/lrharvester-app/config:/config
+      - ${DEV_DATA_ROOT}/lareferencia/lrharvester-app/data:/data
+      - ${DEV_DATA_ROOT}/lareferencia/lrharvester-app/log:/var/log/harvester
+
+  dashboard-rest:
+    <<: *java-dev
+    volumes:
+      - .:/workspace:ro
+      - ${DEV_DATA_ROOT}/lareferencia/dashboard-rest/config:/config
+      - ${DEV_DATA_ROOT}/lareferencia/dashboard-rest/data:/data
+      - ${DEV_DATA_ROOT}/lareferencia/dashboard-rest/log:/var/log/dashboard
+
+  entity-rest:
+    <<: *java-dev
+    volumes:
+      - .:/workspace:ro
+      - ${DEV_DATA_ROOT}/lareferencia/entity-rest/config:/config
+      - ${DEV_DATA_ROOT}/lareferencia/entity-rest/data:/data
+      - ${DEV_DATA_ROOT}/lareferencia/entity-rest/log:/var/log/entity-rest
+
+  oai-pmh:
+    <<: *java-dev
+    volumes:
+      - .:/workspace:ro
+      - ${DEV_DATA_ROOT}/lareferencia/oai-pmh/config:/config
+      - ${DEV_DATA_ROOT}/lareferencia/oai-pmh/data:/data
+      - ${DEV_DATA_ROOT}/lareferencia/oai-pmh/log:/var/log/oai-pmh
+
+  shell:
+    <<: *java-dev
+
+  db-init:
+    <<: *java-dev
+
+  postgres:
+    volumes:
+      - ${DEV_DATA_ROOT}/lareferencia/postgres/data:/var/lib/postgresql/data
+
+  solr:
+    volumes:
+      - ./Docker/solr/cores:/opt/lr-solr-cores:ro
+      - ${DEV_DATA_ROOT}/solr/data:/var/solr/data
+      - ${DEV_DATA_ROOT}/solr/log:/var/solr/logs
+      - ${DEV_DATA_ROOT}/solr/cache:/var/solr/cache
+
+  vufind-web:
+    volumes:
+      - ./vufind:/usr/local/vufind
+      - ${DEV_DATA_ROOT}/vufind/config:/usr/local/vufind/local/docker/config
+      - ${DEV_DATA_ROOT}/vufind/cache:/usr/local/vufind/local/docker/cache
+      - ${DEV_DATA_ROOT}/vufind/log:/usr/local/vufind/local/docker/logs
+      - ${DEV_DATA_ROOT}/vufind/data/harvest:/usr/local/vufind/local/docker/harvest
+      - ${DEV_DATA_ROOT}/vufind/data/import:/usr/local/vufind/local/docker/import
+      - ${DEV_DATA_ROOT}/vufind/data/vendor:/usr/local/vufind/vendor
+
+  vufind-db:
+    volumes:
+      - ${DEV_DATA_ROOT}/vufind/data/db:/var/lib/mysql
+
+  vufind-scss-watch:
+    volumes:
+      - ./vufind:/usr/local/vufind
+      - ${DEV_DATA_ROOT}/vufind/data/node_modules:/usr/local/vufind/node_modules
+      - ${DEV_DATA_ROOT}/vufind/data/themes-node_modules:/usr/local/vufind/themes/bootstrap5/node_modules
+
+  elasticsearch:
+    volumes:
+      - ${DEV_DATA_ROOT}/elasticsearch/data:/usr/share/elasticsearch/data
+      - ${DEV_DATA_ROOT}/elasticsearch/log:/usr/share/elasticsearch/logs
+
+volumes:
+  lr-maven-cache-dev:

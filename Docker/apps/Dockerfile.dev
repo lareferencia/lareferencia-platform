@@ -1,0 +1,10 @@
+FROM eclipse-temurin:17-jre
+
+WORKDIR /workspace
+
+# The source tree and packaged JARs are bind-mounted at runtime by
+# docker-compose.dev.yml; this image deliberately contains no application code.
+COPY Docker/apps/entrypoint-dev.sh /usr/local/bin/lr-app-entrypoint-dev.sh
+RUN chmod +x /usr/local/bin/lr-app-entrypoint-dev.sh
+
+ENTRYPOINT ["/usr/local/bin/lr-app-entrypoint-dev.sh"]
