@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Deterministic fixture loader for the lareferencia OAI Solr provider."""
+import argparse, json, os, sys, urllib.parse, urllib.request, urllib.error
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parents[1]
+BASE = ROOT / "fixtures" / "oai-dc" / "baseline"
+NS = {"dc": "http://purl.org/dc/elements/1.1/"}
+
+def request(url, data=None, method=None, content_type="application/json"):
+    req = urllib.request.Request(url, data=data, method=method or ("POST" if data else "GET"))
+    if data is not None: req.add_header("Content-Type", content_type)
+    try:
+        with urllib.request.urlopen(req, timeout=20) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code} from {url}: {e.read().decode(errors='replace')}")
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Cannot reach {url}: {e.reason}")
+
+def solr_url(args, path="update/json/docs"):
+    return args.solr_url.rstrip("/") + "/" + path.lstrip("/")
+
+def parse_fixture(path):
+    root = ET.parse(path).getroot()
+    handle = root.attrib["handle"]
+    doc = {"item.handle": handle, "item.id": int(root.attrib["id"]),
+           "item.public": True, "item.deleted": root.attrib.get("deleted", "false") == "true",
+           "item.lastmodified": root.attrib["lastmodified"]}
+    for element in root.findall("dc:metadata/*", NS):
+        value = element.text or ""
+        doc.setdefault("metadata." + element.tag.rsplit("}", 1)[-1], []).append(value)
+    return doc
+
+def emit(args, payload):
+    if args.output == "json": print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        if isinstance(payload, dict) and "message" in payload: print(payload["message"])
+        else: print(json.dumps(payload, indent=2, sort_keys=True))
+
+def commit(args):
+    request(solr_url(args, "update?commit=true"), b"{}", "POST")
+
+def baseline(args):
+    docs = [parse_fixture(p) for p in sorted(BASE.glob("record-*.xml"))]
+    if len(docs) != 5: raise RuntimeError(f"Expected exactly five baseline fixtures, found {len(docs)}")
+    request(solr_url(args), json.dumps(docs).encode(), "POST")
+    commit(args)
+    emit(args, {"message": f"Loaded {len(docs)} active OAI-DC records", "count": len(docs), "handles": [d["item.handle"] for d in docs]})
+
+def reset(args):
+    query = {"delete": {"query": "item.handle:fixture-*"}}
+    request(solr_url(args, "update?commit=true"), json.dumps(query).encode(), "POST")
+    emit(args, {"message": "Deleted fixture documents (item.handle:fixture-*)"})
+
+def select_doc(args, handle):
+    q = urllib.parse.quote('item.handle:"' + handle.replace('"', '') + '"')
+    _, body = request(solr_url(args, "select?wt=json&rows=1&q=" + q))
+    docs = json.loads(body).get("response", {}).get("docs", [])
+    if not docs: raise RuntimeError(f"Fixture {handle} is not loaded; run baseline first")
+    return docs[0]
+
+def update_docs(args, docs):
+    merged = []
+    for patch in docs:
+        handle = patch.get("item.handle")
+        try:
+            current = select_doc(args, handle)
+        except RuntimeError:
+            current = {}
+        current.update(patch)
+        merged.append(current)
+    request(solr_url(args), json.dumps(merged).encode(), "POST"); commit(args)
+
+def scenario(args, name):
+    specs = {
+      "metadata-update": ([{"item.handle":"fixture-002","metadata.title":["Updated fixture title"],"item.lastmodified":"2026-01-02T00:00:00Z"}], "record-002 becomes U"),
+      "new-record": ([{"item.handle":"fixture-006","item.id":6,"item.public":True,"item.deleted":False,"item.lastmodified":"2026-01-03T00:00:00Z","metadata.title":["New fixture record"],"metadata.identifier":["fixture-006"]}], "fixture-006 is new (N)"),
+      "delete-active": ([{"item.handle":"fixture-003","item.deleted":True,"item.public":False,"item.lastmodified":"2026-01-04T00:00:00Z"}], "fixture-003 is deleted (D)"),
+      "delete-new": ([{"item.handle":"fixture-007","item.id":7,"item.public":False,"item.deleted":True,"item.lastmodified":"2026-01-05T00:00:00Z"}], "fixture-007 is a new tombstone (D)"),
+      "restore": ([{"item.handle":"fixture-003","item.id":3,"item.public":True,"item.deleted":False,"item.lastmodified":"2026-01-06T00:00:00Z","metadata.title":["Restored fixture 003"],"metadata.identifier":["fixture-003"]}], "fixture-003 is restored (U)"),
+      "same-metadata-new-datestamp": ([{"item.handle":"fixture-004","item.lastmodified":"2026-01-07T00:00:00Z"}], "Only datestamp changed; expected catalog delta is NULL"),
+      "invalid-result": ([{"item.handle":"fixture-005","metadata.title":["INVALID_TEST_RECORD"],"item.lastmodified":"2026-01-08T00:00:00Z"}], "fixture-005 should become U and fail validation"),
+    }
+    if name == "no-change": emit(args, {"message":"No Solr mutation; expected delta is empty"}); return
+    if name in ("validator-change", "full-rebuild", "legacy-manifest", "retry"):
+        emit(args, {"message": f"{name}: no provider mutation required; run the corresponding platform action"}); return
+    if name not in specs: raise RuntimeError(f"Unknown scenario {name}")
+    docs, message = specs[name]; update_docs(args, docs); emit(args, {"message":message,"scenario":name,"documents":docs})
+
+def status(args):
+    q = urllib.parse.quote("item.handle:fixture-*")
+    _, body = request(solr_url(args, f"select?wt=json&q={q}&rows=100&sort=item.id%20asc"))
+    response = json.loads(body).get("response", {})
+    payload = {"numFound": response.get("numFound", 0), "docs": response.get("docs", [])}
+    emit(args, payload)
+
+def verify_oai(args):
+    checks = [("Identify", "verb=Identify"), ("ListMetadataFormats", "verb=ListMetadataFormats"),
+              ("ListIdentifiers", "verb=ListIdentifiers&metadataPrefix=oai_dc"),
+              ("ListRecords", "verb=ListRecords&metadataPrefix=oai_dc")]
+    results = []
+    for name, query in checks:
+        _, body = request(args.provider_url.rstrip("/") + "?" + query)
+        text = body.decode(errors="replace")
+        results.append({"operation": name, "ok": "<OAI-PMH" in text and "<error" not in text, "bytes": len(body)})
+    for handle in [f"fixture-{i:03d}" for i in range(1, 6)]:
+        _, body = request(args.provider_url.rstrip("/") + "?verb=GetRecord&metadataPrefix=oai_dc&identifier=" + handle)
+        results.append({"operation":"GetRecord", "identifier":handle, "ok":"<GetRecord" in body.decode(errors="replace")})
+    emit(args, {"ok": all(r["ok"] for r in results), "checks": results})
+    if not all(r["ok"] for r in results): return 1
+    return 0
+
+def main():
+    parser = argparse.ArgumentParser(description="Load and mutate OAI provider Solr fixtures")
+    defaults = {
+        "solr_url": os.environ.get("SOLR_URL", f"http://localhost:{os.environ.get('LR_PORT_SOLR','8983')}/solr/oai"),
+        "provider_url": os.environ.get("PROVIDER_URL", f"http://localhost:{os.environ.get('LR_PORT_OAI','8092')}/request"),
+        "core": "oai", "output": "human", "verbose": False}
+    def common(p):
+        p.add_argument("--solr-url", default=argparse.SUPPRESS)
+        p.add_argument("--provider-url", default=argparse.SUPPRESS)
+        p.add_argument("--core", default=argparse.SUPPRESS)
+        p.add_argument("--output", choices=["human","json"], default=argparse.SUPPRESS)
+        p.add_argument("--verbose", action="store_true", default=argparse.SUPPRESS)
+    common(parser)
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name in ("reset", "baseline", "status", "verify-oai"):
+        common(sub.add_parser(name))
+    sc = sub.add_parser("scenario"); common(sc)
+    sc.add_argument("name", choices=["no-change","metadata-update","new-record","delete-active","delete-new","restore","same-metadata-new-datestamp","invalid-result","validator-change","full-rebuild","legacy-manifest","retry"])
+    args = parser.parse_args()
+    for key, value in defaults.items():
+        if not hasattr(args, key): setattr(args, key, value)
+    try:
+        if args.command == "reset": reset(args)
+        elif args.command == "baseline": baseline(args)
+        elif args.command == "status": status(args)
+        elif args.command == "verify-oai": return verify_oai(args)
+        else: scenario(args, args.name)
+        return 0
+    except RuntimeError as e: print(f"ERROR: {e}", file=sys.stderr); return 2
+
+if __name__ == "__main__": sys.exit(main())
