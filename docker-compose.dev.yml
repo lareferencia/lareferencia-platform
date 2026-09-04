@@ -1,4 +1,19 @@
 services:
+  admin-web-dev:
+    image: node:22-bookworm-slim
+    working_dir: /workspace/lareferencia-lrharvester-admin-web
+    environment:
+      VITE_HARVESTER_ORIGIN: http://harvester:8090
+    ports:
+      - ${LR_PORT_ADMIN_WEB:-5273}:5173
+    volumes:
+      - ./lareferencia-lrharvester-admin-web:/workspace/lareferencia-lrharvester-admin-web
+      - lr-admin-web-node-modules-dev:/workspace/lareferencia-lrharvester-admin-web/node_modules
+      - ./Docker/apps/entrypoint-admin-web-dev.sh:/usr/local/bin/admin-web-dev:ro
+    depends_on:
+      - harvester
+    entrypoint: ["/usr/local/bin/admin-web-dev"]
+
   maven-builder:
     image: maven:3.9.11-eclipse-temurin-17
     profiles: ["developer-builder"]
@@ -91,3 +106,4 @@ services:
 
 volumes:
   lr-maven-cache-dev:
+  lr-admin-web-node-modules-dev:

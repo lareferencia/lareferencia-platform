@@ -46,6 +46,12 @@ The developer wizard follows the normal wizard's defaults. By default it enables
 
 Dashboard, Entity REST, Shell, Elasticsearch, and the VuFind SCSS watcher are disabled by default. Select modules from the wizard's **Manage Modules (on/off)** action. The selection is persisted in `Docker/.env.dev`.
 
+When Harvester is enabled, `admin-web-dev` is started by default as well. It
+runs Vite with hot-module replacement on port `5273` in an isolated instance
+(`5173 + SERVICES_PORT_OFFSET`) and proxies `/api/v5` to the developer
+Harvester. Open `http://localhost:5273` to work on React code; source changes
+are reflected without a Maven build.
+
 Dependencies are added automatically: Harvester, Shell, and VuFind require Solr; Java services requiring PostgreSQL also bring Core.
 
 Starting without service arguments starts only the selected modules:
@@ -64,7 +70,7 @@ Build all Java applications:
 ./Docker/docker-dev.sh build all
 ```
 
-Rebuild one application and recreate only its container:
+Rebuild one application and restart only its container:
 
 ```bash
 ./Docker/docker-dev.sh rebuild harvester
@@ -81,7 +87,13 @@ The React admin application is a separate cycle. Its Maven module builds the fro
 ./Docker/docker-dev.sh rebuild frontend
 ```
 
-This rebuilds the frontend and restarts only `harvester`. `rebuild admin-web` is an alias.
+This rebuilds the frontend and restarts only `harvester`. `rebuild admin-web` is an alias. The existing container is restarted in place; it is only created with `up` when it does not exist yet.
+
+Start or restart the live Vite server independently with:
+
+```bash
+./Docker/docker-dev.sh frontend-dev
+```
 
 Harvester Java changes use the normal Java cycle:
 
@@ -129,12 +141,13 @@ rebuild <service>      Compile/rebuild and recreate one service
 restart <service>      Recreate one service without dependencies
 watch <service>        Watch Java sources and rebuild on change
 reload solr            Restart Solr after local core changes
+frontend-dev            Start or restart the Vite admin web server
 clean [--yes]          Remove all isolated developer artifacts
 ```
 
 ## Complete cleanup
 
-`clean` is limited to the isolated developer instance and removes its containers, Compose volumes and network, persistent data, Maven cache, and developer runtime image. It never deletes source code or local Maven targets.
+`clean` is limited to the isolated developer instance and removes its containers, Compose volumes and network, persistent data, Maven cache, and developer runtime image. It never deletes source code or local Maven targets. A normal rebuild restarts the existing container so the entrypoint loads the updated locally mounted JAR instead of recreating it.
 
 ```bash
 ./Docker/docker-dev.sh clean

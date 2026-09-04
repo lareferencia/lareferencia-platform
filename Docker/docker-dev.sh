@@ -79,7 +79,7 @@ set_module_state() {
 
 module_services() {
   case "$1" in
-    core) printf 'postgres\n';; solr) printf 'solr\n';; harvester) printf 'harvester\n';;
+    core) printf 'postgres\n';; solr) printf 'solr\n';; harvester) printf 'harvester\nadmin-web-dev\n';;
     dashboard) printf 'dashboard-rest\n';; entity-rest) printf 'entity-rest\n';; shell) printf 'shell\n';;
     vufind) printf 'vufind-db\nvufind-web\n';; elastic) printf 'elasticsearch\n';;
     watch) printf 'vufind-scss-watch\n';; oai) printf 'oai-pmh\n';;
@@ -155,8 +155,8 @@ sync_ports() {
   mode="$(env_get DEV_INSTANCE_MODE isolated)"
   offset="$(env_get SERVICES_PORT_OFFSET 0)"
   [[ "${offset}" =~ ^[0-9]+$ ]] || offset=0
-  local port_keys=(LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300 LR_PORT_OAI)
-  local base_ports=(8080 3307 8983 5432 8090 8092 8094 9200 9300 8096)
+  local port_keys=(LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300 LR_PORT_OAI LR_PORT_ADMIN_WEB)
+  local base_ports=(8080 3307 8983 5432 8090 8092 8094 9200 9300 8096 5173)
   for i in "${!port_keys[@]}"; do
     key="${port_keys[$i]}"; base_port="${base_ports[$i]}"
     if [ "${mode}" = normal ]; then
@@ -240,16 +240,20 @@ compile_frontend() {
 
 compile_all() {
   local profile="$(env_get LR_BUILD_PROFILE lareferencia)"
+  local java_modules='lareferencia-oclc-harvester,lareferencia-core-lib,lareferencia-entity-lib,lareferencia-indexing-filters-lib,lareferencia-shell-entity-plugin,lareferencia-shell,lareferencia-dark-lib,lareferencia-lrharvester-app,lareferencia-entity-rest,lareferencia-dashboard-rest,lareferencia-oai-pmh'
   echo "Compiling the complete Maven reactor..."
-  dc --profile developer-builder run --rm --no-deps maven-builder clean package install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
+  echo "(Java modules only; the React admin web has its own frontend-dev/rebuild frontend flow.)"
+  dc --profile developer-builder run --rm --no-deps maven-builder -pl "${java_modules}" -am package install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
 }
 
 restart_service() {
   local service="$1"
-  if is_java_service "${service}"; then
-    dc up -d --no-deps --force-recreate "${service}"
+  # The application JAR is mounted from the host. Restarting reruns the
+  # developer entrypoint and loads the new JAR without replacing the container.
+  if dc ps -a --services 2>/dev/null | grep -Fxq "${service}"; then
+    dc restart "${service}"
   else
-    dc up -d --no-deps --force-recreate "${service}"
+    dc up -d --no-deps "${service}"
   fi
 }
 
@@ -357,7 +361,7 @@ get_service_port() {
     solr) printf ':%s' "$((8983 + offset))" ;; postgres) printf ':%s' "$((5432 + offset))" ;;
     harvester) printf ':%s' "$((8090 + offset))" ;; dashboard-rest) printf ':%s' "$((8092 + offset))" ;;
     entity-rest) printf ':%s' "$((8094 + offset))" ;; elasticsearch) printf ':%s' "$((9200 + offset))" ;;
-    oai-pmh) printf ':%s' "$((8096 + offset))" ;;
+    oai-pmh) printf ':%s' "$((8096 + offset))" ;; admin-web-dev) printf ':%s' "$((5173 + offset))" ;;
   esac
 }
 
@@ -474,6 +478,7 @@ Commands:
   restart <service>      Recreate one service without dependencies
   rebuild <service>      Compile/rebuild and recreate one service
   watch <service>        Watch Java sources and rebuild on change
+  frontend-dev            Start or restart the live Vite admin web server
   reload solr            Restart Solr after core changes
   logs [service]         Follow logs
   shell [service]        Open a shell (default: harvester)
@@ -506,6 +511,9 @@ case "${command}" in
     ;;
   restart) [ "$#" -eq 1 ] || die 'restart requires a service'; restart_service "$1" ;;
   rebuild) [ "$#" -eq 1 ] || die 'rebuild requires a service'; rebuild_service "$1" ;;
+  frontend-dev)
+    if dc ps -a --services 2>/dev/null | grep -Fxq admin-web-dev; then dc restart admin-web-dev; else dc up -d admin-web-dev; fi
+    ;;
   watch) [ "$#" -eq 1 ] || die 'watch requires a Java service'; watch_service "$1" ;;
   reload) [ "${1:-}" = solr ] || die 'only reload solr is supported'; reload_solr ;;
   help|-h|--help) usage ;;
