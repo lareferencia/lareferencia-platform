@@ -1647,16 +1647,16 @@ echo "Extracting snapshot..."
 tar -xzf "\$TAR_FILE"
 
 echo "Booting Databases..."
-\$DC_CMD up -d postgres mariadb
+./Docker/docker.sh dc up -d postgres mariadb
 echo "Waiting 15s for databases to initialize..."
 sleep 15
 
 echo "Restoring Dumps..."
-cat postgres_dump.sql | \$DC_CMD exec -T postgres psql -U lrharvester -d lrharvester || true
-cat mysql_vufind_dump.sql | \$DC_CMD exec -T mariadb mysql -u vufind -pvufind vufind || true
+cat postgres_dump.sql | ./Docker/docker.sh dc exec -T postgres psql -U lrharvester -d lrharvester || true
+cat mysql_vufind_dump.sql | ./Docker/docker.sh dc exec -T mariadb mysql -u vufind -pvufind vufind || true
 
 echo "Booting remaining infrastructure..."
-\$DC_CMD up -d
+./Docker/docker.sh up
 echo "Restore complete! Environment is ready."
 RESTORE_EOF
 
@@ -1673,7 +1673,7 @@ EOF
       
       if command -v crontab >/dev/null 2>&1; then
         local cron_job="$random_min 3 * * * cd ${ROOT_DIR} && bash .system_backup.sh >> ${ROOT_DIR}/.cron_backup.log 2>&1"
-        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" ; echo "$cron_job") | crontab -
+        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" || true; echo "$cron_job") | crontab -
         gum style --foreground 114 "✅ Cron job successfully configured for: 03:${random_min} AM"
       elif command -v systemctl >/dev/null 2>&1; then
         local systemd_dir="${HOME}/.config/systemd/user"
