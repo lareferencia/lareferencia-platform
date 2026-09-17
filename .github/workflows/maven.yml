@@ -67,14 +67,12 @@ jobs:
     - name: Compress Build
       working-directory: .
       run: |
-        zip -r lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip . \
-          -x "target/*" \
-          -x "*/target/*" \
-          -x "node_modules/*" \
-          -x "*/node_modules/*" \
-          -x ".git/*" \
-          -x "*/.git/*"
-        ls -lh lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip
+        archive="lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip"
+        rm -f "$archive"
+        mapfile -d '' tracked_files < <(git ls-files -z)
+        zip -q "$archive" "${tracked_files[@]}"
+        zip -q "$archive" lareferencia-oai-pmh/oai-pmh.jar
+        ls -lh "$archive"
 
     - name: Verify OAI-PMH release artifact
       run: |
