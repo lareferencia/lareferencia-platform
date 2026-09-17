@@ -71,9 +71,10 @@ jobs:
         rm -f "$archive"
         mapfile -d '' release_files < <(git ls-files -z --cached --others --exclude-standard)
         if [ "${#release_files[@]}" -gt 0 ]; then
-          zip -q "$archive" "${release_files[@]}"
+          zip -q "$archive" "${release_files[@]}" lareferencia-oai-pmh/oai-pmh.jar
+        else
+          zip -q "$archive" lareferencia-oai-pmh/oai-pmh.jar
         fi
-        zip -q "$archive" lareferencia-oai-pmh/oai-pmh.jar
         ls -lh "$archive"
 
     - name: Verify OAI-PMH release artifact
