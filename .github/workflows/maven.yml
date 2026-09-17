@@ -66,6 +66,7 @@ jobs:
 
     - name: Compress Build
       working-directory: .
+      shell: bash
       run: |
         archive="lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip"
         if [ ! -s lareferencia-oai-pmh/oai-pmh.jar ]; then
