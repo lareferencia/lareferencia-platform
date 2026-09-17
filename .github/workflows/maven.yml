@@ -68,6 +68,10 @@ jobs:
       working-directory: .
       run: |
         archive="lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip"
+        if [ ! -s lareferencia-oai-pmh/oai-pmh.jar ]; then
+          echo "Missing required release artifact: lareferencia-oai-pmh/oai-pmh.jar" >&2
+          exit 1
+        fi
         rm -f "$archive"
         mapfile -d '' release_files < <(git ls-files -z --cached --others --exclude-standard)
         filtered_release_files=()
