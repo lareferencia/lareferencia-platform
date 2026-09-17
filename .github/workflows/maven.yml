@@ -70,7 +70,9 @@ jobs:
         archive="lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip"
         rm -f "$archive"
         mapfile -d '' release_files < <(git ls-files -z --cached --others --exclude-standard)
-        zip -q "$archive" "${release_files[@]}"
+        if [ "${#release_files[@]}" -gt 0 ]; then
+          zip -q "$archive" "${release_files[@]}"
+        fi
         zip -q "$archive" lareferencia-oai-pmh/oai-pmh.jar
         ls -lh "$archive"
 
