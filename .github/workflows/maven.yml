@@ -74,7 +74,13 @@ jobs:
           exit 1
         fi
         rm -f "$archive"
-        mapfile -d '' release_files < <(git ls-files -z --cached --others --exclude-standard -- . ":(exclude)lareferencia-oai-pmh/oai-pmh.jar")
+        mapfile -d '' candidate_release_files < <(git ls-files -z --cached --others --exclude-standard -- . ":(exclude)lareferencia-oai-pmh/oai-pmh.jar")
+        release_files=()
+        for candidate_release_file in "${candidate_release_files[@]}"; do
+          if [[ "$candidate_release_file" != .git/* && "$candidate_release_file" != */.git/* ]]; then
+            release_files+=("$candidate_release_file")
+          fi
+        done
         if [ "${#release_files[@]}" -gt 0 ]; then
           zip -q "$archive" "${release_files[@]}" lareferencia-oai-pmh/oai-pmh.jar
         else
