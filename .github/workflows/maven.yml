@@ -70,8 +70,14 @@ jobs:
         archive="lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip"
         rm -f "$archive"
         mapfile -d '' release_files < <(git ls-files -z --cached --others --exclude-standard)
-        if [ "${#release_files[@]}" -gt 0 ]; then
-          zip -q "$archive" "${release_files[@]}" lareferencia-oai-pmh/oai-pmh.jar
+        filtered_release_files=()
+        for release_file in "${release_files[@]}"; do
+          if [ "$release_file" != "lareferencia-oai-pmh/oai-pmh.jar" ]; then
+            filtered_release_files+=("$release_file")
+          fi
+        done
+        if [ "${#filtered_release_files[@]}" -gt 0 ]; then
+          zip -q "$archive" "${filtered_release_files[@]}" lareferencia-oai-pmh/oai-pmh.jar
         else
           zip -q "$archive" lareferencia-oai-pmh/oai-pmh.jar
         fi
