@@ -70,8 +70,11 @@ jobs:
         zip -r lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip . \
           -x "target/*" \
           -x "*/target/*" \
+          -x "node_modules/*" \
+          -x "*/node_modules/*" \
           -x ".git/*" \
           -x "*/.git/*"
+        ls -lh lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip
 
     - name: Verify OAI-PMH release artifact
       run: |
