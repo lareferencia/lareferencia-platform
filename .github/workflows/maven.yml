@@ -69,25 +69,12 @@ jobs:
       shell: bash
       run: |
         archive="lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip"
-        if [ ! -s lareferencia-oai-pmh/oai-pmh.jar ]; then
-          echo "Missing required release artifact: lareferencia-oai-pmh/oai-pmh.jar" >&2
-          exit 1
-        fi
         rm -f "$archive"
-        mapfile -d '' candidate_release_files < <(git ls-files -z --cached --others --exclude-standard)
-        release_files=()
-        for candidate_release_file in "${candidate_release_files[@]}"; do
-          if [ -f "$candidate_release_file" ] \
-            && [ "$candidate_release_file" != "lareferencia-oai-pmh/oai-pmh.jar" ] \
-            && [[ "$candidate_release_file" != .git/* && "$candidate_release_file" != */.git/* ]]; then
-            release_files+=("$candidate_release_file")
-          fi
-        done
-        if [ "${#release_files[@]}" -gt 0 ]; then
-          zip -q "$archive" "${release_files[@]}" lareferencia-oai-pmh/oai-pmh.jar
-        else
-          zip -q "$archive" lareferencia-oai-pmh/oai-pmh.jar
-        fi
+        zip -qr "$archive" . \
+          -x "target/*" \
+          -x "*/target/*" \
+          -x ".git/*" \
+          -x "*/.git/*"
         ls -lh "$archive"
 
     - name: Verify release artifacts
