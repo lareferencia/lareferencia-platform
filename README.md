@@ -1,505 +1,157 @@
 # LA Referencia Platform
 
-LA Referencia is a comprehensive platform for harvesting, processing, and indexing scholarly metadata from institutional and thematic repositories across Latin America. The platform provides advanced entity management, metadata validation, and search capabilities through SOLR/Elasticsearch and Vufind integraton.
+LA Referencia is a platform for harvesting, processing, and indexing scholarly metadata from institutional and thematic repositories across Latin America. It provides entity-based metadata management, validation and transformation pipelines, persistent identifier (dARK/ARK) tracking, and search through Solr, Elasticsearch/OpenSearch and VuFind.
 
 ## 🚀 Current Status
 
-### Current development version: **5.0.0-rc**
-This release candidate is the current development baseline. It provides:
-- Full support for OAI-PMH harvesting
-- Entity-based metadata processing
-- Elasticsearch and Solr indexing
-- PostgreSQL-based metadata storage
-- Comprehensive validation and transformation pipelines
+**Current development version: 5.0.0-rc2** (branch `main`).
 
-### Development Branch: **main** (5.0 release candidate)
+- Full OAI-PMH harvesting and a modernized standalone OAI-PMH data provider
+- Entity-based metadata processing with filesystem + SQLite storage
+- Incremental validation and indexing (record-level deltas)
+- Elasticsearch/OpenSearch entity indexing and Solr publication indexing
+- React-based administration UI with a full management API (`/api/v5`)
 
-The main branch contains the 5.0 release-candidate implementation and its architectural modernization:
+### Major Upgrades
 
-#### 🔧 Major Upgrades
-- **Spring Boot 3.5**: Migration from Spring Boot 2.x to 3.5
-- **Jakarta EE**: Transition from javax to jakarta namespace
-- **Dependency Updates**: All core dependencies updated to latest stable versions
+- **Spring Boot 3.5** and **Jakarta EE** (javax → jakarta) across all modules
+- **Java 17** runtime (CI matrix also builds with Java 21)
+- All core dependencies updated (XOAI 3.4, SolrJ 9.5, Jena 4.10, langchain4j)
 
-#### 🗑️ Deprecated Features
-- **Spring Data Solr**: Removed due to official discontinuation by Spring team
-- **Solr Entity Indexing**: Elasticsearch is now the primary indexing engine
-- **IBICT and RCAAP Contrib Modules**: legacy API modules for Solr-based entity services
-  - They are excluded from the default parent build, although compatibility profiles may still reference them
-  - New deployments should use the OpenSearch/Elasticsearch-compatible APIs
+### Deprecated Features
 
-#### ✨ New Features & Improvements
+- **Spring Data Solr**: removed (discontinued upstream)
+- **Solr entity indexing**: disabled in code (`EntityIndexerSolrImpl` kept as `.java.disabled`); Elasticsearch is the entity indexing engine. Solr remains in use for the publication index (VuFind discovery, OAI-PMH provider)
+- **`lareferencia-contrib-ibict` and `lareferencia-contrib-rcaap`**: legacy Solr-based entity service modules, no longer compiled (excluded from the default build)
 
-**Harvesting Statistics Storage**
-- Migration from database to **SQLite files** for better performance and manageability
-- Improved analytics capabilities with SQL compatibility while maintaining file-based isolation
-- Reduced central database load and improved query performance with indexes
+### Highlights of v5
 
-**Snapshot Logging System Refactoring**
-- **File-based snapshot logging**: Logs are stored as text files under the configured `store.basepath` instead of database tables
-- **Location**: `{basePath}/{NETWORK}/snapshots/snapshot_{id}/snapshot.log`
-- **Format**: Plain text with timestamps `[2025-11-12 12:45:30.123] message`
-- **Benefits**: 
-  - No database dependency for logs
-  - Easy to read and audit with standard text editors
-  - Automatic directory creation and error handling
-  - Thread-safe append operations
-  - Consistent with filesystem-based storage architecture
-- **API Compatibility**: Fully backward compatible - no changes needed for existing code using `addEntry()` and `deleteSnapshotLog()`
+- **Hybrid storage**: original metadata XML on the filesystem (GZIP, hash-partitioned) + SQLite per-snapshot databases for the record catalog, validation results and statistics
+- **Incremental processing**: catalogs track record changes (`N`/`U`/`D`), validation state is reused across snapshots via fingerprints and manifests, and indexers consume record-level deltas
+- **File-based snapshot logging** under `{basePath}/{NETWORK}/snapshots/snapshot_{id}/snapshot.log` (no database tables)
+- **Harvester Management API v5** and the new **React Admin Web** (AngularJS UI kept as legacy under `/legacy/`)
+- **Action configuration model**: per-network action configuration (JSONB), scheduled actions and worker parameterization
+- **Entity `deleted` flag workflow**: soft-delete entities and remove them (and their relations) from indexes
+- **dARK**: ARK persistent identifier minting, staging/reconciliation workers and legacy ARK CSV import
+- **Dynamic validation/transformation forms** generated from Java annotations, localized in English, Spanish and Portuguese
+- **Backup/restore wizard** and an isolated developer Docker workflow
 
-**Metadata Storage Optimization**
-- **Gradual migration** from PostgreSQL to filesystem-based storage
-- Better scalability for large metadata collections
-- Improved backup and recovery processes
+## 📋 System Requirements
 
-#### Storage Architecture Redesign (v5.0)
+- **Java**: OpenJDK 17 (Docker images use `eclipse-temurin:17-jre`)
+- **Maven**: 3.9.x
+- **PostgreSQL**: 14 (bundled in `docker-compose.yml`; 12+ supported)
+- **Elasticsearch**: 7.x (compose bundles 7.12.0; accessed through an OpenSearch-compatible REST client)
+- **Solr**: 9.x (compose bundles 9.8.0; SolrJ client 9.5)
+- **Memory**: 4GB minimum (8GB+ recommended)
 
-The platform introduces a hybrid **filesystem + database** storage strategy that dramatically improves performance and scalability:
+## 🏗️ Architecture
+
+The platform is a multi-repo workspace managed by `githelper` (each component is its own Git repository) with a root Maven reactor for building.
+
+> Full component map, data flows and ports: [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+### Components
+
+| Module | Type | Purpose |
+|---|---|---|
+| `lareferencia-core-lib` | Library | Domain models, OAI-PMH harvesting, validation/transformation engine, workers, SQLite catalog/validation stores |
+| `lareferencia-entity-lib` | Library | Entity model (generic entities, relations, semantic identifiers), Elasticsearch indexing, VIVO/RDF triple store indexing |
+| `lareferencia-dark-lib` | Library | dARK ARK persistent identifiers: minting, staging, reconciliation, legacy import |
+| `lareferencia-oclc-harvester` | Library | Low-level OAI-PMH protocol (OCLC Harvester2 fork) |
+| `lareferencia-indexing-filters-lib` | Library | Field occurrence filters for indexing pipelines |
+| `lareferencia-solr-cores` | Config | Solr configsets (`biblio`, `entity`, `historic`, `networks`, `oai`, `projects`, `vstats`) |
+| `lareferencia-lrharvester-app` | Web app | Main harvester: networks, harvesting, validation, publication; serves the Admin UI and the `/api/v5` management API |
+| `lareferencia-lrharvester-admin-web` | Web app (React 19/Vite) | Administration UI consuming the v5 API; built into the harvester |
+| `lareferencia-entity-rest` | Web app | REST API for entity data (`/api/v2`, in transition after Solr indexing removal) |
+| `lareferencia-dashboard-rest` | Web app | REST API for monitoring/statistics (`/api/v2`) |
+| `lareferencia-oai-pmh` | Web app | Standalone OAI-PMH 2.0 provider over the Solr publication index (XOAI 3.4, Spring Boot 3.5) |
+| `lareferencia-shell` | CLI | Spring Shell console: harvesting, database, maintenance, entity and dark commands |
+| `lareferencia-shell-entity-plugin` | CLI plugin | Entity loading/indexing/cleanup commands for the shell |
+| `lareferencia-contrib-ibict` / `-rcaap` | Library (legacy) | Deprecated, not compiled |
+| `vufind/` | Upstream checkout | VuFind® 11.0.1 discovery layer (PHP) |
+
+### Services and Ports (default `docker-compose.yml`)
+
+| Service | URL | Notes |
+|---|---|---|
+| Harvester + Admin Web (React) | `http://localhost:8090/` | React SPA at `/`, legacy AngularJS UI at `/legacy/` |
+| Harvester Management API v5 | `http://localhost:8090/api/v5` | OpenAPI `/api/v5/openapi`, Swagger UI `/api/v5/docs` |
+| Dashboard REST | `http://localhost:8092/api/v2/…` | Swagger UI `http://localhost:8092/swagger-ui.html` |
+| Entity REST | `http://localhost:8094/api/v2/…` | Swagger UI `http://localhost:8094/swagger` |
+| OAI-PMH provider | `http://localhost:8096/` | OAI endpoint at `/request`; container port 8092 |
+| VuFind | `http://localhost:8080` | Discovery front-end |
+| Solr | `http://localhost:8983` | `biblio`, `oai` and other cores |
+| Elasticsearch | `http://localhost:9200` | Entity indexing |
+
+In the **isolated developer workflow** (`docker-compose.dev.yml`) all service ports are offset by +100 (harvester 8190, dashboard 8192, entity-rest 8194, OAI 8196) and the admin web dev server runs Vite at `http://localhost:5273`.
+
+### Storage Architecture (v5.0)
+
+Hybrid **filesystem + database** storage:
 
 | Component | Storage | Format | Purpose |
 |-----------|---------|--------|---------|
 | **Metadata XML** | Filesystem | GZIP compressed | Original harvested XML records |
-| **OAI Records Catalog** | SQLite (DB) | `catalog.db` | Harvested metadata index with MD5 hashes |
-| **Validation Records** | SQLite (DB) | `validation.db` | Validation results and rule violations |
+| **OAI Records Catalog** | SQLite | `catalog.db` | Harvested record index with MD5 hashes and change tracking |
+| **Validation Records** | SQLite | `validation.db` | Validation results and rule violations |
+| **Validation Manifest** | JSON (FS) | `validation-manifest.json` | Validator fingerprint for incremental reuse |
 | **Validation Statistics** | JSON (FS) | Text aggregates | Pre-computed validation metrics |
-| **Snapshot Logs** | Text (FS) | Plain text with timestamps | Audit trail and debugging |
-| **Snapshot Metadata** | PostgreSQL | Relational | Structural snapshot info |
-| **Network Configuration** | PostgreSQL | Relational | Networks and repositories |
-| **Entity Data** | PostgreSQL | Relational | Publications, Persons, Organizations |
+| **Snapshot Logs** | Text (FS) | Plain text | Audit trail (`snapshot.log`) |
+| **Snapshot / Network / Entity data** | PostgreSQL | Relational | Structural snapshot, network and entity data |
 
-**Key Benefits:**
-
-- ✅ **Unified Storage**: Structured data in SQLite files for querying, with raw XML in filesystem
-- ✅ **WAL Concurrency**: Write-Ahead Logging enables simultaneous reading and writing
-- ✅ **Dynamic Validation**: Rule columns created on-the-fly based on validator configuration (no schema constraints)
-- ✅ **~30-50% deduplication**: Identical XML metadata stored once (filesystem hashing)
-- ✅ **Ultra-fast statistics**: <1ms queries via pre-computed JSON and indexed DB lookups
-- ✅ **Thread-safe**: Connection pooling per database file
-- ✅ **No transaction overhead**: Filesystem isolation avoids central DB locks
-- ✅ **Filesystem isolation**: Each network in separate directory (`{basePath}/{NETWORK}/`)
-
-**Directory Structure** (per snapshot):
+Per-snapshot directory structure:
 
 ```text
 {basePath}/{NETWORK}/snapshots/snapshot_{ID}/
-├── metadata.json                          ← Snapshot metadata (structured)
+├── metadata.json
 ├── catalog/
-│   └── catalog.db                         ← OAI records index (SQLite)
+│   └── catalog.db
 ├── validation/
-│   ├── validation.db                      ← Validation results & stats (SQLite)
-│   └── validation-stats.json              ← Aggregated statistics (<1ms lookup)
-└── snapshot.log                           ← Text audit trail
+│   ├── validation.db
+│   └── validation-manifest.json / validation-stats.json
+└── snapshot.log
 
 {basePath}/{NETWORK}/metadata/
-├── A/B/C/ABCDEF123456789.xml.gz          ← Partitioned by hash (3 levels)
-├── A/B/D/ABDABC987654321.xml.gz
-└── ... (4,096 partitions for scale)
+├── A/B/C/ABCDEF123456789.xml.gz     ← partitioned by content hash (4,096 partitions)
+└── ...
 ```
 
-**Validation Schema** (nested RuleFacts):
+Key properties: WAL-mode SQLite for concurrent read/write, dynamic validation rule columns, content-addressed XML deduplication, per-network filesystem isolation.
 
-- 1 row per record (not per fact)
-- RuleFacts stored as nested list within record
-- Each RuleFact includes: rule_id, is_valid, valid/invalid occurrences
-- Reduces storage from ~1.5GB (flat) to ~180MB (nested) for 100k records
+Reference: [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAMIENTO_REFERENCIA_RAPIDA.md)
 
-For complete reference, see [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAMIENTO_REFERENCIA_RAPIDA.md).
+### Incremental Validation & Indexing
 
-**Entity Processing Enhancements**
+Since 5.0.0 the catalog and validation databases track record-level state:
 
-- Simplified transactional model for entity loading and processing
-- Multiple bug fixes in entity relationship management
-- Optimized read-only transactions for better performance
-- Improved lazy loading handling
+- `oai_record.change_type` (`N` new / `U` updated / `D` deleted) in `catalog.db`, `record_validation.change_type` in `validation.db`
+- Harvested records are only processed downstream when they changed; indexers consume the delta (per-record `solrRecordIDField`/`solrRecordIDValue` updates)
+- Validation reuse is controlled by a validator fingerprint + validation manifest: records are re-validated only when input or rule configuration changed
 
-**Elasticsearch Indexing**
+Full manual: [ISSUE_INCREMENTAL_RECORD_PROCESSING.md](docs/ISSUE_INCREMENTAL_RECORD_PROCESSING.md). Test harness: [testing/oai-incremental](testing/oai-incremental/README.md).
 
-- **New multi-threaded entity indexer** implementation
-- Direct indexing architecture (removed buffer→distributor→writers pipeline)
-- Natural backpressure using database as bottleneck
-- Circuit breaker pattern for fail-fast behavior
-- Configurable concurrency control with semaphores
-- Automatic resource cleanup on completion
-- Significant performance improvements for large-scale indexing
+### Entity Lifecycle: deleted Flag
 
-**Dynamic Schema Generation & I18n**
+Entities can be soft-deleted (`entity.deleted`) and later removed from indexes together with their relations:
 
-- **Dynamic Forms**: Validation and transformation rule forms are now generated dynamically from Java classes using custom annotations (`@ValidatorRuleMeta`, `@SchemaProperty`).
-- **Internationalization (I18n)**: Full support for localized rule titles, descriptions, and help texts (English, Spanish, Portuguese).
-- **Reduced Maintenance**: Eliminated static JSON schema files; frontend stays automatically synchronized with backend code.
-- **Extensibility**: New rules are automatically exposed to the UI simply by implementing the interface and adding annotations.
+- Shell commands: `mark_entities_deleted`, `set_entities_deleted`, `remove_deleted_entities_from_index` (with `--relationFields`, `--pageSize`, `--timeoutSeconds`)
+- Requires migration `V5.0.0.7` (`entity.deleted` column)
 
-**File-Based Authentication System**
+Guide: [ENTITY_DELETED_INDEXING.md](docs/ENTITY_DELETED_INDEXING.md)
 
-- **Dual Authentication**: Supports both Form Login (web form) and HTTP Basic Auth for API access
-- **File-Based Users**: User credentials stored in `config/users.properties` with BCrypt-encrypted passwords
-- **Auto-Reload**: Automatic user file reload when a user is not found in cache (add users without restart)
-- **Role-Based Access**: All endpoints require `ADMIN` role; configurable per-endpoint access control
-- **Python CLI Tool**: Includes `add-user.py` script for easy user management via command line or interactive mode
-- **Security**: 
-  - BCrypt password hashing with `$2a$` prefix (Java-compatible)
-  - In-memory user cache with copy-on-read to prevent credential corruption
-  - Secure logout with session invalidation
-- **Documentation**: Complete setup guide in [AUTENTICACION_FILE_BASED.md](docs/AUTENTICACION_FILE_BASED.md)
-- **Harvester Management API v5**: Explicit DTO-based administrative API, documented in [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md)
-- **Harvester Admin Web v5**: Deep analysis and implementation roadmap for replacing the AngularJS administration UI, documented in [HARVESTER_ADMIN_WEB_V5_TECHNICAL_PLAN.md](docs/HARVESTER_ADMIN_WEB_V5_TECHNICAL_PLAN.md)
+### Actions & Workflow Engines
 
-**Core Library Package Structure Refactoring (v5.0)**
+- Actions (harvesting, validation, indexing, publishing, dARK stage/reconcile, metadata cleanup, …) are configured per network: manual and scheduled execution with JSONB configuration
+- Application-level actions and worker parameters are managed via the v5 API and the Admin UI
+- Workflow engines: `workflow.engine=legacy` (TaskManager, default) or `flowable` (BPMN processes in `config/processes/`)
 
-- **Ultra-simplified organization**: Replaced complex `backend.*` + `core.*` split with clean 7-package structure
-- **New structure** (`org.lareferencia.core.*`):
+Reference: [WORKFLOW_ACTIONS.md](docs/WORKFLOW_ACTIONS.md) (new) · analysis: [WORKERS_TASKS_ACTIONS_ANALYSIS.md](docs/WORKERS_TASKS_ACTIONS_ANALYSIS.md)
 
-```text
-├── domain/       - Domain models and entities
-├── repository/   - Data access (JPA/SQLite)
-├── service/      - Business logic (harvesting, validation, indexing, management)
-├── metadata/     - Metadata storage abstraction
-├── worker/       - Async processors (harvesting, validation, indexing, management)
-├── task/         - Task scheduling and coordination
-└── util/         - Shared utilities
-```
+### Elasticsearch / OpenSearch Indexing
 
-- **Benefits**:
-  - ✅ Intuitive navigation (max 2 package levels)
-  - ✅ Functional organization by domain (harvesting, validation, indexing)
-  - ✅ Reduced cognitive load for new developers
-  - ✅ Easier to find related code (all harvesting code together, etc.)
-  - ✅ Zero breaking changes to public APIs
-- **Backward Compatibility**: All external APIs unchanged; migration is import-only for dependent projects
-- **Migration Support**: Automated scripts and detailed migration guide provided in [PACKAGE_MIGRATION_GUIDE.md](docs/PACKAGE_MIGRATION_GUIDE.md)
-
-## 📋 System Requirements
-
-- **Java**: OpenJDK 17 or later
-- **Maven**: 3.8.x or later
-- **PostgreSQL**: 12.x or later
-- **Elasticsearch**: 7.x or 8.x
-- **Memory**: Minimum 4GB RAM (8GB recommended for production)
-
-## 🏗️ Architecture
-
-The platform is organized as a multi-module Maven project with the following main components:
-
-### Core Modules
-
-#### **lareferencia-core-lib**
-Core library module providing fundamental domain models, metadata processing, validation, transformation, and OAI-PMH harvesting capabilities.
-
-**Key Features:**
-- OAI-PMH 2.0 protocol implementation for metadata harvesting
-- Extensible validation and transformation rule engine
-- Metadata processing framework (XML/JSON support)
-- Worker framework for asynchronous job execution
-- Validation statistics and reporting (SQLite storage in v5.0)
-
-**Architecture (v5.0)**:
-- **Simplified package structure**: Reorganized from `backend.*` to `core.*` with 7 core packages:
-  - `domain/` - Domain models (entities, value objects)
-  - `repository/` - Data access layer (JPA + SQLite)
-  - `service/` - Business logic (organized by functionality)
-  - `metadata/` - Metadata storage abstraction
-  - `worker/` - Asynchronous job processing (organized by functionality)
-  - `task/` - Task scheduling and coordination
-  - `util/` - Shared utilities
-- **Ultra-simple navigation**: Maximum 2 levels of package depth
-- **Functional organization**: Workers and services organized by domain (harvesting, validation, indexing, management)
-- **Zero breaking changes**: All public APIs remain identical, only internal package organization changed
-
-**Migration Guide for Dependent Projects:**
-If your project depends on `lareferencia-core-lib`, imports have changed:
-- ❌ Old: `org.lareferencia.backend.*`
-- ✅ New: `org.lareferencia.core.*`
-
-[See detailed migration guide](docs/PACKAGE_MIGRATION_GUIDE.md) with automated scripts.
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-core-lib)
-
-#### **lareferencia-entity-lib**
-Entity management, relationship processing, and multi-engine indexing library for scholarly metadata.
-
-**Key Features:**
-- Entity-centric data model (Publications, Persons, Organizations, Projects)
-- Bidirectional relationship management
-- **NEW**: Multi-threaded Elasticsearch indexer (v5.0)
-- Triple store indexing (VIVO-compatible RDF)
-- Semantic identifier support (DOI, ORCID, ROR, etc.)
-- Provenance tracking at field level
-- High-performance LRU caching
-
-**Architecture Highlight (v5.0):**
-- Direct database-to-Elasticsearch pipeline
-- Configurable concurrency with semaphore backpressure
-- Circuit breaker pattern for fault tolerance
-- Automatic resource cleanup
-- Real-time indexing statistics
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-entity-lib)
-
-#### **lareferencia-dark-lib**
-DARK (descentrilized ARK) library for persistent identifier minting and management.
-
-**Key Features:**
-- Persistent identifier (PID) minting and registration
-- OAI identifier to DARK identifier mapping
-- Credential management for DARK services
-- Worker integration for batch PID assignment
-- Import of legacy ARK mappings with first-stage metadata delivery
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-dark-lib)
-
-[Legacy ARK import runbook](docs/DARK_LEGACY_ARK_IMPORT.md)
-
-### Application Modules
-
-#### **lareferencia-lrharvester-app**
-Main web application for OAI-PMH metadata harvesting, validation, transformation, and publication.
-
-**Key Features:**
-- Web-based dashboard for network management
-- National repository network configuration
-- OAI-PMH harvesting (full and incremental)
-- Metadata validation and transformation pipelines
-- **NEW**: Statistics storage in SQLite format (v5.0)
-- Entity extraction and relationship mapping
-- Elasticsearch indexing
-- Multi-language UI (Spanish/English)
-
-**Access:** `http://localhost:8090/harvester`
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-lrharvester-app)
-
-#### **lareferencia-entity-rest**
-RESTful API for accessing and searching scholarly entities indexed by LA Referencia.
-
-**Key Features:**
-- Full-text entity search across all types
-- Semantic identifier resolution (DOI, ORCID, ROR)
-- Relationship navigation (author, affiliation, funding, citations)
-- Faceted search by type, country, institution
-- OpenAPI/Swagger documentation
-
-**Access:** `http://localhost:8081/entity-api`  
-**Swagger UI:** `http://localhost:8081/entity-api/swagger-ui.html`
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-entity-rest)
-
-#### **lareferencia-dashboard-rest**
-RESTful API providing monitoring, statistics, and administrative data for dashboards and reporting.
-
-**Key Features:**
-- Network statistics and growth metrics
-- Repository status monitoring
-- Harvest event tracking and logs
-- Validation statistics and quality indicators
-- OA Broker event management
-
-**Access:** `http://localhost:8082/dashboard-api`  
-**Swagger UI:** `http://localhost:8082/dashboard-api/swagger-ui.html`
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-dashboard-rest)
-
-#### **lareferencia-oai-pmh**
-
-Standalone OAI-PMH 2.0 data provider backed by the Platform publication index in Solr.
-
-**Key Features:**
-
-- `Identify`, `ListSets`, `ListMetadataFormats`, `ListIdentifiers`, `ListRecords`, and `GetRecord`
-- Default, LA Referencia accepted-document-types, and thesis contexts
-- Configurable metadata crosswalks and browser presentation
-- Standalone executable JAR while also participating in the Platform Maven reactor
-
-**Configuration:** Copy `config/application.properties.model` to the ignored
-`config/application.properties` file and adjust the local repository and Solr values.
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-oai-pmh)
-
-### Infrastructure Modules
-
-#### **lareferencia-indexing-filters-lib**
-Field occurrence filtering library for controlling which metadata field values are indexed to search engines.
-
-**Key Features:**
-- Configurable field occurrence limits
-- Filter by field name and occurrence count
-- Integration with entity indexing pipeline
-- Index size optimization
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-indexing-filters-lib)
-
-#### **lareferencia-oclc-harvester**
-Modified version of OCLC Harvester2 library (2006 version) adapted for LA Referencia.
-
-**Purpose:** Low-level OAI-PMH protocol support used internally by core-lib.
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-oclc-harvester)
-
-#### **lareferencia-shell**
-Interactive command-line shell for administrative and maintenance operations.
-
-**Key Features:**
-- Spring Shell-based interactive CLI
-- Administrative commands for platform maintenance
-- Direct database access utilities
-- Entity processing tools
-- Non-interactive mode for scripting
-
-[View detailed documentation](https://github.com/lareferencia/lareferencia-shell)
-
-#### **lareferencia-shell-entity-plugin**
-Entity-specific commands plugin for lareferencia-shell.
-
-**Purpose:** Extends shell with entity management commands.
-
-### Deprecated Modules (Not Compiled in v5.0)
-
-#### ⚠️ **lareferencia-contrib-ibict**
-IBICT-specific Solr extensions (DISCONTIUED)
-
-**Status:** No longer compiled. Spring Data Solr discontinued. Migrate to `lareferencia-entity-rest`.
-
-[View deprecation notice](https://github.com/lareferencia/lareferencia-contrib-ibict)
-
-#### ⚠️ **lareferencia-contrib-rcaap**
-RCAAP-specific Solr extensions (DISCONTINUED)
-
-**Status:** No longer compiled. Spring Data Solr discontinued. Migrate to `lareferencia-entity-rest`.
-
-[View deprecation notice](https://github.com/lareferencia/lareferencia-contrib-rcaap)
-
-
-## 🚀 Quick Start
-
-### Building the Platform
-
-```bash
-# Clone the repository
-git clone https://github.com/lareferencia/lareferencia-platform.git
-cd lareferencia-platform
-
-# Clone workspace modules declared in workspace.ini
-./githelper init
-
-# Build all modules general implementation
-./build.sh lareferencia
-
-# Build or test only the OAI-PMH provider from the Platform reactor
-mvn -pl lareferencia-oai-pmh package
-mvn -pl lareferencia-oai-pmh test
-
-# Or build specific contribution (e.g., ibict)
-./build.sh ibict
-```
-
-## 📦 Multi-Repo Workspace
-
-This project uses a multi-repo workspace for modular development. Each module is a normal Git clone in the project root and can be developed independently.
-
-### Unified CLI: `githelper`
-
-The repository includes a single integrated CLI in the project root: `./githelper`.
-
-```bash
-# Clone missing module repositories from workspace.ini
-./githelper init
-
-# Show parent/module status
-./githelper status
-
-# Switch parent branch and apply the matching workspace branch-set if present
-./githelper switch v5-semantic-indexing
-
-# Pull parent branch and then modules on their workspace target branches
-./githelper pull
-
-# Capture the current module branches as a reproducible branch-set
-./githelper branch-set capture semantic-demo
-
-# Create the parent branch name in specific modules
-./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
-
-# Convert module URLs from SSH to HTTPS (for users without SSH access)
-./githelper url rewrite --to https
-```
-
-Workspace modules and branch sets are declared in `workspace.ini`. Development modules normally use `branch = main`; release modules can instead use `tag = <version>` (or `ref = refs/tags/<version>`) plus an optional full `commit` SHA for immutable verification. A section like `[branch-set.v5-semantic-indexing]` can point branch-based modules to feature branches for that parent branch. `./githelper branch-set capture <name>` takes a snapshot of the current module branches so the same combination can be reproduced with `./githelper sync --set <name>`. Maven build profiles such as `lareferencia`, `ibict`, and `rcaap` are separate and are only used by `build.sh`. The `lareferencia-oai-pmh` repository keeps its standalone version and build, but is also included in the Platform reactor and release bundle.
-
-### Checkout Specific Tagged Version
-
-```bash
-# Checkout a platform version
-git checkout 4.2.6
-./githelper init
-```
-
-## 🔧 Configuration
-
-### Configuration Directory Structure
-
-The platform uses a **flexible configuration system** based on a configurable base directory. Each application module (`lareferencia-lrharvester-app`, `lareferencia-shell`, `lareferencia-dashboard-rest`, `lareferencia-entity-rest`, `lareferencia-oai-pmh`) has its own `config/` directory.
-
-**Standard Configuration Directory Structure:**
-
-```
-config/
-├── application.properties          # Local/Private (gitignored)
-├── application.properties.model    # Template/Reference (versioned)
-├── application.properties.d/       # Deep/Modular configuration (versioned)
-│   ├── 00-server.properties
-│   ├── 01-dbconnection.properties
-│   ├── 02-catalog.properties
-│   └── ...
-├── beans/
-│   ├── mdformats.xml              # Metadata format definitions
-│   └── fingerprint.xml            # Fingerprint configuration
-├── processes/                      # Flowable BPMN process definitions
-│   └── *.bpmn20.xml
-├── i18n/                          # Internationalization files
-│   ├── messages.properties
-│   └── messages_es.properties
-└── users.properties               # File-based authentication (lrharvester-app)
-```
-
-### The Golden Rule
-
-- **`application.properties`**: Local/Private configuration (gitignored, not versioned)
-- **`application.properties.model`**: Template with all available properties and documentation (versioned)
-- **`application.properties.d/*.properties`**: Modular configuration fragments loaded automatically (versioned)
-
-**Action Required**: When adding a new configuration property to `.properties`, you **MUST** also add it to `.properties.model` with documentation.
-
-### Deep Configuration (`application.properties.d/`)
-
-The `.d` directory contains modular, granular configuration files that are automatically loaded by Spring Boot. This allows:
-
-- **Separation of concerns**: Database, storage, indexing configs in separate files
-- **Incremental loading**: Files loaded in alphanumeric order (01-, 02-, etc.)
-- **Version control friendly**: Each module can be tracked independently
-- **Environment overrides**: Local `application.properties` can override any `.d` setting
-
-### Configuration Directory Resolution
-
-You can customize the configuration base directory using the `app.config.dir` system property:
-
-```bash
-# Default: uses ./config directory
-java -jar lareferencia-shell.jar
-
-# Custom relative path
-java -Dapp.config.dir=../shared-config -jar lareferencia-shell.jar
-
-# Absolute path
-java -Dapp.config.dir=/etc/lrharvester/config -jar lareferencia-shell.jar
-
-# Docker example
-java -Dapp.config.dir=/app/config -jar harvester.jar
-```
-
-**See**: [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) for deployment examples (Docker, Kubernetes).
-
-### Elasticsearch Configuration (v5.0)
-
-Configure the OpenSearch/Elasticsearch-compatible endpoint in the indexing configuration files under `config/`:
+- Multi-threaded direct indexer: fixed pool + semaphore backpressure + `Phaser`, per-document transactions with read-only semantics (`REQUIRES_NEW`)
+- Circuit breaker and retry controls:
 
 ```properties
 elastic.host=localhost
@@ -508,141 +160,222 @@ elastic.indexer.max.concurrent.tasks=16
 elastic.indexer.circuit.breaker.max.failures=10
 ```
 
-### SQLite Storage Configuration (v5.0)
+- Semantic vector indexing with chunking (langchain4j): [SEMANTIC_INDEXING_CHUNKING.md](docs/SEMANTIC_INDEXING_CHUNKING.md)
+- Architecture reference: [ENTITY_INDEXING_ARCHITECTURE.md](docs/ENTITY_INDEXING_ARCHITECTURE.md) (new)
 
-Storage base path for SQLite databases (catalog, validation):
+### Harvester Management API v5 & Admin Web
 
-```properties
-store.basepath=/tmp/data/
-catalog.sqlite.wal-mode=true
+- `org.lareferencia.backend.api.v5`: typed DTO REST API under `/api/v5` (networks, snapshots, actions, workers, validators/transformers, diagnostics, users, dARK, network transfers, attribute profiles) with Problem Details errors and OpenAPI at `/api/v5/openapi`
+- Authentication modes: `file` (HTTP Basic against `config/users.properties`), `oidc`, `hybrid`; roles `VIEWER`/`ADMIN`
+- Admin Web: React 19 + Vite + Material UI, built into the harvester (`build-admin-web.sh`); the AngularJS UI remains available at `/legacy/`
+
+Reference: [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md) · auth: [AUTHENTICATION.md](docs/AUTHENTICATION.md) (new) · backlog: [HARVESTER_ADMIN_WEB_V5_BACKLOG.md](docs/HARVESTER_ADMIN_WEB_V5_BACKLOG.md) (new)
+
+### DARK / ARK Persistent Identifiers
+
+- ARK minting and per-network settings, staging (`DarkStageWorker`) and reconciliation (`DarkReconcileWorker`) workers
+- dARK dashboard in the Admin UI; v5 API under `/api/v5/dark/naans/{arkNaan}/…`
+- Legacy import: `import-dark-legacy-csv` runbook: [DARK_LEGACY_ARK_IMPORT.md](docs/DARK_LEGACY_ARK_IMPORT.md)
+
+### Core Library Package Structure
+
+`lareferencia-core-lib` uses `org.lareferencia.core.*` (10 packages):
+
+```text
+org.lareferencia.core.*
+├── domain/       Domain models
+├── repository/   Data access (JPA + SQLite: repository.catalog, repository.validation)
+├── service/      Business logic (harvesting, validation, indexing, management)
+├── metadata/     Metadata storage abstraction
+├── worker/       Asynchronous processors
+├── task/         Task scheduling and coordination
+├── embedding/    Semantic chunking/embedding
+├── flowable/     Flowable workflow delegates (optional engine)
+├── oabroker/     OpenAIRE broker integration
+└── util/         Shared utilities (incl. ConfigPathResolver)
 ```
+
+Note: dependent projects migrate `org.lareferencia.backend.*` → `org.lareferencia.core.*` for the core libraries; the harvester application itself still uses the `org.lareferencia.backend.*` namespace. Convention: [REFACTORING_PACKAGE_STRUCTURE.md](docs/REFACTORING_PACKAGE_STRUCTURE.md).
+
+## 🚀 Quick Start
+
+> Step-by-step developer setup (prerequisites, profiles, run modes, testing): [ONBOARDING.md](docs/ONBOARDING.md)
+
+### Building the Platform
+
+```bash
+git clone https://github.com/lareferencia/lareferencia-platform.git
+cd lareferencia-platform
+
+# Clone workspace modules declared in workspace.ini
+./githelper init
+
+# Build the standard implementation (Java modules + admin web)
+./build.sh lareferencia
+
+# Java modules only
+./build-java.sh lareferencia
+
+# Admin web only (Node 22, output copied into the harvester)
+./build-admin-web.sh
+
+# Other build profiles: lite | rcaap | ibict
+# ./build.sh ibict
+
+# Build/test only the OAI-PMH provider from the reactor
+mvn -pl lareferencia-oai-pmh package
+mvn -pl lareferencia-oai-pmh test
+```
+
+### Running with Docker
+
+```bash
+# Interactive wizard (deploy, backup/restore, maintenance, developer environment)
+./Docker/docker.sh wizard
+
+# Production-like stack
+./Docker/docker.sh up
+
+# Isolated developer environment (port offset +100, Vite dev server)
+./Docker/docker-dev.sh wizard
+```
+
+See [DOCKER_DEV.md](docs/DOCKER_DEV.md) for the developer workflow and [BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) (new) for backup/restore.
+
+## 📦 Multi-Repo Workspace
+
+Each module is an independent Git repository cloned in the workspace root and declared in `workspace.ini`; `./githelper` coordinates them.
+
+```bash
+./githelper status                          # Parent + module status
+./githelper init                            # Clone missing modules
+./githelper pull                            # Pull parent branch and modules
+./githelper switch <parent-branch>          # Switch parent branch (applies matching branch-set if present)
+./githelper branch-set capture <name>       # Snapshot current module branches (reproducible with: ./githelper sync --set <name>)
+./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
+./githelper url rewrite --to https
+```
+
+Development modules normally use `branch = main`; release modules can pin `tag = <version>` (optionally plus an exact `commit` SHA). Maven build profiles (`lareferencia`, `lite`, `rcaap`, `ibict`) are independent of branch-sets. See [githelper.md](githelper.md).
+
+### Checkout a Tagged Version
+
+```bash
+git checkout 4.2.6
+./githelper init
+```
+
+## 🔧 Configuration
+
+Each application module has a `config/` directory following this model (not all modules use every entry; `application.properties.d/` is used by the harvester, shell and dashboard):
+
+```
+config/
+├── application.properties          # Local/private (gitignored)
+├── application.properties.model    # Template/reference (versioned)
+├── application.properties.d/       # Modular fragments loaded at startup (versioned — the working config on a fresh clone)
+│   ├── 00-server.properties
+│   ├── 01-dbconnection.properties
+│   └── ...
+├── beans/                          # Bean definitions (mdformats.xml, fingerprint.xml, actions.xml, …)
+├── processes/                      # Flowable BPMN definitions
+├── i18n/                           # messages.properties, messages_en, messages_pt
+└── users.properties                # File-based auth (harvester; gitignored — copied automatically from users.properties.default on first run)
+```
+
+**The golden rule**: `application.properties` = local override (gitignored); `application.properties.model` = versioned template with documentation for every property. When adding a property, update the `.model` file.
+
+**How the fragments load** (verified in code): `PropertiesDirectoryListener` (`lareferencia-core-lib`, registered in each `MainApp`) reads every `*.properties` file inside `application.properties.d/` in alphabetical order during `ApplicationEnvironmentPreparedEvent` — before any bean exists — and appends each as its own property source; each load is visible in the startup log as `[PropertiesLoader] Loaded: <filename>`. The two-digit prefixes group files by concern (`00-server`, `01-dbconnection`, `02-catalog`/`02-metadata`, `04-security`, `05-harvester`, `06-logging`, `07-dark`/`07-semantic`, `08-workflow`, `09-flowable`, `10-api-v5` in the harvester; `00-app`, `01-dbconnection`, `05-harvester`, `06-logging` in the shell). Today no key is defined twice with different values across the base file and the fragments, so the mechanism works without precedence conflicts; when adding properties, define each key in one place only.
+
+The config base directory is resolved by `ConfigPathResolver` via the `app.config.dir` system property:
+
+```bash
+java -jar lareferencia-shell.jar                                   # default: ./config
+java -Dapp.config.dir=/etc/lrharvester/config -jar harvester.jar   # custom path
+```
+
+Reference: [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) · per-file, per-property reference for the harvester (12 fragments), the shell (4) and the dashboard (5), including which class reads each property and the legacy keys no longer read: [CONFIGURATION_PROPERTIES.md](docs/CONFIGURATION_PROPERTIES.md) · pending config-cleanup proposal: [CONFIG_CLEANUP_PROPOSAL.md](docs/CONFIG_CLEANUP_PROPOSAL.md)
 
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-mvn test
-
-# Run tests for specific module
-cd lareferencia-entity-lib
-mvn test
+mvn test                                   # all reactor modules
+mvn -pl lareferencia-oai-pmh test          # provider protocol tests (Testcontainers, Solr 9.8)
 ```
 
-## 📝 Migration Guide: v4.x → 5.0.0-rc
+- OAI-PMH regression suite: protocol verbs over HTTP validated against the official XSD ([oai-compatibility-contract](lareferencia-oai-pmh/docs/testing/oai-compatibility-contract.md))
+- Incremental OAI harness with deterministic fixtures: [testing/oai-incremental](testing/oai-incremental/README.md) (provider at `localhost:8096`, or `8196` in dev)
+
+## 📚 Documentation Map
+
+| Document | Topic |
+|---|---|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) * | Component map, data flows, modules, ports |
+| [ONBOARDING.md](docs/ONBOARDING.md) * | New developer setup (githelper, build, profiles, run modes) |
+| [GLOSSARY.md](docs/GLOSSARY.md) * | Platform vocabulary (network, dARK, crosswalk, lane, …) |
+| [DOCKER_DEV.md](docs/DOCKER_DEV.md) | Isolated Docker developer workflow |
+| [BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) * | Backup & restore (wizard, cron/systemd, `restore.sh`) |
+| [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) | Configuration directory resolution |
+| [CONFIGURATION_PROPERTIES.md](docs/CONFIGURATION_PROPERTIES.md) * | `application.properties.d` fragments per file (harvester, shell and dashboard) |
+| [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAMIENTO_REFERENCIA_RAPIDA.md) (ES) | Storage quick reference (FS/H2/SQLite, metadata stores) |
+| [AUTHENTICATION.md](docs/AUTHENTICATION.md) * | Users, roles, auth modes (file/OIDC/hybrid) |
+| [WORKFLOW_ACTIONS.md](docs/WORKFLOW_ACTIONS.md) * | Action catalog, scheduling, worker configuration, engines |
+| [FLOWABLE_REFACTORING_STRATEGY.md](docs/FLOWABLE_REFACTORING_STRATEGY.md) | Workflow engines state (legacy / flowable) |
+| [ISSUE_INCREMENTAL_RECORD_PROCESSING.md](docs/ISSUE_INCREMENTAL_RECORD_PROCESSING.md) | Incremental validation & indexing manual |
+| [ENTITY_DELETED_INDEXING.md](docs/ENTITY_DELETED_INDEXING.md) | Soft-deleted entities and index cleanup |
+| [ENTITY_INDEXING_ARCHITECTURE.md](docs/ENTITY_INDEXING_ARCHITECTURE.md) * | Current Elasticsearch entity indexing model |
+| [INDEXING-CONFIGURATION.md](docs/INDEXING-CONFIGURATION.md) (ES) | Real indexer connection properties |
+| [SEMANTIC_INDEXING_CHUNKING.md](docs/SEMANTIC_INDEXING_CHUNKING.md) | Semantic indexing & chunking |
+| [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md) | Management API v5 |
+| [HARVESTER_ADMIN_WEB_V5_BACKLOG.md](docs/HARVESTER_ADMIN_WEB_V5_BACKLOG.md) * | Admin web pending work |
+| [DARK_LEGACY_ARK_IMPORT.md](docs/DARK_LEGACY_ARK_IMPORT.md) | Legacy ARK import runbook |
+| [DYNAMIC_SCHEMA_REFACTORING.md](docs/DYNAMIC_SCHEMA_REFACTORING.md) | Dynamic validation schemas & i18n |
+| [ARQUITECTURA_TRANSACCIONAL.md](docs/ARQUITECTURA_TRANSACCIONAL.md) (ES) | Entity transactional architecture |
+| [REFACTORING_TRANSACCIONAL.md](docs/REFACTORING_TRANSACCIONAL.md) (ES) | Transactional refactoring record |
+| [REFACTORING_PACKAGE_STRUCTURE.md](docs/REFACTORING_PACKAGE_STRUCTURE.md) | Package conventions |
+| [DOCUMENTATION_INDEX.md](docs/DOCUMENTATION_INDEX.md) * | Full index of `docs/` with status |
+
+\* Created or updated during the 2026-09-23 documentation work (see `docs/PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md`). Historical decision records live in `docs/archive/`.
+
+## 📝 Migration Guide: v4.x → 5.0.0-rc2
 
 ### Required Actions
 
-1. **Update Java**: Migrate to Java 17+
-2. **Update Spring Boot**: Configuration changes for Spring Boot 3.x
-3. **Migrate from javax to jakarta**: Update all imports
-4. **Remove Solr Dependencies**: Migrate to Elasticsearch for entity indexing
-5. **Update Database Schema**: New schema for optimized entity storage
-6. **Configure Storage**: Set up filesystem and SQLite storage for harvest statistics
+1. **Java 17+** and **Spring Boot 3.5** (javax → jakarta imports)
+2. **Entity indexing on Elasticsearch** (Solr entity APIs removed)
+3. **Storage**: configure `store.basepath` for filesystem + SQLite (catalog, validation, stats, logs)
+4. **Configuration**: review property names for Spring Boot 3.x; keep `application.properties.model` in sync
 
 ### Breaking Changes
 
-- Solr entity indexing APIs removed
-- IBICT/RCAAP contrib modules no longer compiled
-- Configuration property names updated for Spring Boot 3.x
-- Entity indexer implementation completely rewritten
+- Solr entity indexing APIs removed (Elasticsearch/OpenSearch instead)
+- `contrib-ibict`/`contrib-rcaap` no longer compiled
+- Core/entity library packages renamed to `org.lareferencia.core.*` (see note above)
+- Entity indexer completely rewritten (direct threaded model)
 
 ## 🤝 Contributing
 
-Contributions to LA Referencia are welcome! Whether you're fixing bugs, improving documentation, or proposing new features, your help is appreciated.
+1. Fork and create a feature branch
+2. Follow Java/Spring conventions; add tests for new functionality
+3. Update documentation (`.model` config files, module READMEs) as part of the change
+4. Open a PR against `main` with a clear description and test results
 
-### How to Contribute
-
-1. **Fork the repository** and create a feature branch
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-
-2. **Make your changes** following the project's coding standards
-   - Write clear, documented code
-   - Add tests for new functionality
-   - Ensure all existing tests pass
-
-3. **Commit your changes** with descriptive messages
-   ```bash
-   git commit -m 'Add amazing feature: description of what it does'
-   ```
-
-4. **Push to your branch**
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-
-5. **Open a Pull Request** against the main branch
-   - Describe your changes clearly
-   - Reference any related issues
-   - Include test results
-
-### Coding Standards
-
-- **Java**: Follow standard Java conventions
-- **Spring Boot**: Use Spring best practices and annotations
-- **Tests**: Write unit and integration tests for new code
-- **Documentation**: Update README files and JavaDoc comments
-- **License**: All contributions must be compatible with AGPL-3.0
-
-### Before Submitting
-
-- [ ] Code compiles without errors
-- [ ] All tests pass (`mvn test`)
-- [ ] New code has appropriate test coverage
-- [ ] Documentation is updated
-- [ ] Commit messages are clear and descriptive
-
-### Code of Conduct
-
-Please be respectful and constructive in all interactions with the community.
+Contributions must be compatible with **AGPL-3.0**.
 
 ## 📄 License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
-
-The AGPL-3.0 is a free, copyleft license for software and other kinds of works, specifically designed to ensure cooperation with the community in the case of network server software.
-
-**Key License Points:**
-- **Freedom to use**: You can use this software for any purpose
-- **Freedom to study and modify**: Source code is available and can be modified
-- **Freedom to share**: You can distribute copies of the software
-- **Copyleft**: Modified versions must also be released under AGPL-3.0
-- **Network use provision**: Users who interact with the software over a network must be able to receive the source code
-
-For the complete license text, see the [LICENSE.txt](LICENSE.txt) file in the repository root.
-
-**Important:** If you deploy this software on a network server where users interact with it remotely, you must make the complete source code (including any modifications) available to those users.
+Licensed under the **GNU Affero General Public License v3.0** — see [LICENSE.txt](LICENSE.txt). If you deploy this software as a network service, you must make the complete source code (including your modifications) available to your users.
 
 ## 📧 Support and Contact
 
-For technical support, questions, bug reports, or contributions, please contact the LA Referencia technical team:
-
 **Email**: [soporte@lareferencia.redclara.net](mailto:soporte@lareferencia.redclara.net)
 
-### What to Include in Support Requests
-
-When requesting support, please include:
-- **Platform version**: Specify the exact release or commit, for example `5.0.0-rc`
-- **Module affected**: Which component is experiencing issues
-- **Error logs**: Relevant log excerpts showing the problem
-- **Configuration**: Relevant configuration snippets (remove sensitive data)
-- **Steps to reproduce**: Clear description of how to reproduce the issue
-
-### Community
+When requesting support, please include: platform version (e.g. `5.0.0-rc2`), affected module, relevant log excerpts, configuration snippets (without sensitive data) and steps to reproduce.
 
 - **Website**: [https://www.lareferencia.info](https://www.lareferencia.info)
-- **GitHub**: [https://github.com/lareferencia](https://github.com/lareferencia)
-
-## 🔗 Links
-
-- **Website**: [https://www.lareferencia.info](https://www.lareferencia.info)
-- **Issue Tracker**: [GitHub Issues](https://github.com/lareferencia/lareferencia-platform/issues)
-- **Source Code**: [GitHub Repository](https://github.com/lareferencia/lareferencia-platform)
+- **Issues**: [GitHub Issues](https://github.com/lareferencia/lareferencia-platform/issues)
+- **Organization**: [https://github.com/lareferencia](https://github.com/lareferencia)
 
 ---
 
-**Note**: This checkout is a release candidate. Production deployments should use a tagged release validated by the project maintainers.
-
-**License**: GNU Affero General Public License v3.0 (AGPL-3.0)  
-**Contact**: soporte@lareferencia.redclara.net
+**Note**: this checkout is a release candidate. Production deployments should use a tagged release validated by the maintainers.
