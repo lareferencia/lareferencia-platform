@@ -90,11 +90,16 @@ jobs:
         fi
         ls -lh "$archive"
 
-    - name: Verify OAI-PMH release artifact
+    - name: Verify release artifacts
       run: |
-        test -s lareferencia-oai-pmh/oai-pmh.jar
-        unzip -Z1 lareferencia-platform-${{ steps.version_check.outputs.version }}.zip \
-          | grep -Fxq "lareferencia-oai-pmh/oai-pmh.jar"
+        unzip -Z1 lareferencia-platform-${{ steps.version_check.outputs.version }}.zip > zip-contents.txt
+        if grep -q "target/" zip-contents.txt; then
+          echo "ERROR: zip contains target/ directories"
+          exit 1
+        fi
+        find . -maxdepth 2 -name "*.jar" -not -path "./target/*" -not -path "*/target/*" | sed 's|^\./||' | while read -r jar; do
+          grep -Fxq "$jar" zip-contents.txt
+        done
 
     - name: Delete existing release if exists
       continue-on-error: true
