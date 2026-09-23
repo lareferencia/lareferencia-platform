@@ -1,5 +1,7 @@
 # Refactorización de Generación Dinámica de Esquemas y Validación
 
+**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+
 Este documento detalla el proceso de refactorización realizado para reemplazar la definición estática de esquemas JSON por una generación dinámica basada en clases Java, así como la implementación de internacionalización (I18n) para reglas de validación y transformación.
 
 ## 1. Objetivo
@@ -44,7 +46,7 @@ Ambos aceptan un parámetro opcional `locale` (ej: `?locale=pt-BR`). Si no se pr
 
 ### 2.4. Configuración de I18n
 
-*   **`I18nConfig`**: Se configuró un bean `ReloadableResourceBundleMessageSource` que lee archivos de propiedades desde `file:config/i18n/messages`.
+*   **`I18nConfig`**: Se configuró un bean `ReloadableResourceBundleMessageSource` que lee archivos de propiedades desde `file:config/i18n/messages` (basename resuelto en runtime con `ConfigPathResolver`).
 *   **Archivos de Propiedades**: Se crearon los archivos:
     *   `config/i18n/messages.properties` (Español - Default)
     *   `config/i18n/messages_en.properties` (Inglés)
@@ -54,7 +56,7 @@ Las claves siguen el patrón:
 *   Regla: `rule.<SimpleClassName>.name` y `rule.<SimpleClassName>.help`
 *   Campo: `rule.<SimpleClassName>.field.<fieldName>.title` y `rule.<SimpleClassName>.field.<fieldName>.description`
 
-## 3. Cambios en el Frontend (`static/`)
+## 3. Cambios en el Frontend (`static-legacy/`)
 
 ### 3.1. Servicios de Esquemas
 

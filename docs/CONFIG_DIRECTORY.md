@@ -1,5 +1,7 @@
 # Configuración Flexible del Directorio Base
 
+**Status:** current · **Last verified:** 2026-09-23
+
 ## Resumen
 
 La aplicación permite configurar el directorio base de configuración mediante la propiedad de sistema `app.config.dir`. Por defecto, usa el directorio `config` relativo al directorio de trabajo actual.
@@ -100,7 +102,7 @@ java -Dapp.config.dir=/opt/lrharvester/instance2/config -jar app.jar
 ### Docker
 
 ```dockerfile
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:17-jre   # Java 17 es la línea base del proyecto (CI también prueba 21)
 
 WORKDIR /app
 COPY target/lareferencia-*.jar app.jar
@@ -147,8 +149,10 @@ spec:
 ## Compatibilidad
 
 Esta característica es compatible con:
-- `lareferencia-shell`
+- `lareferencia-core-lib`
+- `lareferencia-dashboard-rest`
 - `lareferencia-lrharvester-app`
+- `lareferencia-shell`
 
 ## Notas Importantes
 
@@ -156,3 +160,5 @@ Esta característica es compatible con:
 2. **Permisos** - El usuario que ejecuta la aplicación debe tener permisos de lectura
 3. **Paths relativos** - Se resuelven relativos al directorio de trabajo (CWD)
 4. **Prioridad** - La propiedad de sistema tiene prioridad sobre cualquier otro valor
+
+Related: per-file, per-property breakdown of the `application.properties.d` fragments: [CONFIGURATION_PROPERTIES.md](CONFIGURATION_PROPERTIES.md).

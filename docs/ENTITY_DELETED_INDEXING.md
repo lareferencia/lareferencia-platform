@@ -1,15 +1,19 @@
 # Change Summary: Entity `deleted` Flag
 
+**Status:** current · **Last verified:** 2026-09-23
+
 This change adds the `deleted` flag to final entities and uses it to skip logically deleted entities during indexing.
 
 ## Changed Areas
 
-- `Entity` now has `deleted=false` by default: [Entity.java (line 103)](/Users/jesiel/dev/ioi/lareferencia-platform/lareferencia-entity-lib/src/main/java/org/lareferencia/core/entity/domain/Entity.java:103)
-- `index-entities` pagination filters by `dirty=false` and `deleted=false`: [EntityPaginator.java (line 131)](/Users/jesiel/dev/ioi/lareferencia-platform/lareferencia-entity-lib/src/main/java/org/lareferencia/core/entity/workers/EntityPaginator.java:131)
-- Related/nested entities also skip related entities with `deleted=true`: [EntityRepository.java (line 108)](/Users/jesiel/dev/ioi/lareferencia-platform/lareferencia-entity-lib/src/main/java/org/lareferencia/core/entity/repositories/jpa/EntityRepository.java:108)
-- Migration created with `deleted boolean NOT NULL DEFAULT FALSE`: [V5.0.0.7__Add_Entity_Deleted_Flag.sql (line 1)](/Users/jesiel/dev/ioi/lareferencia-platform/lareferencia-shell/src/main/resources/db/migration/V5.0.0.7__Add_Entity_Deleted_Flag.sql:1)
-- Shell command updated to mark entities as deleted from a UUID file: [EntityDataCommands.java (line 355)](/Users/jesiel/dev/ioi/lareferencia-platform/lareferencia-shell-entity-plugin/src/main/java/org/lareferencia/shell/commands/entity/EntityDataCommands.java:355)
-- Shell command added to remove deleted entities and their nested references from a specific Elasticsearch/OpenSearch index: [EntityDataCommands.java (line 435)](/Users/jesiel/dev/ioi/lareferencia-platform/lareferencia-shell-entity-plugin/src/main/java/org/lareferencia/shell/commands/entity/EntityDataCommands.java:435)
+Links are repository-relative (fixed 2026-09-23; they previously pointed to a local absolute path).
+
+- `Entity` now has `deleted=false` by default: [Entity.java](../lareferencia-entity-lib/src/main/java/org/lareferencia/core/entity/domain/Entity.java) (`deleted` column, ~line 103)
+- `index-entities` pagination filters by `dirty=false` and `deleted=false`: [EntityPaginator.java](../lareferencia-entity-lib/src/main/java/org/lareferencia/core/entity/workers/EntityPaginator.java)
+- Related/nested entities also skip related entities with `deleted=true`: [EntityRepository.java](../lareferencia-entity-lib/src/main/java/org/lareferencia/core/entity/repositories/jpa/EntityRepository.java)
+- Migration created with `deleted boolean NOT NULL DEFAULT FALSE`: [V5.0.0.7__Add_Entity_Deleted_Flag.sql](../lareferencia-shell/src/main/resources/db/migration/V5.0.0.7__Add_Entity_Deleted_Flag.sql)
+- Shell command `mark_entities_deleted` (marks entities as deleted from a UUID file, ~line 372): [EntityDataCommands.java](../lareferencia-shell-entity-plugin/src/main/java/org/lareferencia/shell/commands/entity/EntityDataCommands.java)
+- Shell command `remove_deleted_entities_from_index` (removes deleted entities and their nested references from a specific Elasticsearch/OpenSearch index, ~line 453): [EntityDataCommands.java](../lareferencia-shell-entity-plugin/src/main/java/org/lareferencia/shell/commands/entity/EntityDataCommands.java)
 
 ## Usage
 

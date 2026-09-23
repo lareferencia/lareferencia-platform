@@ -1,5 +1,8 @@
 # Sistema de Autenticación Basado en Archivos
 
+**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+
+> **Actualización 2026-09-23:** correcciones contra el código actual — CLI de `add-user.py` posicional, BCrypt acepta `$2a$`/`$2b$`/`$2y$`, login activo en `/legacy/login.html`. Referencia completa: [`AUTHENTICATION.md`](AUTHENTICATION.md).
 ## Descripción General
 
 Se implementó un nuevo sistema de autenticación para reemplazar el sistema básico de autenticación HTTP (basic-auth). El nuevo sistema es más flexible y seguro, permitiendo:
@@ -7,7 +10,7 @@ Se implementó un nuevo sistema de autenticación para reemplazar el sistema bá
 - **Autenticación dual**: Soporta tanto Form Login (formulario web) como HTTP Basic Auth
 - **Usuarios en archivo**: Los usuarios se almacenan en un archivo de texto con contraseñas encriptadas con BCrypt
 - **Recarga automática**: Si un usuario no se encuentra en caché, el sistema recarga automáticamente el archivo de usuarios
-- **Protección por roles**: Todos los endpoints requieren el rol `ADMIN`
+- **Protección por roles**: la app legacy requiere `ADMIN`; la API v5 distingue `ADMIN` (todo) y `VIEWER` (solo GET)
 
 ## Archivos Creados
 
@@ -36,7 +39,7 @@ admin=$2a$10$4y1zPBq1Sab.k62WLj7QNudiifOuJq/Da27oIT1S7SgPwdvheGw5W,ROLE_ADMIN
 
 **Usuario por defecto**: `admin` / `admin`
 
-> ⚠️ **IMPORTANTE**: Los hashes BCrypt deben usar el prefijo `$2a$` (no `$2b$`) para compatibilidad con Java.
+> ℹ️ **Actualizado 2026-09-23:** el validador acepta prefijos `$2a$`, `$2b$` y `$2y$` (ver `FileBasedUserDetailsService`). `add-user.py` genera `$2a$` por compatibilidad.
 
 ### 3. `add-user.py`
 **Ubicación**: `lareferencia-lrharvester-app/config/add-user.py`
@@ -48,9 +51,11 @@ Script Python para agregar usuarios al archivo. Soporta modo interactivo y líne
 python add-user.py
 ```
 
-**Uso por línea de comandos**:
+**Uso por línea de comandos** (argumentos posicionales):
 ```bash
-python add-user.py -u usuario -p contraseña -r ROLE_ADMIN
+python3 add-user.py <usuario> <contraseña> [ROLE_ADMIN] [ROLE_VIEWER] [ROLE_USER] ...
+# Ejemplo:
+python3 add-user.py operator secret123 ROLE_ADMIN ROLE_VIEWER
 ```
 
 **Requisitos**:
@@ -59,9 +64,9 @@ pip install bcrypt
 ```
 
 ### 4. `login.html`
-**Ubicación**: `lareferencia-lrharvester-app/src/main/resources/templates/login.html`
+**Ubicación activa**: `lareferencia-lrharvester-app/src/main/resources/static-legacy/login.html`, servida como `/legacy/login.html` (página de login configurada en `WebSecurityConfig`).
 
-Página de login con formulario HTML usando Thymeleaf.
+> Existe también `templates/login.html` (Thymeleaf) heredado; la página activa de Spring Security es `/legacy/login.html`.
 
 ## Archivos Modificados
 
@@ -108,14 +113,14 @@ security.users.file=config/users.properties
 # Comentarios empiezan con #
 # Formato: username=bcrypt_hash,ROLE1,ROLE2,...
 admin=$2a$10$hash...,ROLE_ADMIN
-user=$2a$10$hash...,ROLE_USER,ROLE_VIEWER
+operator=$2a$10$hash...,ROLE_ADMIN,ROLE_VIEWER
 ```
 
 ## Notas Técnicas Importantes
 
 ### Compatibilidad BCrypt
 
-Java `BCryptPasswordEncoder` solo soporta hashes con prefijo `$2a$`. El prefijo `$2b$` (usado por implementaciones más modernas) **no es compatible**.
+El validador de `FileBasedUserDetailsService` acepta prefijos `$2a$`, `$2b$` o `$2y$` (hash de 60 caracteres, sin comas). Spring Security los decodifica todos.
 
 El script `add-user.py` genera hashes compatibles usando:
 ```python
@@ -148,9 +153,10 @@ Esto permite agregar usuarios sin reiniciar la aplicación.
 
 | Endpoint | Acceso |
 |----------|--------|
-| `/login` | Público |
-| `/css/**`, `/js/**`, `/images/**` | Público (recursos estáticos) |
-| Todos los demás | Requiere `ROLE_ADMIN` |
+| `/legacy/login.html`, `/legacy/css/**` | Público (`WebSecurityConfig`) |
+| `/logout` | Con sesión iniciada |
+| API v5 (`/api/v5/**`) | `VIEWER`: GET · `ADMIN`: todo (según `security.api-v5.auth-mode`) |
+| Resto de la aplicación legacy | Requiere `ROLE_ADMIN` |
 
 ## Flujo de Autenticación
 
@@ -189,4 +195,4 @@ Acceder a `/logout` cierra la sesión y redirige a `/login?logout`.
 
 ---
 
-*Documento creado: Diciembre 2025*
+*Documento creado: diciembre 2025 · Corregido y verificado: 2026-09-23*

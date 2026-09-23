@@ -1,3 +1,5 @@
+> **[ARCHIVED 2026-09-23]** The central claim ("no incremental state machine exists") was superseded on 2026-09-04 (commit `7cf2a01`). See [`../ISSUE_INCREMENTAL_RECORD_PROCESSING.md`](../ISSUE_INCREMENTAL_RECORD_PROCESSING.md). Kept for historical reference.
+
 # Redundancia entre catálogo y validación
 
 El catálogo (`oai_record`) y la validación (`record_validation`) son persistencias SQLite separadas. El catálogo conserva identidad OAI, fecha, hash original y `deleted`; la validación conserva reglas, transformación, hash publicado y ocurrencias.

@@ -1,5 +1,8 @@
 # API administrativa y operativa del Harvester v5
 
+**Status:** current · **Last verified:** 2026-09-23
+
+> **Actualización 2026-09-23:** rutas verificadas contra los controladores de `lareferencia-lrharvester-app` (`api/v5`). Se añadió la sección de recursos incorporados tras la iteración inicial y se corrigieron los límites: la Admin Web en React consume v5 y la aplicación AngularJS se publica en `/legacy/`.
 ## Propósito
 
 La API v5 crea una superficie HTTP nueva para una futura aplicación administrativa. Su prefijo es `/api/v5` y no depende de los controladores legacy ni de Spring Data REST. El código está en `lareferencia-lrharvester-app` bajo el paquete `org.lareferencia.backend.api.v5`.
@@ -212,6 +215,21 @@ Los comandos devuelven `202 Accepted` y un recibo con `requestId`, red, hora, re
 
 El runtime declara `engineType` y `cancellationScope`. En legacy el alcance de cancelación es la red; en Flowable puede ser un proceso.
 
+### Recursos añadidos tras la iteración inicial (septiembre 2026)
+
+Verificados en `ApiV5ManagementController`, `ApiV5ApplicationActionController`, `ApiV5WorkerConfigurationController`, `ApiV5DarkController` y `ApiV5NetworkTransferController`:
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET/POST/PUT/DELETE | `/api/v5/application-actions` (más `/{actionKey}`, `/{actionKey}/usage`, `/{actionKey}/move`, `/refresh`) | Catálogo global de acciones y su uso. |
+| GET/PUT | `/api/v5/worker-configurations` (más `/{workerKey}`, `/configuration`) | Configuración de workers por instalación. |
+| POST | `/api/v5/dark/naans/{arkNaan}/preview`, `.../stage`, `.../reconcile` | Operaciones dARK por NAAN (las rutas reales son por NAAN, no `networks/{networkId}`). |
+| GET/POST | `/api/v5/network-transfers` | Transferencias entre redes. |
+| GET/POST | `/api/v5/users` | Listado y alta de usuarios (rol ADMIN). |
+| PUT/POST/DELETE | `/api/v5/users/{username}/roles`, `/api/v5/users/{username}/password`, `DELETE /api/v5/users/{username}` | Gestión de usuarios del modo `file` (ver [`AUTHENTICATION.md`](AUTHENTICATION.md)). |
+| POST | `/api/v5/networks/{id}/metadata-cleanup/preview` | Vista previa de limpieza de metadata. |
+| GET/POST | `/api/v5/validators` y `/api/v5/transformers` (con `/{id}`, `/{id}/rules`, `/{id}/rules/{ruleId}`, `/{id}/clone`, `/{id}/export`, `/{id}/usage`) | CRUD, clonado, uso y exportación de reglas y transformaciones. |
+
 ## Seguridad
 
 La configuración de v5 está en `lareferencia-lrharvester-app/config/application.properties.d/10-api-v5.properties`.
@@ -265,12 +283,10 @@ mvn -f pom.xml -Dtest=ApiV5ManagementControllerTest clean test
 
 La iteración de estabilización añade pruebas de la proyección de dashboard, fechas ISO-8601 UTC, identidad, carga de perfiles y traducción segura de filtros de diagnóstico. OpenAPI queda limitado al paquete y rutas de v5 y declara autenticación Basic y Bearer/JWT.
 
-La propuesta de arquitectura se documentó y validó con OpenSpec bajo `lareferencia-core-lib/openspec/changes/add-harvester-management-api-v5/`. Ese directorio está ignorado por la política actual de Git de `lareferencia-core-lib`, pero queda disponible localmente como referencia de diseño.
-
 ## Límites actuales y siguientes pasos
 
 - No hay tabla ni historial persistente de comandos: los recibos representan aceptación HTTP, no una ejecución durable.
 - No se modificaron `INetworkActionExecutor`, TaskManager, Flowable ni los workers.
 - No se añadió CRUD masivo de registros, bitstreams o metadata; la API ofrece diagnóstico y lectura XML puntual.
-- Spring Data REST y la aplicación AngularJS permanecen operativos y no consumen v5.
-- Antes de retirar las superficies legacy, una fase posterior debe migrar la nueva aplicación, ampliar pruebas de integración con PostgreSQL y ambos motores, y definir una política de deprecación.
+- Spring Data REST permanece operativo. La aplicación AngularJS legacy se publica en `/legacy/` y la nueva Admin Web en React consume esta API v5.
+- Antes de retirar las superficies legacy (Spring Data REST, AngularJS en `/legacy/`), una fase posterior debe ampliar las pruebas de integración con PostgreSQL y ambos motores, y definir una política de deprecación.

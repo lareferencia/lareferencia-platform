@@ -1,4 +1,7 @@
 # Arquitectura Transaccional - Sistema de Carga de Entidades
+**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+
+> **Nota 2026-09-23:** la sección "Configuración Recomendada" (`batch_size=20`, etc.) es una recomendación de diseño: esos valores no están aplicados en ningún `application.properties` del repositorio.
 
 ## 📋 Descripción General
 

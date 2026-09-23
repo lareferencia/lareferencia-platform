@@ -1,5 +1,7 @@
 # Chunking in Semantic Indexing
 
+**Status:** current · **Last verified:** 2026-09-23
+
 This document describes the current chunking implementation used by `SemanticIndexerWorker` to generate embeddings during semantic indexing in Solr.
 
 ## Where It Happens

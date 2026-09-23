@@ -1,6 +1,9 @@
 # Refactoring Profundo de la Arquitectura Transaccional
 
+**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+
 ## 📅 Última Actualización: 8 de noviembre de 2025
+> **Nota 2026-09-23:** el refactoring descrito está implementado. Precisión sobre el código actual: las transacciones de lectura por documento se cierran con `rollback()` en el `finally` (equivalente para transacciones read-only) en `JSONElasticEntityIndexerThreadedImpl`. El análisis complementario de la optimización read-only está en `docs/archive/ANALISIS_OPTIMIZACION_TRANSACCIONAL_READONLY.md`.
 
 ---
 

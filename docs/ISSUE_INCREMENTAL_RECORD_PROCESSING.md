@@ -1,5 +1,7 @@
 # Incremental Processing Developer Manual
 
+**Status:** current · **Last verified:** 2026-09-23
+
 ## Purpose and implemented scope
 
 This manual replaces the original issue proposal. It documents the behavior implemented in the current source tree for full and incremental harvesting, validation, and Solr indexing. Each snapshot remains isolated and owns its catalog.db, validation.db, metadata files, and validation manifest.

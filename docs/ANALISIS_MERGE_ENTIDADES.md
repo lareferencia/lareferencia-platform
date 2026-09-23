@@ -1,4 +1,12 @@
-# Análisis del Script de Merge de Entidades (process_dirty_entities)
+# Análisis del Script de Merge de Entidades (merge_dirty_entities_and_relations)
+
+**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+
+> **Actualización 2026-09-23:** este análisis describe el diseño del merge y sigue siendo la referencia histórica, pero el estado del código cambió:
+>
+> * la función SQL real es `merge_dirty_entities_and_relations()` (migraciones `V5.0.0.2__Process_Dirty_Entities_Function.sql` y `V5.0.0.3__Process_Dirty_Entities_Function_Fix.sql` en `lareferencia-shell`) y se ejecuta desde el comando shell `merge_dirty_entities`;
+> * el método vacío `mergeEntityRelationData()` fue **eliminado**: la lógica vive en `EntityDataService.mergeDirtyEntitiesAndRelations()` (`@Transactional`), que delega en la función SQL;
+> * las menciones a `process_dirty_entities` y al "método vacío" más abajo describen el código de noviembre de 2025, no el actual.
 
 ## 📋 Descripción General
 

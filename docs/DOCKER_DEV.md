@@ -1,5 +1,7 @@
 # Developer Docker Mode
 
+**Status:** current · **Last verified:** 2026-09-23
+
 `Docker/docker-dev.sh` provides an isolated development workflow for the LA Referencia platform. It is intentionally independent from `Docker/docker.sh`: the normal Docker wizard, the original Compose file, existing Dockerfiles, and existing entrypoints remain unchanged.
 
 ## Components
@@ -129,20 +131,21 @@ Solr cores are mounted from `Docker/solr/cores`; its persistent data is redirect
 ## Command reference
 
 ```text
-wizard                 Open the interactive developer wizard
-up [service...]         Start selected modules or explicit services
-down                   Stop and remove developer containers
-ps                     Show developer service status
-logs [service]          Follow logs
-shell [service]        Open a shell (default: harvester)
-init-db                Run database migrations
-build <service|all>    Compile Java applications or frontend
-rebuild <service>      Compile/rebuild and recreate one service
-restart <service>      Recreate one service without dependencies
-watch <service>        Watch Java sources and rebuild on change
-reload solr            Restart Solr after local core changes
-frontend-dev            Start or restart the Vite admin web server
-clean [--yes]          Remove all isolated developer artifacts
+wizard                       Interactive developer wizard
+instance [isolated|normal]   Switch instance mode (default: isolated)
+up [service...]              Start selected modules or explicit services
+down                         Stop and remove developer containers
+ps                           Show developer service status
+logs [service]               Follow logs
+shell [service]              Open a shell (default: harvester)
+init-db                      Run database migrations
+build <service|all|frontend> Compile Java JARs or the React admin web
+rebuild <service>            Compile/rebuild and recreate one service
+restart <service>            Recreate one service without dependencies
+watch <service>              Watch Java sources and rebuild on change
+reload solr                  Restart Solr after local core changes
+frontend-dev                 Start or restart the Vite admin web server
+clean [--yes]                Remove all isolated developer artifacts
 ```
 
 ## Complete cleanup

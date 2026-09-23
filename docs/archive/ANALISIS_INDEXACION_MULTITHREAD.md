@@ -1,3 +1,5 @@
+> **[ARCHIVED 2026-09-23]** This document describes the multi-threaded indexing pipeline (buffer → distributor → writers) that was **removed** in commit `1b894e7` (2025-11-09). The current model is documented in [`../ENTITY_INDEXING_ARCHITECTURE.md`](../ENTITY_INDEXING_ARCHITECTURE.md). Kept for historical reference.
+
 # Análisis del Modelo de Procesamiento de Indexación Multithreading - Elasticsearch
 
 ## 📋 Resumen Ejecutivo

@@ -1,3 +1,5 @@
+> **[ARCHIVED 2026-09-23]** The v5 admin web described in this plan was **implemented** and merged to `main` (2026-08→09: React 19/Vite/MUI admin web, `/api/v5`). Pending work extracted to [`../HARVESTER_ADMIN_WEB_V5_BACKLOG.md`](../HARVESTER_ADMIN_WEB_V5_BACKLOG.md). Kept as a decision record.
+
 # Plan técnico de la nueva aplicación administrativa del Harvester
 
 ## 1. Objetivo

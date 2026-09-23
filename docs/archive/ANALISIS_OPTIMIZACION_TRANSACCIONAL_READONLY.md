@@ -1,3 +1,5 @@
+> **[ARCHIVED 2026-09-23]** The proposal in this document was **implemented** (read-only `REQUIRES_NEW` transactions in `JSONElasticEntityIndexerThreadedImpl`). See [`../REFACTORING_TRANSACCIONAL.md`](../REFACTORING_TRANSACCIONAL.md). Kept for historical reference.
+
 # Análisis: Optimización de Transacciones Read-Only para Indexación
 
 ## Problema Identificado

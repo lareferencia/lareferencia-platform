@@ -1,3 +1,5 @@
+> **[ARCHIVED 2026-09-23]** El contenido de esta guía se fusionó en [REFACTORING_PACKAGE_STRUCTURE.md](../REFACTORING_PACKAGE_STRUCTURE.md), que es la referencia vigente de la estructura y convenciones de paquetes. Esta guía se conserva como registro histórico.
+
 # Guía de paquetes
 
 El namespace vigente es `org.lareferencia.core`. Las referencias antiguas `org.lareferencia.backend` no deben aparecer en código nuevo ni en documentación.

@@ -1,3 +1,5 @@
+> **[ARCHIVED 2026-09-23]** Pre-incremental snapshot of the SQLite catalog schema. Superseded by the incremental implementation (commit `7cf2a01`, 2026-09-04: `change_type` N/U/D, `streamChanged`, validation manifest). See [`../ISSUE_INCREMENTAL_RECORD_PROCESSING.md`](../ISSUE_INCREMENTAL_RECORD_PROCESSING.md). Kept for historical reference.
+
 # Arquitectura del catálogo SQLite
 
 `CatalogDatabaseManager` crea la base SQLite y `OAIRecordCatalogRepository` encapsula el catálogo OAI por snapshot.

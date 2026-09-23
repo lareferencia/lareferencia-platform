@@ -1,7 +1,10 @@
 # Implementación de configuración de acciones por red
 
+**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+
 Fecha: 27 de agosto de 2026  
 Rama: `harvester-v5-api-and-ui`
+> **Actualización 2026-09-23:** las migraciones citadas en este documento fueron consolidadas. Las tablas `application_action`, `network_action` y `application_worker_configuration` se crean en `V5.0.0.8__Harvester_action_configuration.sql`. No existen `V5.0.0.9__Network_action_configuration.sql` ni `V5.0.0.10__Application_worker_configuration.sql` (`V5.0.0.9` es la configuración runtime de dARK). Ver `docs/WORKFLOW_ACTIONS.md`.
 
 ## Objetivo
 
@@ -28,7 +31,7 @@ Se agregó la entidad `NetworkActionConfiguration`, persistida en `network_actio
 - `configuration` JSONB para modificadores por red;
 - auditoría de creación, actualización y usuario.
 
-La migración está en `V5.0.0.9__Network_action_configuration.sql`. La tabla tiene unicidad por red y acción.
+La migración es `V5.0.0.8__Harvester_action_configuration.sql` (las tres tablas se consolidaron ahí; no existe `V5.0.0.9__Network_action_configuration.sql`). La tabla tiene unicidad por red y acción.
 
 ### Descubrimiento de opciones
 
@@ -140,7 +143,7 @@ Las propiedades que son la única propiedad de una acción no siempre programada
 - `lareferencia-core-lib/src/main/java/org/lareferencia/core/task/NetworkActionConfigurationService.java`
 - `lareferencia-core-lib/src/main/java/org/lareferencia/core/worker/NetworkRunningContext.java`
 - `lareferencia-lrharvester-app/src/main/java/org/lareferencia/backend/api/v5/ApiV5NetworkActionController.java`
-- `lareferencia-shell/src/main/resources/db/migration/V5.0.0.9__Network_action_configuration.sql`
+- `lareferencia-shell/src/main/resources/db/migration/V5.0.0.8__Harvester_action_configuration.sql`
 - `lareferencia-lrharvester-admin-web/src/features/networks/NetworkEditPage.tsx`
 
 ## Próximos pasos recomendados
@@ -154,7 +157,7 @@ Las propiedades que son la única propiedad de una acción no siempre programada
 
 Fecha de actualización: 28 de agosto de 2026
 
-Se separaron los parámetros técnicos de los workers de la configuración por fuente. La configuración de un worker ya no se guarda ni se edita dentro de `network_action`; queda centralizada por instalación y motor en la nueva tabla `application_worker_configuration` (migración `V5.0.0.10__Application_worker_configuration.sql`).
+Se separaron los parámetros técnicos de los workers de la configuración por fuente. La configuración de un worker ya no se guarda ni se edita dentro de `network_action`; queda centralizada por instalación y motor en la nueva tabla `application_worker_configuration` (migración `V5.0.0.8__Harvester_action_configuration.sql`, que consolida las tres tablas; `V5.0.0.9` corresponde a la configuración runtime de dARK).
 
 ### Catálogo de acciones y relación con workers
 

@@ -1,4 +1,7 @@
 # Análisis de Métodos `synchronized` en el Código
+**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+
+> **Actualización 2026-09-23:** las secciones §2 (`SemanticIdentifierCachedStore`) y §3 (`mergeEntityRelationData`) fueron **resueltas** en el código: el `synchronized` se eliminó de `SemanticIdentifierCachedStore` y el método vacío fue reemplazado por `EntityDataService.mergeDirtyEntitiesAndRelations()`. El resto del inventario sigue vigente como referencia.
 
 ## 📋 Resumen Ejecutivo
 

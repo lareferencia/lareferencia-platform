@@ -1,5 +1,7 @@
 # Importación de mapeos ARK históricos de dARK
 
+**Status:** current · **Last verified:** 2026-09-23
+
 Esta guía permite incorporar al modelo actual los ARKs creados por la
 integración anterior, que registraba identificador OAI y URL pero no enviaba
 metadata. El objetivo es conservar cada ARK existente y hacer que la primera
