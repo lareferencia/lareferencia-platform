@@ -80,7 +80,7 @@ jobs:
     - name: Verify release artifacts
       run: |
         unzip -Z1 lareferencia-platform-${{ steps.version_check.outputs.version }}.zip > zip-contents.txt
-        if grep -q "target/" zip-contents.txt; then
+        if grep -nE "(^|/)target(/|$)" zip-contents.txt; then
           echo "ERROR: zip contains target/ directories"
           exit 1
         fi
