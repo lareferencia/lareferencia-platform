@@ -153,7 +153,7 @@ Conecte-se a uma instância existente do Solr configurando `SOLR_EXTERNAL_URL` n
 ./Docker/docker.sh build               # Clean Maven build + verified image manifests
 ./Docker/docker.sh up                  # Start services (CLI mode)
 ./Docker/docker.sh down                # Stop and remove containers
-./Docker/docker.sh reset-data          # Clean Docker/data (preserving .gitkeep)
+./Docker/docker.sh reset-data          # DESTRUCTIVE: clears Docker/data, removes ALL containers and DELETES cloned modules (asks to type RESET)
 ./Docker/docker.sh init-db             # Run database migrations
 ```
 
@@ -165,7 +165,11 @@ prevents packaging a stale library from `target/`.
 ## 🌐 Endpoints
 
 - VuFind: `http://localhost:8080`
-- Harvester: `http://localhost:8090`
-- Dashboard REST: `http://localhost:8092`
+- Harvester (Admin Web at `/`, Swagger UI at `/api/v5/docs`): `http://localhost:8090`
+- Dashboard REST (Swagger UI at `/swagger-ui.html`): `http://localhost:8092`
+- Entity REST (Swagger at `/swagger`): `http://localhost:8094`
+- OAI-PMH: `http://localhost:8096` (host port; the container serves on 8092 — service starts only with the `oai` profile)
 - Solr Admin: `http://localhost:8983/solr`
-/solr`
+- Elasticsearch: `http://localhost:9200`
+
+Host ports come from the `LR_PORT_*` variables in `Docker/.env` (the dev wizard uses `81xx` by default — see [DOCKER_DEV.md](../docs/DOCKER_DEV.md)).

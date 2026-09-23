@@ -246,6 +246,25 @@ compile_all() {
   dc --profile developer-builder run --rm --no-deps maven-builder -pl "${java_modules}" -am package install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
 }
 
+compile_selected_java() {
+  local service
+  for service in "${DEV_SELECTED_SERVICES[@]}"; do
+    if is_java_service "${service}"; then
+      compile_service "${service}"
+    fi
+  done
+}
+
+rebuild_platform() {
+  selected_services
+  [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
+  echo "Rebuilding all Java applications and the React admin web..."
+  compile_all
+  compile_frontend
+  echo "Starting local developer services with the rebuilt platform..."
+  dc up -d --build "${DEV_SELECTED_SERVICES[@]}"
+}
+
 restart_service() {
   local service="$1"
   # The application JAR is mounted from the host. Restarting reruns the
@@ -340,6 +359,9 @@ clean_developer_instance() {
 start_selected() {
   selected_services
   [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
+  echo "Compiling selected Java services before startup..."
+  compile_selected_java
+  echo "Starting local developer services with the newly compiled local artifacts."
   dc up -d --build "${DEV_SELECTED_SERVICES[@]}"
 }
 
@@ -436,7 +458,7 @@ wizard() {
     gum style --foreground 80 --bold --underline '⚡ SELECT ACTION'
     echo
     local options=(
-      '🚀 Start Developer Platform' '🔄 Build all Java applications' '📦 Manage Modules (on/off)'
+      '🚀 Start Developer Platform' '🏗️ Rebuild Full Platform' '🔄 Build all Java applications' '📦 Manage Modules (on/off)'
       '♻️ Rebuild harvester' '♻️ Rebuild admin web' '♻️ Rebuild entity-rest'
       '♻️ Rebuild dashboard-rest' '♻️ Rebuild oai-pmh' '🔁 Restart VuFind'
       '🔁 Reload Solr' '📝 View Logs (follow)' '💻 Enter Container Shell'
@@ -445,6 +467,7 @@ wizard() {
     choice="$(gum choose --item.bold --selected.bold --selected.background 80 --selected.foreground 232 --cursor.bold --cursor.foreground 80 "${options[@]}")"
     case "${choice}" in
       '🚀 Start Developer Platform') execute_with_progress 'Developer Platform Start' start_selected || true; wait_for_key ;;
+      '🏗️ Rebuild Full Platform') execute_with_progress 'Full Platform Rebuild' rebuild_platform || true; wait_for_key ;;
       '🔄 Build all Java applications') execute_with_progress 'Java Applications Build' compile_all || true; wait_for_key ;;
       '📦 Manage Modules (on/off)') manage_modules ;;
       '♻️ Rebuild harvester') execute_with_progress 'Harvester Rebuild' rebuild_service harvester || true; wait_for_key ;;
@@ -475,6 +498,7 @@ Commands:
   down                   Stop and remove developer containers
   clean [--yes]          Permanently remove all isolated developer artifacts
   build <service|all|frontend> Compile Java JARs or the React admin web
+  rebuild-platform       Recompile Java and frontend, then restart selected services
   restart <service>      Recreate one service without dependencies
   rebuild <service>      Compile/rebuild and recreate one service
   watch <service>        Watch Java sources and rebuild on change
@@ -496,6 +520,9 @@ case "${command}" in
     if [ "$#" -eq 0 ]; then
       start_selected
     else
+      for service in "$@"; do
+        is_java_service "${service}" && compile_service "${service}"
+      done
       dc up -d --build "$@"
     fi
     ;;
@@ -505,6 +532,7 @@ case "${command}" in
   logs) dc logs -f --tail=100 "$@" ;;
   shell) dc exec "${1:-harvester}" bash || dc exec "${1:-harvester}" sh ;;
   init-db) dc run --rm --no-deps db-init database_migrate ;;
+  rebuild-platform) rebuild_platform ;;
   build)
     [ "$#" -eq 1 ] || die 'build requires a service or all'
     case "$1" in frontend|admin-web) compile_frontend ;; *) compile_service "$1" ;; esac

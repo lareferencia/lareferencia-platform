@@ -79,12 +79,15 @@ fi
 
 APP_JAR_PATH="${APP_JAR_PATH:-}"
 if [ -z "${APP_JAR_PATH}" ]; then
-  APP_JAR_PATH="$(find "${APP_DIR}/target" -maxdepth 1 -type f -name "${APP_MODULE}-*.jar" ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit 2>/dev/null || true)"
+  # A module can temporarily contain more than one versioned JAR (for example
+  # after a release bump). Select the newest artifact explicitly; find's order
+  # is not stable and could otherwise start an older JAR.
+  APP_JAR_PATH="$(find "${APP_DIR}/target" -maxdepth 1 -type f -name "${APP_MODULE}-*.jar" ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print0 2>/dev/null | xargs -0 -r ls -1t 2>/dev/null | head -n 1 || true)"
 fi
 if [ -z "${APP_JAR_PATH}" ] || [ ! -f "${APP_JAR_PATH}" ]; then
   echo "Developer JAR not found for ${APP_MODULE}. Run: docker-dev.sh build ${APP_MODULE}" >&2
   exit 1
 fi
 
-echo "Starting ${APP_MODULE} from ${APP_JAR_PATH}"
+echo "Starting ${APP_MODULE} from newest local JAR: ${APP_JAR_PATH}"
 exec java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" -jar "${APP_JAR_PATH}" "${APP_ARGS[@]}"
