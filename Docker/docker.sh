@@ -748,13 +748,20 @@ compile_java_modules() {
   
   local profile="${LR_BUILD_PROFILE:-lareferencia}"
   
+  local custom_settings_file="${ROOT_DIR}/Docker/maven-mirror-alternative.xml"
+  local settings_arg=""
+
+  if [ -f "${custom_settings_file}" ]; then
+    settings_arg="-s /workspace/Docker/maven-mirror-alternative.xml"
+  fi
+
   # Run maven compilation inside a container with the named volume
   local compile_cmd="docker run --rm \
     -v lr-maven-cache:/root/.m2 \
     -v \"${ROOT_DIR}:/workspace\" \
     -w /workspace \
     maven:3.9.11-eclipse-temurin-17 \
-    mvn clean package -DskipTests -Dspring-boot.repackage.executable=false -P${profile}"
+    mvn clean package ${settings_arg} -DskipTests -Dspring-boot.repackage.executable=false -P${profile}"
     
   eval "${compile_cmd}"
   
