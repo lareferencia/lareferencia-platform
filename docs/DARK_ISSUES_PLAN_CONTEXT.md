@@ -87,8 +87,9 @@ construye L1 y calcula el hash del payload.
 L1 requiere actualmente título, autor y año. El autor se obtiene de `dc.creator`,
 con fallback a `dc.contributor.author`.
 
-La prioridad vigente `DOI > Handle > URL más larga` se reemplazará por la regla
-cerrada `DOI > primera URL normal > Handle`.
+La prioridad acordada es `DOI > primera URL normal > Handle`. La implementación
+actual sigue ese orden para `https://doi.org/`, pero todavía no reconoce todas las
+variantes HTTP(S) de DOI; el detalle queda registrado en el estado de la issue #75.
 
 ## Diseño de implementación
 
@@ -138,9 +139,12 @@ sobre identidad, autorización del NAAN y transiciones concurrentes.
 
 ### Reconciliación manual
 
-`Reconciliar` acepta entre 1 y 100 registros con ARK. Consulta el minter por cada
-uno, actualiza el tracking y conserva errores individuales. Al finalizar, la UI
-refresca registros y resumen y vuelve a evaluar las acciones habilitadas.
+`Reconciliar` acepta entre 1 y 100 registros con ARK. Agrupa la consulta por página
+y usa `POST /api/v1/arks/status/batch` (máximo 100 ARKs), conserva el orden de
+respuesta, actualiza cada fila y aísla errores permanentes por ARK. Un error
+transitorio o una respuesta batch inválida detiene la página para permitir el
+reintento. Al finalizar, la UI refresca registros y resumen y vuelve a evaluar las
+acciones habilitadas.
 
 ### Política de metadata y URL
 
@@ -357,9 +361,128 @@ tracking y permite relanzar la selección.
   y snapshot, se ejecuta un solo worker con paginación filtrada a esos OAI IDs.
 - La UI limita a 100 y a un NAAN, muestra preview, confirmación, progreso por
   polling y refresco final. `VIEWER` conserva la vista de consulta.
+- La reconciliación automática y manual consulta el endpoint batch del minter en
+  páginas de hasta 100 ARKs.
+- El estado del runtime legacy combina nombre del worker y `getStatus()`. Los
+  workers paginados reportan página y porcentaje; reconcile dARK añade procesados,
+  total inicial y contadores de resultado.
 
 Antes de desplegar queda ejecutar la migración y una prueba integrada contra un
 minter de prueba.
+
+## Estado de las issues
+
+Estado revisado el 2026-09-24 contra el código de `main` y los commits publicados
+en `core-lib`, `dark-lib`, `lrharvester-app` y `lrharvester-admin-web`. “Hecho”
+describe comportamiento encontrado en código; “pendiente” son brechas respecto
+del contrato acordado y deben cerrarse antes de considerar completa la issue.
+
+### #74 — Reenvío y actualización explícita de ARKs
+
+**Hecho**
+
+- La UI ofrece una acción `Enviar / actualizar` para registros seleccionados con
+  estado local `RESERVED`, `PUBLISHED` o `ERROR` y ARK existente.
+- Stage manual consulta el estado remoto justo antes del `PUT`: continúa para
+  `RESERVED` y `PUBLISHED`, omite `DRAFT` y `UPDATE` para reconciliación, y registra
+  error para `TOMBSTONE`. No reserva un ARK desde la acción manual.
+- La respuesta remota actualiza tracking y la UI refresca el resumen y los
+  registros al terminar.
+
+**Pendiente**
+
+- Completar pruebas de contrato del worker para cada transición y para ARK
+  inexistente, incluida la conservación del ARK existente ante todos los errores.
+- Ejecutar una prueba integrada contra un minter de prueba para validar las
+  transiciones reales `RESERVED -> DRAFT` y `PUBLISHED -> UPDATE`.
+
+### #75 — Construcción de L1/L2 y selección de URL
+
+**Hecho**
+
+- L1 exige título, autor (`dc.creator` con fallback a
+  `dc.contributor.author`) y año parseable. L2 se transforma antes del envío.
+- Preview muestra URL y tamaños de L1/L2/payload. Los errores de validación se
+  aíslan por registro.
+- Un `413` queda clasificado como `PAYLOAD_TOO_LARGE`; no hay fallback que quite
+  L2 ni que trunque el payload.
+
+**Pendiente**
+
+- Ampliar la detección DOI para reconocer URL HTTP(S) DOI válidas además de
+  `https://doi.org/`; por ejemplo `http://doi.org/` y `https://dx.doi.org/`.
+- Guardar en `lastError.details` los tamaños de L1, L2 y payload cuando el minter
+  responde `413`. Hoy el codec recibe el error sin esos detalles.
+- Emitir el código acordado `TARGET_URL_MISSING` cuando no hay URL candidata; hoy
+  el worker registra una `IllegalStateException` genérica.
+- Añadir pruebas para variantes DOI y comprobar tamaños persistidos en el caso
+  `413`.
+
+### #76 — Logging y estado visible de workers
+
+**Hecho**
+
+- El tooltip legacy combina `worker.getName()` con `worker.getStatus()` y evita la
+  representación `Clase@hash` de `Object.toString()`.
+- Los workers batch y Solr reportan página actual/total y porcentaje. Los workers
+  iteradores reportan registros procesados/total cuando conocen el total.
+- Stage y reconcile dARK exponen fase y contadores; reconcile añade porcentaje
+  respecto del total pendiente inicial. Harvesting informa registros cosechados,
+  sin porcentaje cuando el protocolo no proporciona un total fiable.
+- El progreso de comandos manuales sigue siendo efímero: al expirar o reiniciar
+  Harvester se reconstruye la situación desde tracking.
+
+**Pendiente**
+
+- Añadir pruebas específicas de formato/valores para los estados base de batch,
+  iterador y Solr, y para la descripción `nombre + status` del runtime.
+- Verificar visualmente la pantalla de red con workers de distintas clases tras
+  reconstruir y reiniciar el Harvester que incorpora `core-lib`.
+
+### #77 — Clasificación y recuperación de errores
+
+**Hecho**
+
+- Los errores nuevos se guardan en `lastError` como JSON versionado con categoría,
+  código, fase, estado HTTP, retryable, mensaje y `details`.
+- El cliente minter reintenta errores marcados como reintentables. Stage y
+  reconcile aíslan errores permanentes por registro y detienen el lote ante
+  fallos sistémicos o transitorios que requieren reintento.
+- La UI intenta interpretar el JSON nuevo y conserva texto que no es JSON para
+  mostrar errores históricos.
+
+**Pendiente**
+
+- Añadir un campo `error` estructurado a la respuesta de records sin retirar
+  `lastError` durante la transición.
+- Normalizar errores históricos no JSON al contrato `version: 0`,
+  `category: LEGACY`, `code: LEGACY_ERROR`, `retryable: false`, `message`.
+- Incorporar tamaños al error `413` como se especifica en #75 y probar la
+  clasificación/recuperación en API y UI, además de la persistencia en workers.
+
+### #78 — API dARK operacional en Harvester API v5
+
+**Hecho**
+
+- Están implementados los endpoints `preview`, `stage`, `reconcile` y consulta de
+  comando, con permisos `ADMIN` para operaciones y lectura de progreso para
+  `VIEWER`/`ADMIN`.
+- Stage y preview resuelven la red y snapshot de procedencia por registro; el
+  NAAN es el ámbito de selección. La UI limita selección a 100 registros de un
+  NAAN y presenta procedencia, preview, confirmación y progreso.
+- Preview es síncrono, no consulta el minter ni modifica tracking. Stage/reconcile
+  responden `202`; el progreso vive en memoria y puede expirar o perderse al
+  reiniciar.
+
+**Pendiente**
+
+- Rechazar IDs OAI duplicados en API. Actualmente se deduplican silenciosamente,
+  aunque el contrato requiere una selección única.
+- Ampliar pruebas API para `reconcile`, permisos `VIEWER`/`ADMIN`, selección
+  duplicada y límites de 1–100 elementos; actualmente las pruebas de contrato
+  cubren `stage` y `preview`.
+- Completar la prueba integrada de flujo contra minter y base de datos con la
+  migración de procedencia aplicada.
 
 ## Plan de pruebas
 
@@ -394,11 +517,15 @@ minter de prueba.
 - selección, estados habilitados, confirmación y refresco;
 - errores estructurados y legacy.
 
-Pruebas implementadas actualmente:
+Cobertura existente relevante:
 
-- 22 pruebas focalizadas en `lareferencia-dark-lib`.
-- 2 pruebas de contrato en `ApiV5DarkControllerTest` para `stage` y `preview`.
-- Compilación Maven completa del reactor correcta.
+- `lareferencia-dark-lib` tiene pruebas para extracción de URL, metadatos L1,
+  serialización de errores, cliente minter, stage y reconcile, entre otras áreas.
+- `ApiV5DarkControllerTest` verifica actualmente los contratos básicos de `stage`
+  y `preview`; no cubre todavía reconcile ni todas las reglas de selección.
+- La compilación Maven de los módulos backend modificados se verificó después de
+  los cambios de workers y reconciliación batch. Las brechas de pruebas quedan
+  detalladas por issue arriba.
 
 ## Mapa técnico para el siguiente agente
 
