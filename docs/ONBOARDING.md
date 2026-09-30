@@ -37,17 +37,20 @@ cd lareferencia-platform
 ## Building
 
 ```bash
-./build-java.sh            # all Java modules: mvn clean package install -am -DskipTests
+./build-java.sh            # all Java modules: mvn clean install -am -DskipTests
 ./build-java.sh ibict      # optional Maven profile: lareferencia | ibict | rcaap
-./build-admin-web.sh       # React Admin Web (Node 22 in Docker) → harvester static/
+./build.sh lareferencia    # Java modules + React Admin Web + Angular Dashboard
+./build-admin-web.sh       # React Admin Web (Node 22 in Docker) → harvester admin-static/
+./build-dashboard.sh       # Angular Dashboard → harvester dashboard-static/
 mvn test                   # run tests (all reactor modules)
 mvn -pl lareferencia-oai-pmh test   # provider protocol tests (Testcontainers, Solr 9.8)
 ```
 
 Notes:
 
-- `build-java.sh` explicitly excludes the admin web — always build it with
-  `build-admin-web.sh` (it needs `package-lock.json` and Docker).
+- `build-java.sh` explicitly excludes both frontends. Use `build.sh` for the
+  complete platform, or `build-admin-web.sh` / `build-dashboard.sh` for one UI
+  at a time (`./Docker/docker-dev.sh build dashboard` is the Docker Dev equivalent).
 - The Maven **profiles** `lareferencia` (default), `ibict` and `rcaap` select the
   country-specific contrib dependencies and branding in the harvester pom.
 - Version bumps: `./change-version.sh <version>` (`mvn versions:set` across the reactor).
@@ -56,8 +59,8 @@ Notes:
 
 | Mode | Command | Use |
 |---|---|---|
-| Production-like Docker | `./Docker/docker.sh` | Full stack: VuFind, harvester, dashboard, entity-rest, oai-pmh (profile `oai`), Solr, PostgreSQL, Elasticsearch. See [../Docker/README.md](../Docker/README.md) |
-| Isolated dev Docker | `./Docker/docker-dev.sh` | Same stack, `81xx` ports and separate volumes; safe next to a production install. See [DOCKER_DEV.md](DOCKER_DEV.md) |
+| Production-like Docker | `./Docker/docker.sh` | Platform stack: VuFind, Harvester with Admin Web and Dashboard static assets, entity-rest, oai-pmh (profile `oai`), Solr, PostgreSQL, Elasticsearch. See [../Docker/README.md](../Docker/README.md) and [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md) |
+| Isolated dev Docker | `./Docker/docker-dev.sh` | Separate data and service ports; web access only through the host-separated gateway (8188 isolated, 8088 normal). See [DOCKER_DEV.md](DOCKER_DEV.md) |
 | Local JVM | `java -Dapp.config.dir=... -jar <module>.jar` | Debugging a single module; the `config/` directory must be populated from the `application.properties.model` templates |
 
 Admin Web development has a Vite dev server with its own ports — see

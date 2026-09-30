@@ -1,8 +1,8 @@
 # Sistema de Autenticación Basado en Archivos
 
-**Status:** historical (decision record / analysis; see notes) · **Last verified:** 2026-09-23
+**Status:** historical · **Last verified:** 2026-09-29
 
-> **Actualización 2026-09-23:** correcciones contra el código actual — CLI de `add-user.py` posicional, BCrypt acepta `$2a$`/`$2b$`/`$2y$`, login activo en `/legacy/login.html`. Referencia completa: [`AUTHENTICATION.md`](AUTHENTICATION.md).
+> **Histórico, no usar como runbook actual.** El mecanismo descrito aquí fue retirado de Harvester v5: ya no se usan `users.properties`, Basic Auth, `add-user.py`, AngularJS `/legacy` ni estos roles. No seguir estos pasos para instalaciones actuales. La referencia vigente, con el alta del primer administrador, sesiones, CSRF, tokens y permisos por red, es [`AUTHENTICATION.md`](AUTHENTICATION.md).
 ## Descripción General
 
 Se implementó un nuevo sistema de autenticación para reemplazar el sistema básico de autenticación HTTP (basic-auth). El nuevo sistema es más flexible y seguro, permitiendo:

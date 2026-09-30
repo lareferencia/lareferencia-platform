@@ -1,6 +1,6 @@
 # Glossary
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-09-30
 
 Vocabulary used across the platform and its documentation. Links point to the document
 with the details ([DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for everything else).
@@ -8,7 +8,7 @@ with the details ([DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for everythin
 | Term | Meaning |
 |---|---|
 | **Action** | A schedulable, configurable operation (harvest, validate, index, …) defined in `config/beans/*actions.xml`; since `V5.0.0.8` their configuration is consolidated in database tables. → [WORKFLOW_ACTIONS.md](WORKFLOW_ACTIONS.md) |
-| **Admin Web** | The React UI (`lareferencia-lrharvester-admin-web`) built into the harvester's `static/` and served at `/` on port 8090. |
+| **Admin Web** | The React UI (`lareferencia-lrharvester-admin-web`) built into the harvester's `admin-static/` and served at `/admin/`; Docker Dev routes it through `admin.localhost` and Vite. |
 | **ARK** | Persistent identifier of the `ark:/NAAN/name` form minted through dARK. |
 | **NAAN** | Name Assigning Authority Number — the registry number inside an ARK; configured **per network** via `network.attributes.ark_naan`. |
 | **dARK** | Decentralized ARK service: external minter plus the `lareferencia-dark-lib` client used for reserving/staging/reconciling identifiers. → [HARVESTER_MANAGEMENT_API_V5.md](HARVESTER_MANAGEMENT_API_V5.md) |

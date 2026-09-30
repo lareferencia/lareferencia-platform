@@ -29,7 +29,8 @@ LA Referencia is a platform for harvesting, processing, and indexing scholarly m
 - **Hybrid storage**: original metadata XML on the filesystem (GZIP, hash-partitioned) + SQLite per-snapshot databases for the record catalog, validation results and statistics
 - **Incremental processing**: catalogs track record changes (`N`/`U`/`D`), validation state is reused across snapshots via fingerprints and manifests, and indexers consume record-level deltas
 - **File-based snapshot logging** under `{basePath}/{NETWORK}/snapshots/snapshot_{id}/snapshot.log` (no database tables)
-- **Harvester Management API v5** and the new **React Admin Web** (AngularJS UI kept as legacy under `/legacy/`)
+- **Harvester Management API v5**, the React Admin Web, and the read-only Angular Repository Dashboard
+- **Repository Dashboard** (Angular, read-only) published separately from the Admin Web
 - **Action configuration model**: per-network action configuration (JSONB), scheduled actions and worker parameterization
 - **Entity `deleted` flag workflow**: soft-delete entities and remove them (and their relations) from indexes
 - **dARK**: ARK persistent identifier minting, staging/reconciliation workers and legacy ARK CSV import
@@ -61,30 +62,30 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | `lareferencia-oclc-harvester` | Library | Low-level OAI-PMH protocol (OCLC Harvester2 fork) |
 | `lareferencia-indexing-filters-lib` | Library | Field occurrence filters for indexing pipelines |
 | `lareferencia-solr-cores` | Config | Solr configsets (`biblio`, `entity`, `historic`, `networks`, `oai`, `projects`, `vstats`) |
-| `lareferencia-lrharvester-app` | Web app | Main harvester: networks, harvesting, validation, publication; serves the Admin UI and the `/api/v5` management API |
-| `lareferencia-lrharvester-admin-web` | Web app (React 19/Vite) | Administration UI consuming the v5 API; built into the harvester |
+| `lareferencia-lrharvester-app` | Web app | Main harvester: networks, harvesting, validation and publication; serves separate Admin/Dashboard SPAs and `/api/v5` |
+| `lareferencia-lrharvester-admin-web` | Web app (React 19/Vite) | Administration UI consuming the v5 API; built into `admin-static/` |
+| `lareferencia-repository-dashboard` | Web app (Angular) | Read-only repository dashboard consuming dashboard endpoints in v5; built into `dashboard-static/` |
 | `lareferencia-entity-rest` | Web app | REST API for entity data (`/api/v2`, in transition after Solr indexing removal) |
-| `lareferencia-dashboard-rest` | Web app | REST API for monitoring/statistics (`/api/v2`) |
 | `lareferencia-oai-pmh` | Web app | Standalone OAI-PMH 2.0 provider over the Solr publication index (XOAI 3.4, Spring Boot 3.5) |
 | `lareferencia-shell` | CLI | Spring Shell console: harvesting, database, maintenance, entity and dark commands |
 | `lareferencia-shell-entity-plugin` | CLI plugin | Entity loading/indexing/cleanup commands for the shell |
 | `lareferencia-contrib-ibict` / `-rcaap` | Library (legacy) | Deprecated, not compiled |
 | `vufind/` | Upstream checkout | VuFind® 11.0.1 discovery layer (PHP) |
 
-### Services and Ports (default `docker-compose.yml`)
+### Services and Ports
 
 | Service | URL | Notes |
 |---|---|---|
-| Harvester + Admin Web (React) | `http://localhost:8090/` | React SPA at `/`, legacy AngularJS UI at `/legacy/` |
-| Harvester Management API v5 | `http://localhost:8090/api/v5` | OpenAPI `/api/v5/openapi`, Swagger UI `/api/v5/docs` |
-| Dashboard REST | `http://localhost:8092/api/v2/…` | Swagger UI `http://localhost:8092/swagger-ui.html` |
+| Harvester + Admin Web (React) | `http://localhost:8190/admin/` or `http://admin.localhost:8188/admin/` | Direct loopback or gateway (isolated); gateway normal mode defaults to 8088 |
+| Repository Dashboard (Angular) | `http://localhost:8190/dashboard/es/` or `http://dashboard.localhost:8188/dashboard/es/` | Direct loopback or gateway; gateway host allows only dashboard read APIs and auth |
+| Harvester Management API v5 | `http://localhost:8190/api/v5` in isolated Docker Dev | Direct loopback access; v5 authentication/authorization remains enforced. Gateway admin host exposes the full API; dashboard host is allowlisted to read endpoints |
 | Entity REST | `http://localhost:8094/api/v2/…` | Swagger UI `http://localhost:8094/swagger` |
 | OAI-PMH provider | `http://localhost:8096/` | OAI endpoint at `/request`; container port 8092 |
 | VuFind | `http://localhost:8080` | Discovery front-end |
 | Solr | `http://localhost:8983` | `biblio`, `oai` and other cores |
 | Elasticsearch | `http://localhost:9200` | Entity indexing |
 
-In the **isolated developer workflow** (`docker-compose.dev.yml`) all service ports are offset by +100 (harvester 8190, dashboard 8192, entity-rest 8194, OAI 8196) and the admin web dev server runs Vite at `http://localhost:5273`.
+In the **isolated developer workflow** (`docker-compose.dev.yml`), Harvester is available directly on loopback at `http://localhost:8190/admin/` and `/dashboard/es/`, as well as through the host-separated gateway at `http://admin.localhost:8188/admin/` and `http://dashboard.localhost:8188/dashboard/es/`. Vite itself has no host port. Add `127.0.0.1 admin.localhost dashboard.localhost` to `/etc/hosts` for gateway testing. Direct access skips only the proxy host allowlist; API authentication/authorization remains active. Docker Dev uses non-Secure cookies only for local HTTP; production keeps Secure cookies. See [docs/DASHBOARD_V5_MIGRATION.md](docs/DASHBOARD_V5_MIGRATION.md) for build/proxy details.
 
 ### Storage Architecture (v5.0)
 
@@ -166,8 +167,10 @@ elastic.indexer.circuit.breaker.max.failures=10
 ### Harvester Management API v5 & Admin Web
 
 - `org.lareferencia.backend.api.v5`: typed DTO REST API under `/api/v5` (networks, snapshots, actions, workers, validators/transformers, diagnostics, users, dARK, network transfers, attribute profiles) with Problem Details errors and OpenAPI at `/api/v5/openapi`
-- Authentication modes: `file` (HTTP Basic against `config/users.properties`), `oidc`, `hybrid`; roles `VIEWER`/`ADMIN`
-- Admin Web: React 19 + Vite + Material UI, built into the harvester (`build-admin-web.sh`); the AngularJS UI remains available at `/legacy/`
+- Authentication: local PostgreSQL users and JDBC sessions for the React web UI; revocable scoped Bearer tokens for integrations. Roles are global `ADMIN` and repository-scoped read-only `READER`.
+- The first administrator is created interactively from `lareferencia-shell` after Flyway migration (`security-create-admin <username>`). No default user or Keycloak migration exists.
+- Admin Web: React + Vite, built into the Harvester `admin-static/` and served at `/admin/`. The read-only Angular Dashboard is built into `dashboard-static/` and served at `/dashboard/`. `/legacy`, `/rest`, `/public` and `/private` are not exposed as legacy application APIs.
+- Full setup, cookie/CSRF behavior, token lifecycle and authorization matrix: [Authentication and authorization](docs/AUTHENTICATION.md).
 
 Reference: [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md) · auth: [AUTHENTICATION.md](docs/AUTHENTICATION.md) (new) · backlog: [HARVESTER_ADMIN_WEB_V5_BACKLOG.md](docs/HARVESTER_ADMIN_WEB_V5_BACKLOG.md) (new)
 
@@ -210,14 +213,17 @@ cd lareferencia-platform
 # Clone workspace modules declared in workspace.ini
 ./githelper init
 
-# Build the standard implementation (Java modules + admin web)
+# Build the standard implementation (Java modules + both web UIs)
 ./build.sh lareferencia
 
 # Java modules only
 ./build-java.sh lareferencia
 
-# Admin web only (Node 22, output copied into the harvester)
+# Admin web only (Node 22, output copied into admin-static/)
 ./build-admin-web.sh
+
+# Dashboard only (Angular assets copied into dashboard-static/)
+./build-dashboard.sh
 
 # Other build profiles: lite | rcaap | ibict
 # ./build.sh ibict
@@ -267,7 +273,7 @@ git checkout 4.2.6
 
 ## 🔧 Configuration
 
-Each application module has a `config/` directory following this model (not all modules use every entry; `application.properties.d/` is used by the harvester, shell and dashboard):
+Each Java application module has a `config/` directory following this model (not all modules use every entry; `application.properties.d/` is used by the harvester and shell):
 
 ```
 config/
@@ -280,7 +286,7 @@ config/
 ├── beans/                          # Bean definitions (mdformats.xml, fingerprint.xml, actions.xml, …)
 ├── processes/                      # Flowable BPMN definitions
 ├── i18n/                           # messages.properties, messages_en, messages_pt
-└── users.properties                # File-based auth (harvester; gitignored — copied automatically from users.properties.default on first run)
+└── ...                             # No users.properties: Harvester identities live in PostgreSQL
 ```
 
 **The golden rule**: `application.properties` = local override (gitignored); `application.properties.model` = versioned template with documentation for every property. When adding a property, update the `.model` file.
@@ -294,7 +300,7 @@ java -jar lareferencia-shell.jar                                   # default: ./
 java -Dapp.config.dir=/etc/lrharvester/config -jar harvester.jar   # custom path
 ```
 
-Reference: [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) · per-file, per-property reference for the harvester (12 fragments), the shell (4) and the dashboard (5), including which class reads each property and the legacy keys no longer read: [CONFIGURATION_PROPERTIES.md](docs/CONFIGURATION_PROPERTIES.md) · pending config-cleanup proposal: [CONFIG_CLEANUP_PROPOSAL.md](docs/CONFIG_CLEANUP_PROPOSAL.md)
+Reference: [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) · per-file, per-property reference for the harvester and shell, including which class reads each property and legacy keys no longer read: [CONFIGURATION_PROPERTIES.md](docs/CONFIGURATION_PROPERTIES.md) · pending config-cleanup proposal: [CONFIG_CLEANUP_PROPOSAL.md](docs/CONFIG_CLEANUP_PROPOSAL.md)
 
 ## 🧪 Testing
 
@@ -316,9 +322,9 @@ mvn -pl lareferencia-oai-pmh test          # provider protocol tests (Testcontai
 | [DOCKER_DEV.md](docs/DOCKER_DEV.md) | Isolated Docker developer workflow |
 | [BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) * | Backup & restore (wizard, cron/systemd, `restore.sh`) |
 | [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) | Configuration directory resolution |
-| [CONFIGURATION_PROPERTIES.md](docs/CONFIGURATION_PROPERTIES.md) * | `application.properties.d` fragments per file (harvester, shell and dashboard) |
+| [CONFIGURATION_PROPERTIES.md](docs/CONFIGURATION_PROPERTIES.md) * | `application.properties.d` fragments per file (harvester and shell) |
 | [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAMIENTO_REFERENCIA_RAPIDA.md) (ES) | Storage quick reference (FS/H2/SQLite, metadata stores) |
-| [AUTHENTICATION.md](docs/AUTHENTICATION.md) * | Users, roles, auth modes (file/OIDC/hybrid) |
+| [AUTHENTICATION.md](docs/AUTHENTICATION.md) * | Local users, first admin, sessions/CSRF, scoped tokens and permissions |
 | [WORKFLOW_ACTIONS.md](docs/WORKFLOW_ACTIONS.md) * | Action catalog, scheduling, worker configuration, engines |
 | [FLOWABLE_REFACTORING_STRATEGY.md](docs/FLOWABLE_REFACTORING_STRATEGY.md) | Workflow engines state (legacy / flowable) |
 | [ISSUE_INCREMENTAL_RECORD_PROCESSING.md](docs/ISSUE_INCREMENTAL_RECORD_PROCESSING.md) | Incremental validation & indexing manual |

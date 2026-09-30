@@ -1,6 +1,6 @@
 # Documentation Index
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-09-29
 
 Built during the 2026-09-23 documentation overhaul (see
 [`PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md`](PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md)).
@@ -17,10 +17,11 @@ Every document carries a status line: `current` = verified against the code on t
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Component map, data flows, module table, ports (mermaid diagram) |
 | [`ONBOARDING.md`](ONBOARDING.md) | Developer setup: githelper, build scripts, profiles, run modes, testing |
 | [`GLOSSARY.md`](GLOSSARY.md) | Platform vocabulary with links to the detailed docs |
-| [`AUTHENTICATION.md`](AUTHENTICATION.md) | Auth modes (`file\|oidc\|hybrid`), BCrypt users file, roles, users API |
+| [`AUTHENTICATION.md`](AUTHENTICATION.md) | Local PostgreSQL identities, bootstrap, sessions/CSRF, tokens and network authorization |
+| [`DASHBOARD_V5_MIGRATION.md`](DASHBOARD_V5_MIGRATION.md) | Checklist to migrate the Angular repository dashboard to local auth and read-only v5 APIs |
 | [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md) | Automated backup via `docker.sh wizard` + restore script |
 | [`CONFIG_DIRECTORY.md`](CONFIG_DIRECTORY.md) | `app.config.dir` and `ConfigPathResolver` |
-| [`CONFIGURATION_PROPERTIES.md`](CONFIGURATION_PROPERTIES.md) | `application.properties.d` per-file/per-property reference (harvester, shell and dashboard, verified 2026-09-23) |
+| [`CONFIGURATION_PROPERTIES.md`](CONFIGURATION_PROPERTIES.md) | `application.properties.d` per-file/per-property reference (harvester and shell) |
 | [`CONFIG_CLEANUP_PROPOSAL.md`](CONFIG_CLEANUP_PROPOSAL.md) | Proposed removal of dead config keys + template fixes (on hold — configs untouched) |
 | [`DOCKER_DEV.md`](DOCKER_DEV.md) | Isolated developer Docker workflow (`docker-dev.sh`) |
 | [`../Docker/README.md`](../Docker/README.md) | Normal Docker wizard, endpoints, destructive commands |
@@ -45,11 +46,11 @@ Every document carries a status line: `current` = verified against the code on t
 | [`ANALISIS_SYNCHRONIZED.md`](ANALISIS_SYNCHRONIZED.md) | §2/§3 resolved in code; inventory kept as reference |
 | [`ARQUITECTURA_TRANSACCIONAL.md`](ARQUITECTURA_TRANSACCIONAL.md) | Transaction architecture; "recommended configuration" is not applied anywhere |
 | [`REFACTORING_TRANSACCIONAL.md`](REFACTORING_TRANSACCIONAL.md) | Implemented; read-only transactions close with `rollback()` |
-| [`DYNAMIC_SCHEMA_REFACTORING.md`](DYNAMIC_SCHEMA_REFACTORING.md) | Applied; frontend paths are `static-legacy/` now |
+| [`DYNAMIC_SCHEMA_REFACTORING.md`](DYNAMIC_SCHEMA_REFACTORING.md) | Historical implementation record; its frontend path references predate React-only static |
 | [`WORKERS_TASKS_ACTIONS_ANALYSIS.md`](WORKERS_TASKS_ACTIONS_ANALYSIS.md) | Incremental processing already implemented |
 | [`IMPLEMENTACION_CONFIGURACION_ACCIONES_2026-08-27.md`](IMPLEMENTACION_CONFIGURACION_ACCIONES_2026-08-27.md) | Migrations consolidated in `V5.0.0.8` |
-| [`AUTENTICACION_FILE_BASED.md`](AUTENTICACION_FILE_BASED.md) | File-based auth mechanism (superseded by `AUTHENTICATION.md` as reference) |
-| [`PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md`](PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md) | Documentation plan proposal — executed on 2026-09-23 |
+| [`AUTENTICACION_FILE_BASED.md`](AUTENTICACION_FILE_BASED.md) | Historical file-based auth mechanism (removed; superseded by `AUTHENTICATION.md`) |
+| [`PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md`](PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md) | Historical documentation plan snapshot — its authentication and legacy-UI findings were superseded on 2026-09-29 |
 
 ## Archived
 
@@ -63,12 +64,12 @@ Admin Web v5 technical plan (executed), package migration guide (merged) and the
 |---|---|
 | [`lareferencia-core-lib`](../lareferencia-core-lib/README.md) | 10 packages table, incremental behavior, config/workflow links |
 | [`lareferencia-core-lib/src/test`](../lareferencia-core-lib/src/test/README.md) | Test suite report (snapshot disclaimer; no AssertJ/JaCoCo) |
-| [`lareferencia-lrharvester-app`](../lareferencia-lrharvester-app/README.md) | React at `/`, legacy AngularJS at `/legacy/`, API v5, i18n es/en/pt |
-| [`lareferencia-lrharvester-admin-web`](../lareferencia-lrharvester-admin-web/README.md) | `generate:api` default port fix, Vite dev ports |
+| [`lareferencia-lrharvester-app`](../lareferencia-lrharvester-app/README.md) | React-only at `/`, API v5 with local users and scoped tokens |
+| [`lareferencia-lrharvester-admin-web`](../lareferencia-lrharvester-admin-web/README.md) | React SPA build/development, session and CSRF behavior |
 | [`lareferencia-entity-lib`](../lareferencia-entity-lib/README.md) | `deleted` flag, dirty-entity merge, indexer model links |
 | [`lareferencia-entity-rest`](../lareferencia-entity-rest/README.md) | Transition state: only `GET /search/entity/{type}` active |
-| [`lareferencia-dashboard-rest`](../lareferencia-dashboard-rest/README.md) | `/api/v2`, springdoc `/swagger-ui.html` |
-| [`lareferencia-shell`](../lareferencia-shell/README.md) | Command reference (`.backup.xlsx` fix) |
+| [`lareferencia-repository-dashboard`](../lareferencia-repository-dashboard/README.md) | Angular repository dashboard; local auth and read-only API v5 migration planned in [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md) |
+| [`lareferencia-shell`](../lareferencia-shell/README.md) | Command reference and initial local administrator bootstrap |
 | [`lareferencia-indexing-filters-lib`](../lareferencia-indexing-filters-lib/README.md) | FieldOccurrenceFilter strategies |
 | [`lareferencia-solr-cores`](../lareferencia-solr-cores/README.md) | Cores table, Solr 9 copies, canonical `oai` still `LUCENE_42` |
 

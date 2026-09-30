@@ -1,19 +1,43 @@
 # API administrativa y operativa del Harvester v5
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-09-29
 
-> **Actualización 2026-09-23:** rutas verificadas contra los controladores de `lareferencia-lrharvester-app` (`api/v5`). Se añadió la sección de recursos incorporados tras la iteración inicial y se corrigieron los límites: la Admin Web en React consume v5 y la aplicación AngularJS se publica en `/legacy/`.
+> **Actualización 2026-09-29:** Harvester sirve únicamente la SPA React y API v5. Las rutas anteriores no son una superficie pública soportada. La autenticación y autorización local se documentan en [`AUTHENTICATION.md`](AUTHENTICATION.md).
 ## Propósito
 
-La API v5 crea una superficie HTTP nueva para una futura aplicación administrativa. Su prefijo es `/api/v5` y no depende de los controladores legacy ni de Spring Data REST. El código está en `lareferencia-lrharvester-app` bajo el paquete `org.lareferencia.backend.api.v5`.
+La API v5 es la superficie HTTP de la aplicación administrativa React. Su prefijo es `/api/v5` y no depende de controladores legacy ni de Spring Data REST. El código está en `lareferencia-lrharvester-app` bajo `org.lareferencia.backend.api.v5`.
 
 La API usa los repositorios JPA, el sistema de diagnóstico y `NetworkActionkManager` internamente, pero nunca expone entidades JPA, enlaces HAL, proxies Hibernate ni el campo interno `jsonserialization`.
 
-La superficie anterior permanece disponible durante la transición:
+La superficie soportada es `/api/v5/**`. Las rutas fuera de v5 no forman parte del
+contrato público de Harvester y la cadena de seguridad deniega rutas desconocidas.
 
-- Controladores legacy: `/public/**`, `/private/**` y `/rest/log/**`.
-- Spring Data REST: `/rest/**`.
-- Nueva API: `/api/v5/**`.
+### Compatibilidad de lectura para el dashboard anterior
+
+La ruta separada `/api/v5/dashboard` ofrece las consultas de cosecha y validación del
+dashboard v2 sin alterar los endpoints nativos de v5. Conserva los parámetros y
+la estructura paginada de Spring Data (`content`, `totalElements`, `number`,
+`size`); no utiliza el envoltorio `items` de la API v5 nativa. Requiere usuario humano
+`ADMIN` o `DASHBOARD`; `READER` y tokens técnicos no acceden a esta superficie.
+
+| Método | Ruta relativa a `/api/v5/dashboard` | Resultado |
+|---|---|---|
+| GET | `/harvesting/source/list` | Redes visibles, filtradas antes de paginar. |
+| GET | `/harvesting/source/{acronym}` | Datos de una red. |
+| GET | `/harvesting/source/{acronym}/history` | Snapshots válidos. |
+| GET | `/harvesting/source/{acronym}/history/{startDate}/{endDate}` | Historial válido entre fechas. |
+| GET | `/harvesting/source/{acronym}/lkg` | Último snapshot válido. |
+| GET | `/validation/source/{acronym}/{snapshotId}` | Resumen de validación. |
+| GET | `/validation/source/stats/{acronym}/{snapshotId}/query` | Observaciones con `filters`, `pageNumber`, `pageSize`. |
+| GET | `/validation/source/{acronym}/{snapshotId}/records` | Registros con filtros v2 (`is_valid`, `is_transformed`, `valid_rules`, `invalid_rules`, `oai_identifier`). |
+| GET | `/validation/source/{acronym}/{snapshotId}/valid_occrs/{ruleId}` | Ocurrencias válidas por regla. |
+| GET | `/validation/source/{acronym}/{snapshotId}/invalid_occrs/{ruleId}` | Ocurrencias inválidas por regla. |
+
+Se exige la autenticación local de v5 (sesión o token técnico) y el permiso de
+lectura sobre la red; para una consulta por snapshot también se comprueba su
+propietario antes de leer estadísticas. Una red o snapshot ajeno devuelve `403`.
+No se reproducen los endpoints de broker, usuarios/Keycloak ni la autenticación
+de v2. Tampoco se habilita la ruta antigua `/api/v2`.
 
 ## Diseño
 
@@ -179,7 +203,9 @@ Los campos disponibles en esta iteración son `IDENTIFIER`, `VALID`, `TRANSFORME
 
 ### Identidad y perfiles de atributos
 
-- `GET /api/v5/me` devuelve usuario, roles normalizados y modo de autenticación.
+- `GET /api/v5/me` devuelve usuario, roles normalizados, IDs de redes legibles y si la identidad es una cuenta técnica.
+- Login web: `GET /api/v5/auth/csrf`, `POST /api/v5/auth/login`, `POST /api/v5/auth/logout`.
+- Administración de usuarios, cuentas técnicas y tokens: ver [Autenticación y autorización](AUTHENTICATION.md).
 - `GET /api/v5/attribute-profiles` lista los perfiles instalados.
 - `GET /api/v5/attribute-profiles/{typeId}` devuelve JSON Schema y UI Schema.
 
@@ -225,8 +251,9 @@ Verificados en `ApiV5ManagementController`, `ApiV5ApplicationActionController`, 
 | GET/PUT | `/api/v5/worker-configurations` (más `/{workerKey}`, `/configuration`) | Configuración de workers por instalación. |
 | POST | `/api/v5/dark/naans/{arkNaan}/preview`, `.../stage`, `.../reconcile` | Operaciones dARK por NAAN (las rutas reales son por NAAN, no `networks/{networkId}`). |
 | GET/POST | `/api/v5/network-transfers` | Transferencias entre redes. |
-| GET/POST | `/api/v5/users` | Listado y alta de usuarios (rol ADMIN). |
-| PUT/POST/DELETE | `/api/v5/users/{username}/roles`, `/api/v5/users/{username}/password`, `DELETE /api/v5/users/{username}` | Gestión de usuarios del modo `file` (ver [`AUTHENTICATION.md`](AUTHENTICATION.md)). |
+| GET/POST/PUT/DELETE | `/api/v5/users` y `/api/v5/users/{username}` | Administración de usuarios locales (ADMIN). |
+| GET/POST/PUT/DELETE | `/api/v5/service-accounts` y `/api/v5/service-accounts/{id}` | Administración de identidades técnicas (ADMIN). |
+| GET/POST/DELETE | `/api/v5/service-accounts/{id}/tokens` y `.../tokens/{tokenId}` | Listado, emisión y revocación de tokens (ADMIN). |
 | POST | `/api/v5/networks/{id}/metadata-cleanup/preview` | Vista previa de limpieza de metadata. |
 | GET/POST | `/api/v5/validators` y `/api/v5/transformers` (con `/{id}`, `/{id}/rules`, `/{id}/rules/{ruleId}`, `/{id}/clone`, `/{id}/export`, `/{id}/usage`) | CRUD, clonado, uso y exportación de reglas y transformaciones. |
 
@@ -234,22 +261,15 @@ Verificados en `ApiV5ManagementController`, `ApiV5ApplicationActionController`, 
 
 La configuración de v5 está en `lareferencia-lrharvester-app/config/application.properties.d/10-api-v5.properties`.
 
-El modo predeterminado es:
-
-```properties
-security.api-v5.auth-mode=file
-```
-
-Reutiliza el archivo BCrypt y HTTP Basic existentes. Las autorizaciones son:
-
-| Rol | Permisos |
-|---|---|
-| `ROLE_VIEWER` | Todas las consultas GET. |
-| `ROLE_ADMIN` | Consultas, configuración, comandos y eliminación. |
-
-También existe modo opcional `oidc` o `hybrid`. En esos modos Spring Security valida JWT usando la configuración estándar de Resource Server (`issuer-uri` o `jwk-set-uri`) y toma los roles del claim configurado en `security.api-v5.oidc.roles-claim`. No hay dependencia funcional de Keycloak ni emisión propia de tokens.
-
-La cadena de seguridad v5 es stateless y responde errores JSON `401` y `403`; no redirige a `login.html`. CORS está denegado por defecto y solo se habilita al configurar una lista explícita en `security.api-v5.allowed-origins`.
+La autenticación de v5 usa usuarios locales de PostgreSQL y sesiones web JDBC;
+las integraciones usan tokens Bearer de cuentas técnicas. No se acepta HTTP Basic
+ni se delega la identidad en OIDC/Keycloak. El rol global `ADMIN` puede administrar
+el sistema; usuarios `READER`, `DASHBOARD` y cuentas técnicas solo leen redes asignadas en sus respectivas superficies. La
+autorización filtra las listas antes de paginar y verifica los IDs directos de
+red/snapshot contra su red propietaria. Consultas diagnósticas `POST` son de
+lectura desde la autorización, aunque siguen sujetas a protección CSRF por su
+método HTTP. CORS queda cerrado por defecto; más detalles y bootstrap en
+[`AUTHENTICATION.md`](AUTHENTICATION.md).
 
 ## Errores
 
@@ -272,7 +292,7 @@ Los errores de validación incluyen además `violations` con los campos afectado
 
 - Especificación OpenAPI: `/api/v5/openapi`.
 - Interfaz Swagger: `/api/v5/docs`.
-- Dependencias añadidas: Springdoc y Spring Security OAuth2 Resource Server.
+- OpenAPI: `/api/v5/openapi`; Swagger UI: `/api/v5/docs`.
 - Prueba inicial de contrato: `ApiV5ManagementControllerTest` verifica paginación basada en cero y Problem Details.
 - Comando validado:
 
@@ -281,12 +301,14 @@ cd lareferencia-lrharvester-app
 mvn -f pom.xml -Dtest=ApiV5ManagementControllerTest clean test
 ```
 
-La iteración de estabilización añade pruebas de la proyección de dashboard, fechas ISO-8601 UTC, identidad, carga de perfiles y traducción segura de filtros de diagnóstico. OpenAPI queda limitado al paquete y rutas de v5 y declara autenticación Basic y Bearer/JWT.
+OpenAPI queda limitado al paquete y rutas v5. Para probar autenticación local,
+sesiones, CSRF, grants y tokens, consultar la matriz de verificación de
+[`AUTHENTICATION.md`](AUTHENTICATION.md).
 
 ## Límites actuales y siguientes pasos
 
 - No hay tabla ni historial persistente de comandos: los recibos representan aceptación HTTP, no una ejecución durable.
 - No se modificaron `INetworkActionExecutor`, TaskManager, Flowable ni los workers.
 - No se añadió CRUD masivo de registros, bitstreams o metadata; la API ofrece diagnóstico y lectura XML puntual.
-- Spring Data REST permanece operativo. La aplicación AngularJS legacy se publica en `/legacy/` y la nueva Admin Web en React consume esta API v5.
-- Antes de retirar las superficies legacy (Spring Data REST, AngularJS en `/legacy/`), una fase posterior debe ampliar las pruebas de integración con PostgreSQL y ambos motores, y definir una política de deprecación.
+- Admin React se sirve desde `admin-static/` bajo `/admin/`; Dashboard Angular desde `dashboard-static/` bajo `/dashboard/`. No existe fallback AngularJS `/legacy`.
+- Las superficies `/rest`, `/public` y `/private` no son interfaces soportadas ni deben utilizarse como alternativa a v5.

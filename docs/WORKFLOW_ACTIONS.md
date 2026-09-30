@@ -12,12 +12,11 @@ Actions are declared as `NetworkAction` beans in XML under `config/beans/`, grou
 profile: `harvesting.actions.xml`, `validation.actions.xml`, `xoai.actions.xml`,
 `index.elastic.actions.xml`, `index.frontend.actions.xml`, `index.thesis.actions.xml`,
 `index.rcaap.actions.xml`, `cleaning.actions.xml`, `dark.actions.xml`, `entity.actions.xml`,
-`network.actions.xml`, `project.actions.xml`, `historic.actions.xml`, plus localized variants
-(`*.actions.en.xml`). Each action binds a **prototype** worker bean (e.g. `validationWorker`,
+`network.actions.xml`, `project.actions.xml`, `historic.actions.xml`. Each action binds a **prototype** worker bean (e.g. `validationWorker`,
 `darkStageWorker`, `entityExtractionWorker`).
 
-Localized rule/label bundles: `actions.xml` + `actions.en.xml` (+ `actions.dc.xml`, `actions.dev.xml`,
-`actions.rcaap.xml` for profile variants).
+The default bundle is `actions.xml`; `actions.dc.xml`, `actions.dev.xml`, and
+`actions.rcaap.xml` select other profiles. UI labels are localized separately.
 
 ## Action catalog and per-network configuration (v5)
 

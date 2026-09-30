@@ -1,6 +1,6 @@
 # Configuración Flexible del Directorio Base
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-09-29
 
 ## Resumen
 
@@ -50,7 +50,6 @@ ${app.config.dir}/
 ├── i18n/                         # Mensajes de internacionalización
 │   ├── messages.properties
 │   └── messages_es.properties
-├── users.properties              # Usuarios para autenticación (lrharvester-app)
 └── custom-context.xml            # Beans Spring personalizados
 ```
 
@@ -78,7 +77,11 @@ Path path = ConfigPathResolver.resolvePath("application.properties.d");
 | Propiedad | Descripción | Valor por defecto |
 |-----------|-------------|-------------------|
 | `app.config.dir` | Directorio base de configuración | `config` |
-| `security.users.file` | Archivo de usuarios (relativo o absoluto) | `config/users.properties` |
+
+La identidad de Harvester v5 no reside en este directorio: usuarios, permisos,
+cuentas técnicas, tokens y sesiones se almacenan en PostgreSQL. No cree un
+`users.properties`; consulte [Autenticación y autorización](AUTHENTICATION.md)
+para migrar el esquema y crear el primer administrador.
 
 ## Casos de Uso
 
@@ -150,7 +153,6 @@ spec:
 
 Esta característica es compatible con:
 - `lareferencia-core-lib`
-- `lareferencia-dashboard-rest`
 - `lareferencia-lrharvester-app`
 - `lareferencia-shell`
 

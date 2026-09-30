@@ -1,17 +1,15 @@
 # Configuration: `application.properties.d`
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-09-29
 
-Reference for the split-configuration mechanism used by `lareferencia-lrharvester-app`,
-`lareferencia-shell` and `lareferencia-dashboard-rest`, with a per-file, per-property
-breakdown verified against the code (class references included).
+Reference for the split-configuration mechanism used by `lareferencia-lrharvester-app`
+and `lareferencia-shell`, with a per-file, per-property breakdown verified against the
+code (class references included).
 
 ## How loading works
 
 Registered in each application's main class via `builder.listeners(new PropertiesDirectoryListener())`
-— harvester `MainApp` (~:81), shell `MainApp` (~:49), dashboard `DashboardApplication` (~:53;
-its `main` also exports `app.config.dir` as a system property *before* Spring starts, so
-`${app.config.dir}` is resolvable inside XML context files):
+— harvester `MainApp` (~:81) and shell `MainApp` (~:49):
 
 - `PropertiesDirectoryListener` (`lareferencia-core-lib`, `org.lareferencia.core.util`) reacts to
   `ApplicationEnvironmentPreparedEvent` — i.e. it runs very early, before any bean exists.
@@ -32,9 +30,7 @@ Conventions:
   (database credentials, storage paths, Solr URLs). It is a normal Spring Boot config-data
   file (loaded from the default `./config/` location) and the `.model` copies are pristine
   templates of it.
-- Today no key is defined twice **with different values** across the base file and the `.d`
-  files (the duplicated ones — `security.users.file`, `spring.liquibase.enabled` — hold the
-  same value in both). Avoid defining the same key in both places; if you must, verify the
+- Avoid defining the same key in both the base file and `.d` fragments; if you must, verify the
   effective value in your runtime (actuator `env`, or a startup log line) instead of assuming
   an override order.
 - `app.config.dir` relocates the whole directory (including the `.d` folder). Note:
@@ -49,8 +45,8 @@ Conventions:
 
 | Property | Value / default | Read by | Notes |
 |---|---|---|---|
-| `server.port` | `8090` | Spring Boot | Host port (dev wizard: `8190`) |
-| `spring.data.rest.basePath` | `/rest` | Spring Data REST | Harvester's Data REST surface is `/rest`, **not** `/api/v2` |
+| `server.port` | `8090` | Spring Boot | Container port; Docker Dev publishes loopback at `8190` in isolated mode |
+| `spring.data.rest.basePath` | `/rest` | Spring Data REST | Legacy surface is denied by the v5 security chain; do not use it as an API |
 | `spring.jackson.serialization.fail-on-empty-beans` | `false` | Jackson | |
 | `server.ssl.*` | commented | Spring Boot | Uncomment to enable HTTPS with `config/localhost.p12` (pkcs12) |
 
@@ -82,14 +78,12 @@ in `lareferencia-lrharvester-app/src/main/resources/application-context.xml` (~:
 `FS` → `MetadataStoreFSImpl` (default), `H2` → `MetadataStorePerNetworkH2Impl`,
 `SQLITE` → `MetadataStorePerNetworkSQLiteImpl`. See [`ALMACENAMIENTO_REFERENCIA_RAPIDA.md`](ALMACENAMIENTO_REFERENCIA_RAPIDA.md).
 
-### `04-security.properties` — file-based users
+### `04-security.properties` — retired
 
-| Property | Value | Read by |
-|---|---|---|
-| `security.users.file` | `config/users.properties` | `FileBasedUserDetailsService` |
-| `security.users.default-file` | `config/users.properties.default` | same (~:71), template copied once when the users file is absent |
-
-Full reference: [`AUTHENTICATION.md`](AUTHENTICATION.md).
+Harvester v5 no longer reads `security.users.file` or
+`security.users.default-file`; there is no file-based authentication fragment.
+Local identities and grants live in PostgreSQL. See
+[`AUTHENTICATION.md`](AUTHENTICATION.md) for initial administrator setup.
 
 ### `05-harvester.properties` — harvesting and task manager
 
@@ -188,10 +182,15 @@ The worker indexes into `semantic.solr.url` (falls back to `frontend.solr.url`,
 
 ### `10-api-v5.properties` — management API v5
 
-`security.api-v5.auth-mode=file`, `security.api-v5.allowed-origins=` (CORS denied),
-`security.api-v5.oidc.roles-claim=roles`, `security.api-v5.page-size-max=200`,
+`security.api-v5.allowed-origins=` (no cross-origin browser access by default),
+`security.api-v5.page-size-max=200`,
 `api-v5.attribute-profiles-location=file:config/attribute-profiles`, and the
 `springdoc.*` block (OpenAPI `/api/v5/openapi`, Swagger `/api/v5/docs`, path/package filters).
+Session cookie properties set `HttpOnly`, `Secure`, `SameSite=Lax`, and a 30-minute
+timeout; `security.api-v5.cookies-secure` defaults to `true` and controls the CSRF
+cookie's Secure flag. Docker Dev overrides both session and CSRF Secure flags to
+`false` only for its local HTTP gateway. Spring Session JDBC uses the Flyway-created schema. Authentication no longer
+has a `file`/`oidc`/`hybrid` mode. Full details: [`AUTHENTICATION.md`](AUTHENTICATION.md).
 Reference: [`AUTHENTICATION.md`](AUTHENTICATION.md) · [`HARVESTER_MANAGEMENT_API_V5.md`](HARVESTER_MANAGEMENT_API_V5.md).
 
 ---
@@ -244,74 +243,6 @@ plus two blocks worth flagging:
 
 ---
 
-## lareferencia-dashboard-rest — `config/application.properties.d/`
-
-Five fragments are versioned (plus `application.properties.model`); the base
-`config/application.properties` is gitignored (local credentials). Same loading mechanism,
-registered in `DashboardApplication` (~:53).
-
-### `00-server.properties` — HTTP server
-
-`server.port=8092` (Swagger UI at `/swagger-ui.html`), `spring.jackson.serialization.fail-on-empty-beans=false`,
-and a commented SSL block (`config/localhost.p12`, pkcs12).
-
-> The in-file comment says "Access via http://localhost:8090" — stale; the real port is 8092.
-
-### `01-dbconnection.properties` — JPA + Flyway
-
-Same HikariCP/JPA block as the other two modules (`minimum-idle 10`, `maximum-pool-size 50`,
-`ddl-auto none`, standard physical naming, `open-in-view true`) plus
-`spring.flyway.enabled=false` with credentials templated from the main datasource
-(`spring.flyway.user/password/url = ${spring.datasource.*}`). Flyway stays off by default.
-
-### `02-keycloack.properties` — Keycloak adapter (note the typo in the filename)
-
-Consumed by the Keycloak Spring Boot adapter (`keycloak-spring-boot-starter` in the pom)
-and by two custom services:
-
-| Property | Value | Read by |
-|---|---|---|
-| `keycloak.ssl-required` / `confidential-port` / `cors` | `none` / `443` / `true` | Keycloak adapter |
-| `keycloak.security-constraints[0]` | roles `dashboard-user`, `dashboard-admin` over pattern `/*quie` (looks truncated) | adapter |
-| `keycloak.public-client` | `false` | adapter |
-| `keycloak.policy-enforcer-config.*` | `enforcement-mode=enforcing`, CIP `claims[http.uri]={request.relativePath}`, `paths[0..6]`: `GET` on `/api/v2/harvesting/…` and `/api/v2/validation/…`, full CRUD on `/api/v2/security/management/{group,user}/admin/*`, `GET/PUT` on `…/user/self/*` | adapter (policy enforcer) |
-| `authz.admin-role` | `dashboard-admin` | `KeycloakSecurityService` (~:17) |
-| `user-mgmt.token-endpoint` | `/realms/${keycloak.realm}/protocol/openid-connect/token` | `KeycloakUserManagementService` (~:23) |
-| `user-mgmt.user-role` / `default-roles` | `dashboard-user` | same (~:32/:35) |
-| `user-mgmt.user-attributes` / `group-attributes` | `telephone,position,affiliation` / `long_name` | same (~:38/:41) |
-
-Deployment notes:
-
-- `user-mgmt.client-id` / `client-secret` are **not** in this fragment — they come from the
-  base file (`admin-cli` + secret), as do `keycloak.realm` (used by the
-  `${keycloak.realm}` placeholder above), `keycloak.auth-server-url`, `keycloak.resource`
-  and `keycloak.credentials.secret`.
-- `keycloak.enabled=false` in the local base **and** in `99-docker.properties`: the adapter
-  (and these constraints) is inactive in this deployment until it is switched on.
-
-### `06-logging.properties` — no active keys
-
-Only commented examples (`logging.level.root`, `org.lareferencia.core.dark`); nothing is set.
-
-### `99-docker.properties` — Docker-only overrides
-
-Loaded last (alphabetical order). Container overrides: datasource against the `postgres`
-service, `keycloak.enabled=false`, filesystem storage
-`store.basepath=/workspace/Docker/data/dashboard/store`, and a "search backends (optional
-usage)" block — `solr.host`, `elastic.host/port/authenticate` — that is **not read by any
-dashboard code** (the pom has no solr/elasticsearch/entity-lib dependency; the readers of
-`elastic.*` live in `lareferencia-entity-lib`'s indexer, e.g. `JSONElasticEntityIndexerImpl`
-~:109-112). Dead-key cleanup candidates: [`CONFIG_CLEANUP_PROPOSAL.md`](CONFIG_CLEANUP_PROPOSAL.md).
-
-### Base and model
-
-- Base `application.properties` (gitignored): local datasource (`lrharvester`),
-  `store.basepath=/tmp/data/`, and the Keycloak deployment block described above.
-- `application.properties.model` (versioned): the template still carries a legacy
-  `solr.host` + `elastic.*` block (host, port, username, password, useSSL, authenticate)
-  that the live base no longer has and that no dashboard code reads — see
-  [`CONFIG_CLEANUP_PROPOSAL.md`](CONFIG_CLEANUP_PROPOSAL.md).
-
 ---
 
 ## Modules without `application.properties.d`
@@ -324,10 +255,6 @@ dashboard code** (the pom has no solr/elasticsearch/entity-lib dependency; the r
   log4j files — no fragments; Docker provides the live config at deploy time
   (`APP_CONFIG_DIR` + `EXTERNAL_CONFIG_DIR=/config` volume in `docker-compose.yml`).
 - VuFind (PHP), `lareferencia-solr-cores` and the libraries are not Spring Boot config modules.
-- The dashboard's external `config/custom-context.xml`, `empty-context.xml`,
-  `third-party-context.xml` are v4-era context files: the application imports
-  `classpath*:application-context.xml` (`@ImportResource`, `DashboardApplication` ~:39) and
-  no code reference to these external files was found (2026-09-23).
 
 ---
 
@@ -347,8 +274,6 @@ deployment before removing):
 - `dark.minter.url` (harvester base) → superseded by `dark.minter.base-url`
 - `workflow.processes.*.lane` / `workflow.lanes[n]` (shell base) → use `serialLaneId` in beans XML
 - `solr.host` (shell base) → not consumed by the shell itself
-- `solr.host`, `elastic.*` (dashboard `.model` and `99-docker.properties`) → not read by
-  dashboard code (see the dashboard section above)
 - stale comment in dashboard `00-server.properties` ("Access via http://localhost:8090" —
   the port is 8092)
 - stale loggers in harvester `06-logging.properties` (`backend.taskmanager`, `backend.validation`)

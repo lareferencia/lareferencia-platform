@@ -1,9 +1,9 @@
 # Architecture Overview
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-09-29
 
 High-level map of the LA Referencia platform: modules, ports and the main data flows.
-Verified against the code and build files on 2026-09-23. Configuration details live in
+Verified against the code and build files on 2026-09-29. Configuration details live in
 [`CONFIGURATION_PROPERTIES.md`](CONFIGURATION_PROPERTIES.md); terminology in
 [`GLOSSARY.md`](GLOSSARY.md); the full document index in
 [`DOCUMENTATION_INDEX.md`](DOCUMENTATION_INDEX.md).
@@ -35,10 +35,11 @@ flowchart LR
 
     subgraph CONS["Other services"]
         VUF["VuFind · 8080"]
-        DASH["dashboard-rest · 8092"]
         ENT["entity-rest · 8094"]
         OAIP["oai-pmh · 8096"]
     end
+
+    RDB["Repository Dashboard (Angular, read-only)"]
 
     SRC -->|"OAI-PMH ListRecords"| HW
     ESI -->|"entities"| ES
@@ -47,15 +48,15 @@ flowchart LR
     STG -->|"mint / stage ARKs"| DARK
     VUF -->|"search"| SOLR
     ENT -->|"GET /search/entity"| ES
-    DASH -->|"statistics, security mgmt"| PG
+    RDB -->|"read-only /api/v5/dashboard"| V5
     OAIP -->|"reads oai core"| SOLR
     OAIP -.->|"serves OAI-PMH"| SRC
 ```
 
 The `lareferencia-shell` (CLI) administers the same PostgreSQL/Solr/Elasticsearch
-backends outside the web app. VuFind is an external fork (PHP) with its own database;
-the Admin Web is built from `lareferencia-lrharvester-admin-web` and served statically
-by the harvester.
+backends outside the web app. VuFind is an external fork (PHP) with its own database.
+The Admin Web and Repository Dashboard are built independently into `admin-static/` and
+`dashboard-static/`; the Harvester serves them only below `/admin/` and `/dashboard/`.
 
 ## Data flows
 
@@ -86,10 +87,12 @@ by the harvester.
 6. **Publication.** `lareferencia-oai-pmh` is a standalone Spring Boot app (no
    lareferencia library dependencies): it reads the Solr `oai` core and serves the
    OAI-PMH protocol on port 8096, so external harvesters can harvest LA Referencia.
-7. **Consumption.** VuFind searches Solr; `dashboard-rest` serves `/api/v2` statistics
-   and security management (Keycloak optional, disabled in this deployment); `entity-rest`
-   keeps the legacy `GET /search/entity/{type}` over Elasticsearch; the React Admin Web
-   talks to the harvester's API v5 on 8090.
+7. **Consumption.** VuFind searches Solr. The Angular Repository Dashboard uses local v5
+   sessions and read-only `/api/v5/dashboard` routes. Its public proxy host is allowlisted
+   to auth/session endpoints and GET dashboard requests; it cannot reach admin APIs.
+   See [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md). `entity-rest` keeps the
+   legacy `GET /search/entity/{type}` over Elasticsearch; React Admin Web uses v5 admin
+   routes on its separate host.
 
 ## Modules
 
@@ -97,12 +100,12 @@ by the harvester.
 |---|---|---|
 | `lareferencia-core-lib` | Java library | Domain, metadata, catalog + validation repositories, service, task, worker, embedding, flowable, util (`ConfigPathResolver`, `PropertiesDirectoryListener`), oabroker |
 | `lareferencia-entity-lib` | Java library | Entity model + Elasticsearch/OpenSearch indexer (`JSONElasticEntityIndexerThreadedImpl`) |
-| `lareferencia-lrharvester-app` | Spring Boot app | The harvester: workers, API v5, Admin Web at `/`, legacy AngularJS at `/legacy/` (8090) |
-| `lareferencia-lrharvester-admin-web` | React / Node 22 | Source of the Admin Web; built into the harvester's `static/` |
+| `lareferencia-lrharvester-app` | Spring Boot app | Harvester workers and v5 API; serves Admin at `/admin/` and Dashboard at `/dashboard/` |
+| `lareferencia-lrharvester-admin-web` | React / Node 22 | Admin Web source; built into the harvester's `admin-static/` |
+| `lareferencia-repository-dashboard` | Angular / Node 18 | Read-only Dashboard source; built into the harvester's `dashboard-static/` |
 | `lareferencia-shell` | Spring Shell CLI | Administration commands (DB migrate, indexing, Excel network loads, …) |
 | `lareferencia-shell-entity-plugin` | plugin | Entity-specific shell commands |
 | `lareferencia-entity-rest` | Spring Boot app | Legacy REST surface: `GET /search/entity/{type}` (8094, Springfox `/swagger`) |
-| `lareferencia-dashboard-rest` | Spring Boot app | `/api/v2` statistics + security management (Keycloak optional) (8092) |
 | `lareferencia-oai-pmh` | Spring Boot app | OAI-PMH provider over Solr (8096) |
 | `lareferencia-dark-lib` | Java library | dARK client: `DarkProperties`, minter/stage/reconcile |
 | `lareferencia-oclc-harvester` | Java library | Adapted OCLC Harvester2 (OAI-PMH client) |
@@ -111,8 +114,8 @@ by the harvester.
 | `lareferencia-contrib-ibict` / `rcaap` | Java library | Country variants (not compiled in the v5 reactor; enabled by Maven profile) |
 
 Dependency sketch (from the poms): `lrharvester-app` → core-lib + dark-lib (+ entity-lib
-per profile); `entity-rest` → core-lib + entity-lib; `dashboard-rest` → core-lib;
-`oai-pmh` → standalone. Libraries come transitively through core-lib (e.g. oclc-harvester,
+per profile); `entity-rest` → core-lib + entity-lib; `oai-pmh` → standalone. The
+Angular Repository Dashboard is a separate frontend planned to call Harvester's API after its v5 migration. Libraries come transitively through core-lib (e.g. oclc-harvester,
 indexing-filters-lib).
 
 ## Ports
@@ -120,14 +123,14 @@ indexing-filters-lib).
 | Port | Service | Notes |
 |---|---|---|
 | 8080 | VuFind | PHP UI, its own MySQL (`3307`) |
-| 8090 | Harvester | Admin Web at `/`, API v5 at `/api/v5`, legacy UI at `/legacy/`, Data REST at `/rest` |
-| 8092 | dashboard-rest | springdoc at `/swagger-ui.html` |
+| 8090 | Harvester | Standard Compose loopback port; Docker Dev publishes `8190` on loopback in isolated mode |
+| 8088 | developer web gateway | Admin/Dashboard host routing; isolated developer mode uses 8188; alternate to direct loopback access |
 | 8094 | entity-rest | Springfox at `/swagger`, context `/api/v2` |
 | 8096 | oai-pmh | host port; the container serves 8092; starts only with the `oai` compose profile |
 | 8983 | Solr | Admin UI at `/solr` |
 | 9200 | Elasticsearch / OpenSearch | entity index |
 | 5432 | PostgreSQL | `lrharvester` (+ separate `lrharvester_flowable` when Flowable is enabled) |
-| 81xx | dev wizard variants | `Docker/docker-dev.sh` offsets every port by +100 |
+| 81xx | developer services | `Docker/docker-dev.sh` offsets service ports by +100; Vite remains internal |
 
 ## Cross-cutting concerns
 
@@ -137,8 +140,10 @@ indexing-filters-lib).
 - **Configuration**: split `application.properties.d` fragments loaded at startup
   ([CONFIGURATION_PROPERTIES.md](CONFIGURATION_PROPERTIES.md)), relocated with
   `app.config.dir` ([CONFIG_DIRECTORY.md](CONFIG_DIRECTORY.md)).
-- **Authentication**: file-based users + optional OIDC/hybrid
-  ([AUTHENTICATION.md](AUTHENTICATION.md)).
+- **Harvester authentication**: local PostgreSQL identities, JDBC sessions/CSRF, and
+  scoped revocable service tokens ([AUTHENTICATION.md](AUTHENTICATION.md)). The Dashboard
+  uses the same local session, with its proxy host restricted to read-only dashboard
+  endpoints. Production TLS and hostnames remain deployment configuration.
 - **Operations**: Docker wizard and backup/restore
   ([../Docker/README.md](../Docker/README.md), [BACKUP_RESTORE.md](BACKUP_RESTORE.md),
   [DOCKER_DEV.md](DOCKER_DEV.md)).

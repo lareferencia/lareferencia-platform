@@ -4,7 +4,7 @@ This directory provides a deterministic five-record repository for testing the p
 
 ## Prerequisites
 
-Start Solr and the provider with the Docker development environment. The normal host defaults are Solr `8983` and provider `8092`. An isolated `docker-dev` instance commonly offsets these ports (for example Solr `9083` and provider `8192`). Check `Docker/.env.dev` for the active values.
+Start Solr and the provider with the Docker development environment. The normal host defaults are Solr `8983` and provider `8096`. An isolated `docker-dev` instance commonly offsets these ports (for example Solr `9083` and provider `8196`). Check `Docker/.env.dev` for the active values.
 
 The loader uses only Python 3 standard-library modules and Solr HTTP JSON APIs.
 
@@ -20,14 +20,14 @@ testing/oai-incremental/bin/oai-fixtures verify-oai
 testing/oai-incremental/bin/oai-fixtures scenario metadata-update
 ```
 
-Common options are `--solr-url`, `--provider-url`, `--core`, `--output human|json`, and `--verbose`. The default Solr URL is `http://localhost:${LR_PORT_SOLR:-8983}/solr/oai`; the default provider URL is `http://localhost:${LR_PORT_OAI:-8092}/request`.
+Common options are `--solr-url`, `--provider-url`, `--core`, `--output human|json`, and `--verbose` (`--core` is accepted for compatibility but currently unused). The default Solr URL is `http://localhost:${LR_PORT_SOLR:-8983}/solr/oai`; the default provider URL is `http://localhost:${LR_PORT_OAI:-8096}/request`.
 
 Example for an isolated development instance:
 
 ```bash
 testing/oai-incremental/bin/oai-fixtures baseline \
   --solr-url http://localhost:9083/solr/oai \
-  --provider-url http://localhost:8192/request
+  --provider-url http://localhost:8196/request
 ```
 
 ## Solr contract
@@ -85,12 +85,12 @@ For an isolated development instance, use the `docker-dev` wizard, enable `core`
 ./Docker/docker-dev.sh wizard
 ```
 
-The normal host ports are Solr `8983`, harvester `8090`, and OAI provider `8092`. The development wizard adds `SERVICES_PORT_OFFSET`; read `Docker/.env.dev` and use the resulting `LR_PORT_*` values.
+The normal host ports are Solr `8983`, harvester `8090`, and OAI provider `8096`. The development wizard adds `SERVICES_PORT_OFFSET`; read `Docker/.env.dev` and use the resulting `LR_PORT_*` values.
 
 Check service health before loading data:
 
 ```bash
-curl --fail "http://localhost:${LR_PORT_OAI:-8092}/actuator/health"
+curl --fail "http://localhost:${LR_PORT_OAI:-8096}/actuator/health"
 curl --fail "http://localhost:${LR_PORT_SOLR:-8983}/solr/admin/info/system?wt=json"
 ```
 
@@ -107,7 +107,7 @@ testing/oai-incremental/bin/oai-fixtures baseline \
 
 testing/oai-incremental/bin/oai-fixtures status --output json
 testing/oai-incremental/bin/oai-fixtures verify-oai \
-  --provider-url "http://localhost:${LR_PORT_OAI:-8092}/request"
+  --provider-url "http://localhost:${LR_PORT_OAI:-8096}/request"
 ```
 
 The status command must report five active records. `verify-oai` must pass before running a platform harvest; otherwise failures belong to the fixture/provider setup rather than incremental processing.
@@ -117,7 +117,7 @@ The status command must report five active records. `verify-oai` must pass befor
 Create or select a test network whose OAI base URL points to:
 
 ```text
-http://host.docker.internal:${LR_PORT_OAI:-8092}/request
+http://host.docker.internal:${LR_PORT_OAI:-8096}/request
 ```
 
 Use `host.docker.internal` when the harvester runs inside Docker and the provider is published on the host. If both containers share the Compose network, use the provider service name and port instead.
@@ -182,7 +182,7 @@ Expected incremental validation checks:
 - `D` rows have `deleted=1`, `is_valid=0`, `is_transformed=0` and no metadata load is required.
 - `NULL` rows retain the copied parent result.
 - Active statistics use `deleted=0`, so tombstones are not counted as active or invalid-quality records.
-- A legacy manifest without `scope` logs a warning and forces full validation.
+- A legacy manifest without `scope` forces full validation silently — the reuse path simply returns false when the parent scope is missing (see `ValidationWorker.tryReuseParentValidation`).
 
 If validation fails, do not run incremental indexing: inspect the worker log, database schema, manifest, and metadata hashes first. A full validation is the safe recovery operation.
 
