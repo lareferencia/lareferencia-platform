@@ -58,20 +58,6 @@ if [ -f "${OVERRIDE_FILE}" ]; then
   rm -f "${OVERRIDE_FILE}"
 fi
 
-# Developer-only convenience account.  It is written into the ephemeral runtime
-# configuration, never into the mounted source tree or the normal platform data.
-if [ "${APP_MODULE}" = "lareferencia-lrharvester-app" ] && is_truthy "${DEV_DEFAULT_ADMIN:-true}"; then
-  DEV_USERS_FILE="${APP_RUN_CONFIG_DIR}/users.properties"
-  DEV_ADMIN_HASH='$2a$10$4y1zPBq1Sab.k62WLj7QNudiifOuJq/Da27oIT1S7SgPwdvheGw5W'
-  DEV_USERS_TMP="${DEV_USERS_FILE}.tmp"
-  [ -f "${DEV_USERS_FILE}" ] || : > "${DEV_USERS_FILE}"
-  grep -v '^admin=' "${DEV_USERS_FILE}" > "${DEV_USERS_TMP}" || true
-  printf 'admin=%s,ROLE_ADMIN\n' "${DEV_ADMIN_HASH}" >> "${DEV_USERS_TMP}"
-  mv "${DEV_USERS_TMP}" "${DEV_USERS_FILE}"
-  JAVA_OVERRIDE_PROPS+=("-Dsecurity.users.file=${DEV_USERS_FILE}")
-  echo 'Developer Harvester account enabled: admin / admin'
-fi
-
 if [ "${APP_MODULE}" = "lareferencia-shell" ] && is_truthy "${SHELL_IDLE}" && [ "${#APP_ARGS[@]}" -eq 0 ]; then
   echo "Starting ${APP_MODULE} in idle mode."
   exec tail -f /dev/null

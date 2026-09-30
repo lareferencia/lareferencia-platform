@@ -9,7 +9,7 @@ BASE_ENV_FILE="${SCRIPT_DIR}/.env"
 DEV_ENV_FILE="${SCRIPT_DIR}/.env.dev"
 DEV_LOG_FILE="/tmp/lareferencia-docker-dev.log"
 
-ALL_MODULES=(core solr harvester dashboard entity-rest shell vufind elastic watch oai)
+ALL_MODULES=(core solr harvester entity-rest shell vufind elastic watch oai)
 
 # Keep the developer wizard visually aligned with docker.sh without importing it.
 # docker.sh may already have downloaded gum into this local directory.
@@ -26,7 +26,7 @@ C_GRAY=$(printf '\033[38;5;245m')
 
 die() { echo "Error: $*" >&2; exit 1; }
 is_java_service() {
-  case "$1" in harvester|dashboard-rest|entity-rest|shell|oai-pmh|db-init) return 0;; *) return 1;; esac
+  case "$1" in harvester|entity-rest|shell|oai-pmh|db-init) return 0;; *) return 1;; esac
 }
 is_truthy() { case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in 1|true|on|yes) return 0;; *) return 1;; esac; }
 
@@ -55,7 +55,7 @@ EOF
 module_key() {
   case "$1" in
     core) printf '%s\n' DEV_MODULE_CORE;; solr) printf '%s\n' DEV_MODULE_SOLR;;
-    harvester) printf '%s\n' DEV_MODULE_HARVESTER;; dashboard) printf '%s\n' DEV_MODULE_DASHBOARD;;
+    harvester) printf '%s\n' DEV_MODULE_HARVESTER;;
     entity-rest) printf '%s\n' DEV_MODULE_ENTITY_REST;; shell) printf '%s\n' DEV_MODULE_SHELL;;
     vufind) printf '%s\n' DEV_MODULE_VUFIND;; elastic) printf '%s\n' DEV_MODULE_ELASTIC;;
     watch) printf '%s\n' DEV_MODULE_WATCH;; oai) printf '%s\n' DEV_MODULE_OAI;;
@@ -79,15 +79,15 @@ set_module_state() {
 
 module_services() {
   case "$1" in
-    core) printf 'postgres\n';; solr) printf 'solr\n';; harvester) printf 'harvester\nadmin-web-dev\n';;
-    dashboard) printf 'dashboard-rest\n';; entity-rest) printf 'entity-rest\n';; shell) printf 'shell\n';;
+    core) printf 'postgres\n';; solr) printf 'solr\n';; harvester) printf 'harvester\nadmin-web-dev\nweb-gateway-dev\n';;
+    entity-rest) printf 'entity-rest\n';; shell) printf 'shell\n';;
     vufind) printf 'vufind-db\nvufind-web\n';; elastic) printf 'elasticsearch\n';;
     watch) printf 'vufind-scss-watch\n';; oai) printf 'oai-pmh\n';;
   esac
 }
 
 module_profile() {
-  case "$1" in dashboard) printf 'dashboard\n';; shell) printf 'tools\n';; elastic) printf 'elastic\n';; watch) printf 'watch\n';; oai) printf 'oai\n';; esac
+  case "$1" in shell) printf 'tools\n';; elastic) printf 'elastic\n';; watch) printf 'watch\n';; oai) printf 'oai\n';; esac
 }
 
 contains() { local needle="$1" item; shift; for item in "$@"; do [ "$item" = "$needle" ] && return 0; done; return 1; }
@@ -95,7 +95,7 @@ contains() { local needle="$1" item; shift; for item in "$@"; do [ "$item" = "$n
 selected_services() {
   local modules=() module service profile
   for module in "${ALL_MODULES[@]}"; do [ "$(module_state "$module")" = on ] && modules+=("$module"); done
-  if { contains harvester "${modules[@]}" || contains dashboard "${modules[@]}" || contains entity-rest "${modules[@]}" || contains shell "${modules[@]}"; } && ! contains core "${modules[@]}"; then modules+=(core); fi
+  if { contains harvester "${modules[@]}" || contains entity-rest "${modules[@]}" || contains shell "${modules[@]}"; } && ! contains core "${modules[@]}"; then modules+=(core); fi
   if { contains harvester "${modules[@]}" || contains shell "${modules[@]}" || contains vufind "${modules[@]}"; } && ! contains solr "${modules[@]}"; then modules+=(solr); fi
   DEV_SELECTED_SERVICES=()
   DEV_SELECTED_PROFILES=()
@@ -108,7 +108,7 @@ selected_services() {
 }
 
 manage_modules() {
-  local optional=(solr harvester dashboard entity-rest shell vufind elastic watch oai) choices module
+  local optional=(solr harvester entity-rest shell vufind elastic watch oai) choices module
   if command -v gum >/dev/null 2>&1; then
     local selected=(); for module in "${optional[@]}"; do [ "$(module_state "$module")" = on ] && selected+=("$module"); done
     local gum_args=(--no-limit)
@@ -155,8 +155,8 @@ sync_ports() {
   mode="$(env_get DEV_INSTANCE_MODE isolated)"
   offset="$(env_get SERVICES_PORT_OFFSET 0)"
   [[ "${offset}" =~ ^[0-9]+$ ]] || offset=0
-  local port_keys=(LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300 LR_PORT_OAI LR_PORT_ADMIN_WEB)
-  local base_ports=(8080 3307 8983 5432 8090 8092 8094 9200 9300 8096 5173)
+  local port_keys=(LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300 LR_PORT_OAI LR_PORT_GATEWAY)
+  local base_ports=(8080 3307 8983 5432 8090 8094 9200 9300 8096 8088)
   for i in "${!port_keys[@]}"; do
     key="${port_keys[$i]}"; base_port="${base_ports[$i]}"
     if [ "${mode}" = normal ]; then
@@ -215,7 +215,6 @@ dc() {
 module_for() {
   case "$1" in
     harvester) printf '%s\n' lareferencia-lrharvester-app ;;
-    dashboard-rest) printf '%s\n' lareferencia-dashboard-rest ;;
     entity-rest) printf '%s\n' lareferencia-entity-rest ;;
     shell|db-init) printf '%s\n' lareferencia-shell ;;
     oai-pmh) printf '%s\n' lareferencia-oai-pmh ;;
@@ -228,39 +227,56 @@ compile_service() {
   [ "${service}" = all ] && { compile_all; return; }
   is_java_service "${service}" || die "${service} is not a Java application"
   module="$(module_for "${service}")"
+  if [ "${service}" = harvester ]; then
+    compile_frontend
+    compile_dashboard
+  fi
   profile="$(env_get LR_BUILD_PROFILE lareferencia)"
   echo "Compiling ${module} and local dependencies..."
-  dc --profile developer-builder run --rm --no-deps maven-builder -pl "${module}" -am package install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
+  dc --profile developer-builder run --rm --no-deps maven-builder -pl "${module}" -am install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
 }
 
 compile_frontend() {
-  echo "Compiling React admin web and publishing it to harvester/static..."
+  echo "Compiling React admin web and publishing it to harvester/admin-static..."
   dc --profile developer-builder run --rm --no-deps maven-builder -f lareferencia-lrharvester-admin-web/pom.xml package
+}
+
+compile_dashboard() {
+  echo "Compiling Angular dashboard and publishing it to harvester/dashboard-static..."
+  dc --profile developer-builder run --rm --no-deps maven-builder -f lareferencia-repository-dashboard/pom.xml package
 }
 
 compile_all() {
   local profile="$(env_get LR_BUILD_PROFILE lareferencia)"
-  local java_modules='lareferencia-oclc-harvester,lareferencia-core-lib,lareferencia-entity-lib,lareferencia-indexing-filters-lib,lareferencia-shell-entity-plugin,lareferencia-shell,lareferencia-dark-lib,lareferencia-lrharvester-app,lareferencia-entity-rest,lareferencia-dashboard-rest,lareferencia-oai-pmh'
-  echo "Compiling the complete Maven reactor..."
-  echo "(Java modules only; the React admin web has its own frontend-dev/rebuild frontend flow.)"
-  dc --profile developer-builder run --rm --no-deps maven-builder -pl "${java_modules}" -am package install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
+  local java_modules='lareferencia-oclc-harvester,lareferencia-core-lib,lareferencia-entity-lib,lareferencia-indexing-filters-lib,lareferencia-shell-entity-plugin,lareferencia-shell,lareferencia-dark-lib,lareferencia-lrharvester-app,lareferencia-entity-rest,lareferencia-oai-pmh'
+  echo "Compiling Java modules..."
+  dc --profile developer-builder run --rm --no-deps maven-builder -pl "${java_modules}" -am install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
+  compile_frontend
+  compile_dashboard
 }
 
 compile_selected_java() {
-  local service
+  local service needs_db_init=false shell_compiled=false
   for service in "${DEV_SELECTED_SERVICES[@]}"; do
     if is_java_service "${service}"; then
       compile_service "${service}"
+      [ "${service}" = shell ] && shell_compiled=true
     fi
+    # Harvester and the REST apps depend on db-init at startup. db-init runs
+    # the Spring Shell JAR, so it must be built with the selected Maven profile
+    # even when the optional interactive shell module is disabled in the UI.
+    case "${service}" in harvester|entity-rest) needs_db_init=true ;; esac
   done
+  if [ "${needs_db_init}" = true ] && [ "${shell_compiled}" = false ]; then
+    compile_service shell
+  fi
 }
 
 rebuild_platform() {
   selected_services
   [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
-  echo "Rebuilding all Java applications and the React admin web..."
+  echo "Rebuilding Java applications, Admin Web, and Repository Dashboard..."
   compile_all
-  compile_frontend
   echo "Starting local developer services with the rebuilt platform..."
   dc up -d --build "${DEV_SELECTED_SERVICES[@]}"
 }
@@ -276,10 +292,20 @@ restart_service() {
   fi
 }
 
+run_spring_shell() {
+  # The Spring Shell container normally stays idle so docker exec remains available.
+  # Start a one-off attached container for an actual interactive command session.
+  dc up -d postgres solr
+  dc --profile tools run --rm --no-deps -e SHELL_IDLE=false shell "$@"
+}
+
 rebuild_service() {
   local service="$1"
   if [ "${service}" = frontend ] || [ "${service}" = admin-web ]; then
     compile_frontend
+    restart_service harvester
+  elif [ "${service}" = dashboard ]; then
+    compile_dashboard
     restart_service harvester
   elif is_java_service "${service}"; then
     compile_service "${service}"
@@ -304,7 +330,7 @@ watch_service() {
   while true; do
     watch_root="${ROOT_DIR}/${module}"
     if [ "${service}" = harvester ]; then
-      current="$(find "${ROOT_DIR}/lareferencia-lrharvester-admin-web" "${watch_root}" -type f \( -path '*/src/*' -o -name pom.xml -o -name package.json -o -name package-lock.json \) -newer "${stamp}" -print -quit)"
+      current="$(find "${ROOT_DIR}/lareferencia-lrharvester-admin-web" "${ROOT_DIR}/lareferencia-repository-dashboard" "${watch_root}" -type d \( -name node_modules -o -name node -o -name dist -o -name target \) -prune -o -type f \( -path '*/src/*' -o -name pom.xml -o -name package.json -o -name package-lock.json \) -newer "${stamp}" -print -quit)"
     else
       current="$(find "${watch_root}" -type f \( -path '*/src/*' -o -name pom.xml \) -newer "${stamp}" -print -quit)"
     fi
@@ -312,6 +338,8 @@ watch_service() {
       echo "Change detected: ${current}"
       if [[ "${current}" == "${ROOT_DIR}/lareferencia-lrharvester-admin-web/"* ]]; then
         if compile_frontend && restart_service harvester; then touch "${stamp}"; else echo "Frontend build failed; keeping the current container." >&2; fi
+      elif [[ "${current}" == "${ROOT_DIR}/lareferencia-repository-dashboard/"* ]]; then
+        if compile_dashboard && restart_service harvester; then touch "${stamp}"; else echo "Dashboard build failed; keeping the current container." >&2; fi
       elif rebuild_service "${service}"; then
         touch "${stamp}"
       else
@@ -381,9 +409,9 @@ get_service_port() {
   case "$service" in
     vufind-web) printf ':%s' "$((8080 + offset))" ;; vufind-db) printf ':%s' "$((3307 + offset))" ;;
     solr) printf ':%s' "$((8983 + offset))" ;; postgres) printf ':%s' "$((5432 + offset))" ;;
-    harvester) printf ':%s' "$((8090 + offset))" ;; dashboard-rest) printf ':%s' "$((8092 + offset))" ;;
+    harvester) printf ':%s' "$((8090 + offset))" ;;
     entity-rest) printf ':%s' "$((8094 + offset))" ;; elasticsearch) printf ':%s' "$((9200 + offset))" ;;
-    oai-pmh) printf ':%s' "$((8096 + offset))" ;; admin-web-dev) printf ':%s' "$((5173 + offset))" ;;
+    oai-pmh) printf ':%s' "$((8096 + offset))" ;; web-gateway-dev) printf ':%s' "$((8088 + offset))" ;;
   esac
 }
 
@@ -458,27 +486,28 @@ wizard() {
     gum style --foreground 80 --bold --underline '⚡ SELECT ACTION'
     echo
     local options=(
-      '🚀 Start Developer Platform' '🏗️ Rebuild Full Platform' '🔄 Build all Java applications' '📦 Manage Modules (on/off)'
-      '♻️ Rebuild harvester' '♻️ Rebuild admin web' '♻️ Rebuild entity-rest'
-      '♻️ Rebuild dashboard-rest' '♻️ Rebuild oai-pmh' '🔁 Restart VuFind'
+      '🚀 Start Developer Platform' '🏗️ Rebuild Full Platform' '🔄 Build all platform applications' '📦 Manage Modules (on/off)'
+      '♻️ Rebuild harvester' '♻️ Rebuild admin web' '♻️ Rebuild dashboard' '♻️ Rebuild entity-rest'
+      '♻️ Rebuild oai-pmh' '🔁 Restart VuFind'
       '🔁 Reload Solr' '📝 View Logs (follow)' '💻 Enter Container Shell'
-      '🛠️ Run Init-DB (migrations)' '🧹 Clean Developer Instance' '🧩 Choose instance' '🚪 Exit'
+      '🐚 Open Interactive Spring Shell' '🛠️ Run Init-DB (migrations)' '🧹 Clean Developer Instance' '🧩 Choose instance' '🚪 Exit'
     ) choice
     choice="$(gum choose --item.bold --selected.bold --selected.background 80 --selected.foreground 232 --cursor.bold --cursor.foreground 80 "${options[@]}")"
     case "${choice}" in
       '🚀 Start Developer Platform') execute_with_progress 'Developer Platform Start' start_selected || true; wait_for_key ;;
       '🏗️ Rebuild Full Platform') execute_with_progress 'Full Platform Rebuild' rebuild_platform || true; wait_for_key ;;
-      '🔄 Build all Java applications') execute_with_progress 'Java Applications Build' compile_all || true; wait_for_key ;;
+      '🔄 Build all platform applications') execute_with_progress 'Platform Applications Build' compile_all || true; wait_for_key ;;
       '📦 Manage Modules (on/off)') manage_modules ;;
       '♻️ Rebuild harvester') execute_with_progress 'Harvester Rebuild' rebuild_service harvester || true; wait_for_key ;;
       '♻️ Rebuild admin web') execute_with_progress 'Admin Web Rebuild' rebuild_service frontend || true; wait_for_key ;;
+      '♻️ Rebuild dashboard') execute_with_progress 'Dashboard Rebuild' rebuild_service dashboard || true; wait_for_key ;;
       '♻️ Rebuild entity-rest') execute_with_progress 'Entity REST Rebuild' rebuild_service entity-rest || true; wait_for_key ;;
-      '♻️ Rebuild dashboard-rest') execute_with_progress 'Dashboard REST Rebuild' rebuild_service dashboard-rest || true; wait_for_key ;;
       '♻️ Rebuild oai-pmh') execute_with_progress 'OAI-PMH Rebuild' rebuild_service oai-pmh || true; wait_for_key ;;
       '🔁 Restart VuFind') execute_with_progress 'VuFind Restart' restart_service vufind-web || true; wait_for_key ;;
       '🔁 Reload Solr') execute_with_progress 'Solr Reload' reload_solr || true; wait_for_key ;;
       '📝 View Logs (follow)') dc logs -f --tail=100 || true; wait_for_key ;;
       '💻 Enter Container Shell') dc exec harvester bash || dc exec harvester sh || true ;;
+      '🐚 Open Interactive Spring Shell') run_spring_shell || true ;;
       '🛠️ Run Init-DB (migrations)') execute_with_progress 'Database Migrations' dc run --rm --no-deps db-init database_migrate || true; wait_for_key ;;
       '🧹 Clean Developer Instance') clean_developer_instance; wait_for_key ;;
       '🧩 Choose instance') select_instance ;;
@@ -497,7 +526,7 @@ Commands:
   up [service...]        Start the developer platform or selected services
   down                   Stop and remove developer containers
   clean [--yes]          Permanently remove all isolated developer artifacts
-  build <service|all|frontend> Compile Java JARs or the React admin web
+  build <service|all|frontend|dashboard> Compile Java JARs or a frontend
   rebuild-platform       Recompile Java and frontend, then restart selected services
   restart <service>      Recreate one service without dependencies
   rebuild <service>      Compile/rebuild and recreate one service
@@ -506,6 +535,7 @@ Commands:
   reload solr            Restart Solr after core changes
   logs [service]         Follow logs
   shell [service]        Open a shell (default: harvester)
+  lrshell [command...]   Open an interactive Spring Shell or run shell commands with a TTY
   ps                     Show service status
   init-db                Run database migrations
 EOF
@@ -531,16 +561,17 @@ case "${command}" in
   ps) dc ps ;;
   logs) dc logs -f --tail=100 "$@" ;;
   shell) dc exec "${1:-harvester}" bash || dc exec "${1:-harvester}" sh ;;
+  lrshell) run_spring_shell "$@" ;;
   init-db) dc run --rm --no-deps db-init database_migrate ;;
   rebuild-platform) rebuild_platform ;;
   build)
     [ "$#" -eq 1 ] || die 'build requires a service or all'
-    case "$1" in frontend|admin-web) compile_frontend ;; *) compile_service "$1" ;; esac
+    case "$1" in frontend|admin-web) compile_frontend ;; dashboard) compile_dashboard ;; all) compile_all ;; *) compile_service "$1" ;; esac
     ;;
   restart) [ "$#" -eq 1 ] || die 'restart requires a service'; restart_service "$1" ;;
   rebuild) [ "$#" -eq 1 ] || die 'rebuild requires a service'; rebuild_service "$1" ;;
   frontend-dev)
-    if dc ps -a --services 2>/dev/null | grep -Fxq admin-web-dev; then dc restart admin-web-dev; else dc up -d admin-web-dev; fi
+    dc up -d harvester web-gateway-dev admin-web-dev
     ;;
   watch) [ "$#" -eq 1 ] || die 'watch requires a Java service'; watch_service "$1" ;;
   reload) [ "${1:-}" = solr ] || die 'only reload solr is supported'; reload_solr ;;

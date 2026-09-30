@@ -10,7 +10,7 @@ This environment sets up the platform from the repository root using `docker-com
 
 ### 📋 Prerequisites
 - **Docker Engine**: 24.0.0 or later
-- **Docker Compose**: 2.20.0 or later (v2 plugin required)
+- **Docker Compose**: 2.24.0 or later (v2 plugin required; dev overlay uses Compose `!override`)
 - **Git**: 2.30.0 or later
 - **unzip** and **sha256sum/shasum**: required for artifact verification
 
@@ -37,7 +37,6 @@ The easiest way to manage your environment is using the interactive Wizard. It p
     └─ postgres        [⚡running]
     └─ solr            [⚡running]
     └─ harvester       [⚡running]
-    └─ dashboard-rest  [⚡running]
     └─ shell           [⚡running]
   vufind     [off] ⚪
     └─ vufind-db       [⭕off]
@@ -81,7 +80,7 @@ Este entorno levanta la plataforma desde la raíz del repositorio usando `docker
 
 ### 📋 Requisitos Previos
 - **Docker Engine**: 24.0.0 o superior
-- **Docker Compose**: 2.20.0 o superior (se requiere plugin v2)
+- **Docker Compose**: 2.24.0 o superior (se requiere plugin v2; el overlay dev usa `!override`)
 - **Git**: 2.30.0 o superior
 - **unzip** y **sha256sum/shasum**: necesarios para verificar los artefactos
 
@@ -115,7 +114,7 @@ Este ambiente levanta a plataforma a partir da raiz do repositório usando `dock
 
 ### 📋 Pré-requisitos
 - **Docker Engine**: 24.0.0 ou superior
-- **Docker Compose**: 2.20.0 ou superior (necessário plugin v2)
+- **Docker Compose**: 2.24.0 ou superior (necessário plugin v2; o overlay dev usa `!override`)
 - **Git**: 2.30.0 ou superior
 - **unzip** e **sha256sum/shasum**: necessários para verificar os artefatos
 
@@ -165,8 +164,7 @@ prevents packaging a stale library from `target/`.
 ## 🌐 Endpoints
 
 - VuFind: `http://localhost:8080`
-- Harvester (Admin Web at `/`, Swagger UI at `/api/v5/docs`): `http://localhost:8090`
-- Dashboard REST (Swagger UI at `/swagger-ui.html`): `http://localhost:8092`
+- Harvester (Admin Web at `/admin/`, Dashboard at `/dashboard/`, Swagger UI at `/api/v5/docs`): `http://localhost:8090` in standard Compose; Docker Dev exposes only the host-separated gateway.
 - Entity REST (Swagger at `/swagger`): `http://localhost:8094`
 - OAI-PMH: `http://localhost:8096` (host port; the container serves on 8092 — service starts only with the `oai` profile)
 - Solr Admin: `http://localhost:8983/solr`

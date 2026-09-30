@@ -31,7 +31,8 @@ COPY --from=builder /build/extracted/ /workspace/${APP_MODULE}/
 
 # 5. Copiar apenas recursos externos necessários do contexto de build
 COPY ${APP_MODULE}/confi[g]/ /workspace/${APP_MODULE}/config/
-COPY ${APP_MODULE}/stati[c]/ /workspace/${APP_MODULE}/static/
+COPY ${APP_MODULE}/admin-stati[c]/ /workspace/${APP_MODULE}/admin-static/
+COPY ${APP_MODULE}/dashboard-stati[c]/ /workspace/${APP_MODULE}/dashboard-static/
 COPY ${APP_MODULE}/static_e[n]/ /workspace/${APP_MODULE}/static_en/
 
 # Ensure application files are owned by lareferencia

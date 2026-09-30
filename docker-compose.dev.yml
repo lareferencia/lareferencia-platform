@@ -1,11 +1,29 @@
+x-java-dev: &java-dev
+  build:
+    context: .
+    dockerfile: Docker/apps/Dockerfile.dev
+  image: lareferencia/app-runtime-dev:${LR_BUILD_PROFILE:-lareferencia}
+  environment:
+    DEV_MODE: "true"
+  volumes:
+    - .:/workspace:ro
+    - ${DEV_DATA_ROOT}:/dev-data
+
 services:
+  web-gateway-dev:
+    image: nginx:stable-alpine
+    ports:
+      - "127.0.0.1:${LR_PORT_GATEWAY:-8088}:8080"
+    volumes:
+      - ./Docker/nginx/dev-dashboard-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - harvester
+
   admin-web-dev:
     image: node:22-bookworm-slim
     working_dir: /workspace/lareferencia-lrharvester-admin-web
     environment:
       VITE_HARVESTER_ORIGIN: http://harvester:8090
-    ports:
-      - ${LR_PORT_ADMIN_WEB:-5273}:5173
     volumes:
       - ./lareferencia-lrharvester-admin-web:/workspace/lareferencia-lrharvester-admin-web
       - lr-admin-web-node-modules-dev:/workspace/lareferencia-lrharvester-admin-web/node_modules
@@ -23,28 +41,19 @@ services:
       - lr-maven-cache-dev:/root/.m2
     entrypoint: ["mvn"]
 
-  harvester: &java-dev
-    build:
-      context: .
-      dockerfile: Docker/apps/Dockerfile.dev
-    image: lareferencia/app-runtime-dev:${LR_BUILD_PROFILE:-lareferencia}
+  harvester:
+    <<: *java-dev
     environment:
       DEV_MODE: "true"
-      DEV_DEFAULT_ADMIN: "true"
+      JAVA_OPTS: "-Dsecurity.api-v5.cookies-secure=false -Dserver.servlet.session.cookie.secure=false"
+    ports: !override
+      - "127.0.0.1:${LR_PORT_HARVESTER:-8190}:8090"
     volumes:
       - .:/workspace:ro
       - ${DEV_DATA_ROOT}:/dev-data
       - ${DEV_DATA_ROOT}/lareferencia/lrharvester-app/config:/config
       - ${DEV_DATA_ROOT}/lareferencia/lrharvester-app/data:/data
       - ${DEV_DATA_ROOT}/lareferencia/lrharvester-app/log:/var/log/harvester
-
-  dashboard-rest:
-    <<: *java-dev
-    volumes:
-      - .:/workspace:ro
-      - ${DEV_DATA_ROOT}/lareferencia/dashboard-rest/config:/config
-      - ${DEV_DATA_ROOT}/lareferencia/dashboard-rest/data:/data
-      - ${DEV_DATA_ROOT}/lareferencia/dashboard-rest/log:/var/log/dashboard
 
   entity-rest:
     <<: *java-dev

@@ -22,7 +22,7 @@ fi
 DEFAULT_VUFIND_REPO_URL="https://github.com/vufind-org/vufind"
 DEFAULT_VUFIND_REF="v11.0.1"
 
-ALL_MODULES=(core solr harvester dashboard entity-rest shell vufind elastic watch oai)
+ALL_MODULES=(core solr harvester entity-rest shell vufind elastic watch oai)
 JAVA_PARENT_MODULES=(
   lareferencia-oclc-harvester
   lareferencia-core-lib
@@ -33,7 +33,6 @@ JAVA_PARENT_MODULES=(
   lareferencia-dark-lib
   lareferencia-lrharvester-app
   lareferencia-entity-rest
-  lareferencia-dashboard-rest
   lareferencia-oai-pmh
 )
 
@@ -184,7 +183,7 @@ export_service_prefix() {
 }
 
 export_salted_ports() {
-  unset LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_DASHBOARD LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300 LR_PORT_OAI
+  unset LR_PORT_VUFIND_WEB LR_PORT_VUFIND_DB LR_PORT_SOLR LR_PORT_POSTGRES LR_PORT_HARVESTER LR_PORT_ENTITY_REST LR_PORT_ELASTIC_9200 LR_PORT_ELASTIC_9300 LR_PORT_OAI
 
   local salt
   salt="$(get_env_var SERVICES_PORT_OFFSET 0)"
@@ -195,7 +194,6 @@ export_salted_ports() {
   local base_solr=8983
   local base_postgres=5432
   local base_harvester=8090
-  local base_dashboard=8092
   local base_entity_rest=8094
   local base_elastic_9200=9200
   local base_elastic_9300=9300
@@ -210,7 +208,6 @@ export_salted_ports() {
   export LR_PORT_SOLR=$((base_solr + salt))
   export LR_PORT_POSTGRES=$((base_postgres + salt))
   export LR_PORT_HARVESTER=$((base_harvester + salt))
-  export LR_PORT_DASHBOARD=$((base_dashboard + salt))
   export LR_PORT_ENTITY_REST=$((base_entity_rest + salt))
   export LR_PORT_ELASTIC_9200=$((base_elastic_9200 + salt))
   export LR_PORT_ELASTIC_9300=$((base_elastic_9300 + salt))
@@ -221,7 +218,6 @@ export_salted_ports() {
   set_env_var "LR_PORT_SOLR" "${LR_PORT_SOLR}"
   set_env_var "LR_PORT_POSTGRES" "${LR_PORT_POSTGRES}"
   set_env_var "LR_PORT_HARVESTER" "${LR_PORT_HARVESTER}"
-  set_env_var "LR_PORT_DASHBOARD" "${LR_PORT_DASHBOARD}"
   set_env_var "LR_PORT_ENTITY_REST" "${LR_PORT_ENTITY_REST}"
   set_env_var "LR_PORT_ELASTIC_9200" "${LR_PORT_ELASTIC_9200}"
   set_env_var "LR_PORT_ELASTIC_9300" "${LR_PORT_ELASTIC_9300}"
@@ -237,7 +233,6 @@ sync_compose_profiles() {
         core)         profiles+=(core) ;;
         solr)         ;;
         harvester)    profiles+=(harvester) ;;
-        dashboard)    profiles+=(dashboard) ;;
         entity-rest)  profiles+=(entity-rest) ;;
         shell)        profiles+=(tools) ;;
         vufind)       profiles+=(vufind) ;;
@@ -353,7 +348,6 @@ module_env_key() {
     core) printf "DEV_MODULE_CORE\n" ;;
     solr) printf "DEV_MODULE_SOLR\n" ;;
     harvester) printf "DEV_MODULE_HARVESTER\n" ;;
-    dashboard) printf "DEV_MODULE_DASHBOARD\n" ;;
     entity-rest) printf "DEV_MODULE_ENTITY_REST\n" ;;
     shell) printf "DEV_MODULE_SHELL\n" ;;
     vufind) printf "DEV_MODULE_VUFIND\n" ;;
@@ -429,9 +423,6 @@ module_services() {
     harvester)
       printf "harvester\n"
       ;;
-    dashboard)
-      printf "dashboard-rest\n"
-      ;;
     entity-rest)
       printf "entity-rest\n"
       ;;
@@ -459,9 +450,6 @@ module_services() {
 module_profiles() {
   local module="$1"
   case "${module}" in
-    dashboard)
-      printf "dashboard\n"
-      ;;
     shell)
       printf "tools\n"
       ;;
@@ -552,7 +540,7 @@ are_images_built() {
   local s
   for s in "${services[@]}"; do
     case "${s}" in
-      harvester|dashboard-rest|entity-rest|shell|solr|vufind-web|vufind-scss-watch|oai-pmh)
+      harvester|entity-rest|shell|solr|vufind-web|vufind-scss-watch|oai-pmh)
         checked_any=true
         local img_id
         img_id=$(dc images -q "${s}" 2>/dev/null || true)
@@ -777,7 +765,6 @@ sha256_file() {
 write_java_build_manifests() {
   local app_modules=(
     lareferencia-lrharvester-app
-    lareferencia-dashboard-rest
     lareferencia-entity-rest
     lareferencia-shell
     lareferencia-oai-pmh
@@ -1243,7 +1230,6 @@ get_service_port() {
     solr)           printf ":%s" $((8983 + salt)) ;;
     postgres)       printf ":%s" $((5432 + salt)) ;;
     harvester)      printf ":%s" $((8090 + salt)) ;;
-    dashboard-rest) printf ":%s" $((8092 + salt)) ;;
     entity-rest)    printf ":%s" $((8094 + salt)) ;;
     elasticsearch)  printf ":%s" $((9200 + salt)) ;;
     oai-pmh)        printf ":%s" $((8096 + salt)) ;;
@@ -1314,7 +1300,7 @@ wizard_modules() {
   clear_screen
   draw_header
   
-  local optional_modules=("solr" "harvester" "dashboard" "entity-rest" "shell" "vufind" "elastic" "watch" "oai")
+  local optional_modules=("solr" "harvester" "entity-rest" "shell" "vufind" "elastic" "watch" "oai")
   local pre_selected=()
   for m in "${optional_modules[@]}"; do
     if [ "$(get_module_state "${m}")" = "on" ]; then
@@ -2059,8 +2045,8 @@ case "${cmd}" in
       fi
 
       # --- Dependency Resolution ---
-      # 1. harvester, dashboard, entity-rest, and shell need postgres (core)
-      if contains_item "harvester" "${modules[@]-}" || contains_item "dashboard" "${modules[@]-}" || contains_item "entity-rest" "${modules[@]-}" || contains_item "shell" "${modules[@]-}"; then
+      # 1. harvester, entity-rest, and shell need postgres (core)
+      if contains_item "harvester" "${modules[@]-}" || contains_item "entity-rest" "${modules[@]-}" || contains_item "shell" "${modules[@]-}"; then
         if ! contains_item "core" "${modules[@]-}"; then
           modules+=(core)
         fi
@@ -2246,7 +2232,7 @@ case "${cmd}" in
         lareferencia-solr-cores lareferencia-oclc-harvester lareferencia-core-lib
         lareferencia-entity-lib lareferencia-contrib-rcaap lareferencia-contrib-ibict
         lareferencia-indexing-filters-lib lareferencia-shell-entity-plugin lareferencia-shell
-        lareferencia-dark-lib lareferencia-lrharvester-app lareferencia-entity-rest lareferencia-dashboard-rest
+        lareferencia-dark-lib lareferencia-lrharvester-app lareferencia-entity-rest
       )
       for module in "${fallback_modules[@]}"; do
         if [ -d "${ROOT_DIR}/${module}" ]; then

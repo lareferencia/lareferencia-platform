@@ -171,7 +171,7 @@ services:
       FRONTEND_SOLR_URL: http://solr:8983/solr/biblio
       XOAI_SOLR_URL: http://solr:8983/solr/oai
     ports:
-      - "${LR_PORT_HARVESTER:-8090}:8090"
+      - "127.0.0.1:${LR_PORT_HARVESTER:-8090}:8090"
     volumes:
       - ./Docker/config-overrides:/docker-overrides:ro
       - ./Docker/volume/lareferencia/lrharvester-app/config:/config
@@ -182,52 +182,6 @@ services:
         limits:
           memory: ${LR_MEM_HARVESTER:-2G}
           cpus: "${LR_CPU_HARVESTER:-1.0}"
-    restart: unless-stopped
-
-  dashboard-rest:
-    profiles:
-      - dashboard
-    build:
-      context: .
-      dockerfile: Docker/apps/Dockerfile
-      args:
-        APP_MODULE: lareferencia-dashboard-rest
-        LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-    image: lareferencia/dashboard-rest:${LR_BUILD_PROFILE:-lareferencia}
-    container_name: ${COMPOSE_PROJECT_NAME:-lr}-dashboard-rest
-    depends_on:
-      postgres:
-        condition: service_healthy
-      solr:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    networks:
-      default:
-        aliases:
-          - dashboard-rest
-    environment:
-      APP_MODULE: lareferencia-dashboard-rest
-      APP_JAR: lareferencia-dashboard-rest-5.0.0-rc.jar
-      APP_CONFIG_DIR: /workspace/lareferencia-dashboard-rest/config
-      LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lrharvester
-      SOLR_HOST: http://solr:8983/solr
-      ELASTIC_HOST: elasticsearch
-      EXTERNAL_CONFIG_DIR: /config
-      LOG_DIR: /var/log/dashboard
-    ports:
-      - "${LR_PORT_DASHBOARD:-8092}:8092"
-    volumes:
-      - ./Docker/config-overrides:/docker-overrides:ro
-      - ./Docker/volume/lareferencia/dashboard-rest/config:/config
-      - ./Docker/volume/lareferencia/dashboard-rest/data:/data
-      - ./Docker/volume/lareferencia/dashboard-rest/log:/var/log/dashboard
-    deploy:
-      resources:
-        limits:
-          memory: ${LR_MEM_DASHBOARD:-1G}
-          cpus: "${LR_CPU_DASHBOARD:-0.5}"
     restart: unless-stopped
 
   entity-rest:
