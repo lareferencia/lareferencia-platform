@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: LA Referencia semantic services EC2 host with Docker, Java 21, and persistent Solr.
+
+Parameters:
+  Name: {Type: String, Default: lareferencia-semantic-services}
+  BaseStackName: {Type: String, Default: lareferencia-base}
+  ImageId: {Type: AWS::EC2::Image::Id}
+  InstanceType: {Type: String, Default: t4g.xlarge}
+  KeyName: {Type: AWS::EC2::KeyPair::KeyName}
+  ProxyPrivateIpCidr: {Type: String, Default: 172.31.88.12/32}
+  ProxyHttpPort: {Type: Number, Default: 80, MinValue: 1, MaxValue: 65535}
+  ProxyEmbeddingPort: {Type: Number, Default: 8000, MinValue: 1, MaxValue: 65535}
+  InternalIngressCidr: {Type: String, Default: ''}
+  InternalIngressFromPort: {Type: Number, Default: 8983, MinValue: 1, MaxValue: 65535}
+  InternalIngressToPort: {Type: Number, Default: 8983, MinValue: 1, MaxValue: 65535}
+  InstanceProfileName: {Type: String, Default: infra-ssm-admin}
+  HeadscaleAuthKey:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+  HeadscaleHostname: {Type: String}
+  TailscaleHostname: {Type: String, Default: lareferencia-semantic-services}
+  SolrImage:
+    Type: String
+    Description: Any pullable Solr container image reference, including development tags.
+  SolrCoreName: {Type: String, Default: biblio}
+  VufindRepositoryUrl:
+    Type: String
+    Default: https://github.com/LA-Referencia-IOI/vufind.git
+    AllowedPattern: '^https://[A-Za-z0-9._~/-]+$'
+  VufindRef:
+    Type: String
+    Default: v11.0.1
+    AllowedPattern: '^[A-Za-z0-9._/-]+$'
+  RootVolumeSizeGiB: {Type: Number, Default: 30, MinValue: 8}
+  DataVolumeSizeGiB: {Type: Number, Default: 500, MinValue: 1}
+  DataVolumeEncrypted: {Type: String, Default: 'true', AllowedValues: ['true', 'false']}
+  AssociatePublicIp: {Type: String, Default: 'true', AllowedValues: ['true', 'false']}
+
+Conditions:
+  HasInternalIngress: !Not [!Equals [!Ref InternalIngressCidr, '']]
+  HasPublicIp: !Equals [!Ref AssociatePublicIp, 'true']
+  EncryptDataVolume: !Equals [!Ref DataVolumeEncrypted, 'true']
+
+Resources:
+  ProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Proxy access to semantic services
+      VpcId: !ImportValue
+        Fn::Sub: '${BaseStackName}-VpcId'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ProxyHttpPort
+          ToPort: !Ref ProxyHttpPort
+          CidrIp: !Ref ProxyPrivateIpCidr
+          Description: Proxy HTTP access
+        - IpProtocol: tcp
+          FromPort: !Ref ProxyEmbeddingPort
+          ToPort: !Ref ProxyEmbeddingPort
+          CidrIp: !Ref ProxyPrivateIpCidr
+          Description: Proxy embedding API access
+        - !If
+          - HasInternalIngress
+          - IpProtocol: tcp
+            FromPort: !Ref InternalIngressFromPort
+            ToPort: !Ref InternalIngressToPort
+            CidrIp: !Ref InternalIngressCidr
+            Description: Internal service access
+          - !Ref AWS::NoValue
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags: [{Key: Name, Value: !Sub '${Name}-access'}]
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref InstanceProfileName
+      MetadataOptions: {HttpEndpoint: enabled, HttpTokens: required, HttpPutResponseHopLimit: 1}
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          SubnetId: !ImportValue
+            Fn::Sub: '${BaseStackName}-WorkloadSubnetId'
+          GroupSet: [!Ref ProxySecurityGroup]
+          AssociatePublicIpAddress: !If [HasPublicIp, true, false]
+          DeleteOnTermination: true
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: {VolumeSize: !Ref RootVolumeSizeGiB, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true}
+      Tags: [{Key: Name, Value: !Ref Name}]
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash
+            set -euo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+            retry() { local n=1; until "$@"; do [ "$n" -ge 5 ] && return 1; n=$((n + 1)); sleep 5; done; }
+            retry apt-get update
+            retry apt-get install -y ca-certificates curl docker.io docker-compose-v2 openjdk-21-jre-headless
+            if ! command -v tailscale >/dev/null 2>&1; then curl -fsSL https://tailscale.com/install.sh | sh; fi
+            systemctl enable --now tailscaled.service
+            tailscale up --login-server='https://${HeadscaleHostname}' --auth-key='${HeadscaleAuthKey}' \
+              --hostname='${TailscaleHostname}' --accept-dns=false
+            tailscale status
+            systemctl disable --now docker.service docker.socket || true
+            root_source="$(findmnt -n -o SOURCE /)"
+            root_disk="$(lsblk -no PKNAME "$root_source" 2>/dev/null | head -n1 || true)"
+            [ -n "$root_disk" ] || root_disk="$(basename "$root_source" | sed 's/p[0-9][0-9]*$//')"
+            data_device=''
+            for attempt in $(seq 1 120); do
+              while read -r name kind; do
+                if [ "$kind" = disk ] && [ "$name" != "$root_disk" ]; then data_device="/dev/$name"; break; fi
+              done < <(lsblk -dn -o NAME,TYPE)
+              [ -b "$data_device" ] && break
+              sleep 2
+            done
+            [ -b "$data_device" ] || { echo 'EBS data volume not found' >&2; exit 1; }
+            blkid "$data_device" >/dev/null 2>&1 || mkfs.ext4 -F "$data_device"
+            install -d -m 0750 /srv/lareferencia/data
+            uuid="$(blkid -s UUID -o value "$data_device")"
+            grep -qsE '[[:space:]]/srv/lareferencia/data[[:space:]]' /etc/fstab || \
+              echo "UUID=$uuid /srv/lareferencia/data ext4 defaults,nofail,x-systemd.device-timeout=10s 0 2" >> /etc/fstab
+            mountpoint -q /srv/lareferencia/data || mount /srv/lareferencia/data
+            install -d -m 0710 /srv/lareferencia/data/docker
+            install -d -m 0755 /etc/docker /etc/systemd/system/docker.service.d
+            printf '{\n  "data-root": "/srv/lareferencia/data/docker",\n  "log-driver": "local",\n  "log-opts": {"max-size": "50m", "max-file": "5"}\n}\n' > /etc/docker/daemon.json
+            printf '[Unit]\nRequiresMountsFor=/srv/lareferencia/data\nAfter=local-fs.target\n' > /etc/systemd/system/docker.service.d/lareferencia-data.conf
+            systemctl daemon-reload
+            systemctl enable --now docker.service
+            docker info --format '{{.DockerRootDir}}' | grep -Fx /srv/lareferencia/data/docker
+            java -version
+            vufind_source='/srv/lareferencia/data/vufind-source'
+            git clone --depth 1 --branch '${VufindRef}' '${VufindRepositoryUrl}' "$vufind_source"
+            install -d -o 8983 -g 8983 -m 0750 /srv/lareferencia/data/solr
+            solr_data='/srv/lareferencia/data/solr'
+            install -d -o 8983 -g 8983 -m 0750 "$solr_data/data/${SolrCoreName}" "$solr_data/data/jars" "$solr_data/import" "$solr_data/vendor"
+            cp -a "$vufind_source/solr/vufind/biblio/." "$solr_data/data/${SolrCoreName}/"
+            cp -a "$vufind_source/solr/vufind/jars/." "$solr_data/data/jars/"
+            cp -a "$vufind_source/import/." "$solr_data/import/"
+            chown -R 8983:8983 "$solr_data"
+            docker pull '${SolrImage}'
+            docker run --detach --name lareferencia-solr --restart unless-stopped \
+              --publish 8983:8983 --volume "$solr_data:/var/solr" --volume "$solr_data/import:/import" \
+              '${SolrImage}' bash -c 'mkdir -p /var/solr/vendor; if [ ! -e /var/solr/vendor/modules ]; then ln -s /opt/solr/modules /var/solr/vendor/modules; fi; exec solr-foreground'
+            for attempt in $(seq 1 60); do
+              curl --fail --silent 'http://127.0.0.1:8983/solr/${SolrCoreName}/admin/ping' >/dev/null && break
+              sleep 5
+            done
+            curl --fail --silent 'http://127.0.0.1:8983/solr/${SolrCoreName}/admin/ping' >/dev/null
+            install -d -m 0755 /var/lib/lareferencia
+            printf 'bootstrap complete profile=semantic-java21 host=%s date=%s\n' "$(hostname -s)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /var/lib/lareferencia/bootstrap-complete
+
+  DataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      AvailabilityZone: !GetAtt Instance.AvailabilityZone
+      Size: !Ref DataVolumeSizeGiB
+      VolumeType: gp3
+      Encrypted: !If [EncryptDataVolume, true, false]
+      Tags: [{Key: Name, Value: !Sub '${Name}-data'}]
+
+  DataVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties: {Device: /dev/sdf, InstanceId: !Ref Instance, VolumeId: !Ref DataVolume}
+
+Outputs:
+  InstanceId: {Value: !Ref Instance}
+  PrivateIp: {Value: !GetAtt Instance.PrivateIp}
+  PublicIp: {Condition: HasPublicIp, Value: !GetAtt Instance.PublicIp}
+  AvailabilityZone: {Value: !GetAtt Instance.AvailabilityZone}
+  SecurityGroupId: {Value: !Ref ProxySecurityGroup}
+  DataVolumeId: {Value: !Ref DataVolume}
+  SolrUrl:
+    Description: Private Solr base URL; reachable from the VPC on port 8983.
+    Value: !Sub 'http://${Instance.PrivateIp}:8983/solr'
+    Export:
+      Name: !Sub '${AWS::StackName}-SolrUrl'

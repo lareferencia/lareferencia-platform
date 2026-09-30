@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: LA Referencia VuFind Apache PHP MariaDB EC2 host.
+
+Parameters:
+  Name: {Type: String, Default: lareferencia-vufind-services}
+  BaseStackName: {Type: String, Default: lareferencia-base}
+  ImageId: {Type: AWS::EC2::Image::Id}
+  InstanceType: {Type: String, Default: t4g.xlarge}
+  KeyName: {Type: AWS::EC2::KeyPair::KeyName}
+  ProxyPrivateIpCidr: {Type: String, Default: 172.31.88.12/32}
+  ProxyHttpPort: {Type: Number, Default: 80, MinValue: 1, MaxValue: 65535}
+  InstanceProfileName: {Type: String, Default: infra-ssm-admin}
+  HeadscaleAuthKey:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+  HeadscaleHostname: {Type: String}
+  TailscaleHostname: {Type: String, Default: lareferencia-vufind-services}
+  SemanticStackName: {Type: String, Default: lareferencia-semantic-services}
+  VufindRepositoryUrl:
+    Type: String
+    Default: https://github.com/LA-Referencia-IOI/vufind.git
+    AllowedPattern: '^https://[A-Za-z0-9._~/-]+$'
+  VufindRef:
+    Type: String
+    Default: v11.0.1
+    AllowedPattern: '^[A-Za-z0-9._/-]+$'
+  RootVolumeSizeGiB: {Type: Number, Default: 30, MinValue: 8}
+  DataVolumeSizeGiB: {Type: Number, Default: 50, MinValue: 1}
+  DataVolumeEncrypted: {Type: String, Default: 'true', AllowedValues: ['true', 'false']}
+  AssociatePublicIp: {Type: String, Default: 'true', AllowedValues: ['true', 'false']}
+  VufindProductionHostname: {Type: String, Default: vufind-prod.local}
+  VufindSemanticHostname: {Type: String, Default: vufind-semantic.local}
+  SolrProductionUrl: {Type: String, Default: http://solr-production:8983/solr}
+
+Conditions:
+  HasPublicIp: !Equals [!Ref AssociatePublicIp, 'true']
+  EncryptDataVolume: !Equals [!Ref DataVolumeEncrypted, 'true']
+
+Resources:
+  ProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Proxy access to VuFind HTTP
+      VpcId: !ImportValue
+        Fn::Sub: '${BaseStackName}-VpcId'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ProxyHttpPort
+          ToPort: !Ref ProxyHttpPort
+          CidrIp: !Ref ProxyPrivateIpCidr
+          Description: Reverse proxy HTTP
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags: [{Key: Name, Value: !Sub '${Name}-access'}]
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref InstanceProfileName
+      MetadataOptions: {HttpEndpoint: enabled, HttpTokens: required, HttpPutResponseHopLimit: 1}
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          SubnetId: !ImportValue
+            Fn::Sub: '${BaseStackName}-WorkloadSubnetId'
+          GroupSet: [!Ref ProxySecurityGroup]
+          AssociatePublicIpAddress: !If [HasPublicIp, true, false]
+          DeleteOnTermination: true
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: {VolumeSize: !Ref RootVolumeSizeGiB, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true}
+      Tags: [{Key: Name, Value: !Ref Name}]
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              #!/bin/bash
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              retry() { local n=1; until "$@"; do [ "$n" -ge 5 ] && return 1; n=$((n + 1)); sleep 5; done; }
+              data_root='/srv/lareferencia/data'
+              web_root='/var/www'
+              root_source="$(findmnt -n -o SOURCE /)"
+              root_disk="$(lsblk -no PKNAME "$root_source" 2>/dev/null | head -n1 || true)"
+              [ -n "$root_disk" ] || root_disk="$(basename "$root_source" | sed 's/p[0-9][0-9]*$//')"
+              data_device=''
+              for attempt in $(seq 1 120); do
+                while read -r name kind; do
+                  if [ "$kind" = disk ] && [ "$name" != "$root_disk" ]; then data_device="/dev/$name"; break; fi
+                done < <(lsblk -dn -o NAME,TYPE)
+                [ -b "$data_device" ] && break
+                sleep 2
+              done
+              [ -b "$data_device" ] || { echo 'EBS data volume not found' >&2; exit 1; }
+              blkid "$data_device" >/dev/null 2>&1 || mkfs.ext4 -F "$data_device"
+              install -d -m 0755 "$data_root"
+              uuid="$(blkid -s UUID -o value "$data_device")"
+              grep -qsE "[[:space:]]$data_root[[:space:]]" /etc/fstab || echo "UUID=$uuid $data_root ext4 defaults,nofail,x-systemd.device-timeout=10s 0 2" >> /etc/fstab
+              mountpoint -q "$data_root" || mount "$data_root"
+              retry apt-get update
+              retry apt-get install -y apache2 composer curl git mariadb-server mariadb-client \
+                libapache2-mod-php php php-cli php-common php-curl php-gd php-intl php-ldap \
+                php-mbstring php-mysql php-opcache php-soap php-xml php-xsl php-zip unzip
+              if ! command -v tailscale >/dev/null 2>&1; then curl -fsSL https://tailscale.com/install.sh | sh; fi
+              systemctl enable --now tailscaled.service
+              tailscale up --login-server='https://${HeadscaleHostname}' --auth-key='${HeadscaleAuthKey}' \
+                --hostname='${TailscaleHostname}' --accept-dns=false
+              tailscale status
+              install -d -m 0755 "$data_root/www" "$data_root/mysql"
+              if [ -d "$web_root" ] && [ ! -L "$web_root" ]; then
+                cp -a "$web_root" "$data_root/www/"
+                rm -rf "$web_root"
+              fi
+              install -d -o www-data -g www-data -m 0755 "$data_root/www"
+              mount --bind "$data_root/www" "$web_root"
+              grep -qsE '[[:space:]]/var/www[[:space:]]' /etc/fstab || echo "$data_root/www /var/www none bind,nofail 0 0" >> /etc/fstab
+              install -d -o www-data -g www-data -m 0755 "$web_root/vufind-prod" "$web_root/vufind-semantic"
+              install -d -o mysql -g mysql -m 0750 "$data_root/mysql"
+  
+              systemctl stop mariadb
+              if [ -d /var/lib/mysql ] && [ "$(find /var/lib/mysql -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+                cp -a /var/lib/mysql/. "$data_root/mysql/"
+                chown -R mysql:mysql "$data_root/mysql"
+              fi
+              cat >/etc/mysql/mariadb.conf.d/60-lareferencia-data.cnf <<EOF
+              [mariadb]
+              datadir=${!data_root}/mysql
+              EOF
+              rm -rf /var/lib/mysql
+              install -d -o mysql -g mysql -m 0750 /var/lib/mysql
+              mount --bind "$data_root/mysql" /var/lib/mysql
+              grep -qsE '[[:space:]]/var/lib/mysql[[:space:]]' /etc/fstab || echo "$data_root/mysql /var/lib/mysql none bind,nofail 0 0" >> /etc/fstab
+              systemctl enable --now mariadb
+
+              install_vufind_instance() {
+                local site="$1" database="$2" solr_url="$3"
+                local app_root="$web_root/$site" local_root="$web_root/$site/local"
+                local database_password
+                database_password="$(openssl rand -hex 32)"
+                git clone --depth 1 --branch '${VufindRef}' '${VufindRepositoryUrl}' "$app_root"
+                touch "$app_root/solr/.disableAutomaticInstall"
+                chown -R www-data:www-data "$app_root"
+                runuser -u www-data -- env VUFIND_HOME="$app_root" VUFIND_LOCAL_DIR="$local_root" COMPOSER_HOME="$data_root/composer" \
+                  composer install --working-dir="$app_root" --no-interaction --prefer-dist --no-dev --optimize-autoloader
+                runuser -u www-data -- env VUFIND_HOME="$app_root" VUFIND_LOCAL_DIR="$local_root" \
+                  php "$app_root/install.php" --basepath=/ --non-interactive --overridedir="$local_root" --no-apache-help
+
+                mysql --protocol=socket --user=root <<SQL
+              CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+              CREATE USER '$database'@'localhost' IDENTIFIED BY '$database_password';
+              GRANT ALL PRIVILEGES ON $database.* TO '$database'@'localhost';
+              SQL
+                runuser -u www-data -- env VUFIND_HOME="$app_root" VUFIND_LOCAL_DIR="$local_root" \
+                  php "$app_root/public/index.php" install/database --steps=main,post \
+                  --dbHost=localhost:3306 --vufindHost=localhost --rootUser="$database" \
+                  --rootPass="$database_password" "$database" "$database" "$database_password"
+
+                sed -i "/^\\[Index\\]/,/^\\[/{s#^url[[:space:]]*=.*#url = $solr_url#;}" \
+                  "$local_root/config/vufind/config.ini"
+                sed -i "/^\\[Database\\]/,/^\\[/{s#^database[[:space:]]*=.*#database = mysql://$database:$database_password@localhost/$database#;}" \
+                  "$local_root/config/vufind/config.ini"
+                chown root:www-data "$local_root/config/vufind/config.ini"
+                chmod 0640 "$local_root/config/vufind/config.ini"
+                printf '%s\n' "$(git -C "$app_root" rev-parse HEAD)" > "/var/lib/lareferencia/$site"-ref
+              }
+
+              install -d -m 0755 /var/lib/lareferencia
+              install -d -o www-data -g www-data -m 0750 "$data_root/composer"
+              install_vufind_instance vufind-prod vufind_prod '${SolrProductionUrl}'
+              install_vufind_instance vufind-semantic vufind_semantic '${SemanticSolrUrl}'
+  
+              a2enmod rewrite headers expires
+              cat >/etc/apache2/sites-available/vufind-prod.conf <<EOF
+              <VirtualHost *:80>
+                ServerName ${VufindProductionHostname}
+                DocumentRoot /var/www/vufind-prod/public
+                SetEnv VUFIND_LOCAL_DIR /var/www/vufind-prod/local
+                <Directory /var/www/vufind-prod/public>
+                  AllowOverride All
+                  Require all granted
+                </Directory>
+              </VirtualHost>
+              EOF
+              cat >/etc/apache2/sites-available/vufind-semantic.conf <<EOF
+              <VirtualHost *:80>
+                ServerName ${VufindSemanticHostname}
+                DocumentRoot /var/www/vufind-semantic/public
+                SetEnv VUFIND_LOCAL_DIR /var/www/vufind-semantic/local
+                <Directory /var/www/vufind-semantic/public>
+                  AllowOverride All
+                  Require all granted
+                </Directory>
+              </VirtualHost>
+              EOF
+              a2dissite 000-default.conf
+              a2ensite vufind-prod.conf vufind-semantic.conf
+              apache2ctl configtest
+              systemctl enable --now apache2
+              systemctl reload apache2
+              curl --fail --silent --output /dev/null -H 'Host: ${VufindProductionHostname}' http://127.0.0.1/
+              curl --fail --silent --output /dev/null -H 'Host: ${VufindSemanticHostname}' http://127.0.0.1/
+              install -d -m 0755 /var/lib/lareferencia
+              cat >/var/lib/lareferencia/vufind-bootstrap.env <<EOF
+              SOLR_PRODUCTION_URL=${SolrProductionUrl}
+              SOLR_SEMANTIC_URL=${SemanticSolrUrl}
+              EOF
+              printf 'bootstrap complete profile=vufind host=%s date=%s\n' "$(hostname -s)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /var/lib/lareferencia/bootstrap-complete
+            - SemanticSolrUrl:
+                Fn::ImportValue:
+                  Fn::Sub: '${SemanticStackName}-SolrUrl'
+
+  DataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      AvailabilityZone: !GetAtt Instance.AvailabilityZone
+      Size: !Ref DataVolumeSizeGiB
+      VolumeType: gp3
+      Encrypted: !If [EncryptDataVolume, true, false]
+      Tags: [{Key: Name, Value: !Sub '${Name}-data'}]
+
+  DataVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties: {Device: /dev/sdf, InstanceId: !Ref Instance, VolumeId: !Ref DataVolume}
+
+Outputs:
+  InstanceId: {Value: !Ref Instance}
+  PrivateIp: {Value: !GetAtt Instance.PrivateIp}
+  PublicIp: {Condition: HasPublicIp, Value: !GetAtt Instance.PublicIp}
+  AvailabilityZone: {Value: !GetAtt Instance.AvailabilityZone}
+  SecurityGroupId: {Value: !Ref ProxySecurityGroup}
+  DataVolumeId: {Value: !Ref DataVolume}

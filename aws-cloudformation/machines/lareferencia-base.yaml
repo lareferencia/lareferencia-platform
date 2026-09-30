@@ -1,0 +1,14 @@
+Parameters:
+  ExistingVpcId: vpc-972268ec
+  ExistingWorkloadSubnetId: subnet-fc2bc6d2
+  ExistingWorkloadSubnetCidr: 172.31.80.0/20
+  HostedZoneId: Z1VO1PUYSLDBVK
+  HeadscaleHostname: vpn.lareferencia.info
+  TailscaleIpPrefixes: 100.64.0.0/24
+  ImageId: /aws/service/canonical/ubuntu/server/26.04/stable/current/arm64/hvm/ebs-gp3/ami-id
+  InstanceType: t4g.micro
+  InstanceName: lareferencia-vpn
+  HeadscaleVersion: 0.29.3
+  HeadplaneVersion: 0.7.0
+  HeadscaleTagOwnerUsername: lmatas
+  RetainRootVolume: 'true'

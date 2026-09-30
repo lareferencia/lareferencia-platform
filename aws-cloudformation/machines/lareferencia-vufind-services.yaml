@@ -1,0 +1,21 @@
+Parameters:
+  Name: lareferencia-vufind-services
+  BaseStackName: lareferencia-base
+  ImageId: ami-0abbb5421e6a3a16d
+  InstanceType: t4g.xlarge
+  KeyName: lareferencia-ioi
+  ProxyPrivateIpCidr: 172.31.88.12/32
+  ProxyHttpPort: 80
+  InstanceProfileName: infra-ssm-admin
+  HeadscaleHostname: vpn.lareferencia.info
+  TailscaleHostname: lareferencia-vufind-services
+  SemanticStackName: lareferencia-semantic-services
+  VufindRepositoryUrl: https://github.com/LA-Referencia-IOI/vufind.git
+  VufindRef: v11.0.1
+  VufindProductionHostname: buscador.lareferencia.info
+  VufindSemanticHostname: semantic.lareferencia.info
+  SolrProductionUrl: http://172.31.93.50:8983/solr
+  RootVolumeSizeGiB: 30
+  DataVolumeSizeGiB: 50
+  DataVolumeEncrypted: 'true'
+  AssociatePublicIp: 'true'
