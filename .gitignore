@@ -63,6 +63,7 @@ pom.xml.versionsBackup
 /lareferencia-shell/
 /lareferencia-lrharvester-app/
 /lareferencia-lrharvester-admin-web/
+/lareferencia-repository-dashboard/
 /lareferencia-entity-rest/
 /lareferencia-dashboard-rest/
 /lareferencia-oai-pmh/
@@ -73,3 +74,5 @@ pom.xml.versionsBackup
 /vufind/local/docker/import/import.properties
 /vufind/local/docker/import/import_auth.properties
 /vufind/local/docker/config/vufind/NoILS.ini
+/.obsidian/
+.DS_Store

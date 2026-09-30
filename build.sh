@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eou pipefail
 
-JAVA_PARENT_MODULES=(
+REACTOR_MODULES=(
   lareferencia-oclc-harvester
   lareferencia-core-lib
   lareferencia-entity-lib
@@ -10,27 +10,27 @@ JAVA_PARENT_MODULES=(
   lareferencia-shell
   lareferencia-dark-lib
   lareferencia-lrharvester-admin-web
+  lareferencia-repository-dashboard
   lareferencia-lrharvester-app
   lareferencia-entity-rest
-  lareferencia-dashboard-rest
   lareferencia-oai-pmh
 )
 
-ensure_java_parent_modules_ready() {
+ensure_reactor_modules_ready() {
   local root_dir
   local missing=()
   local module
 
   root_dir="$(cd -- "$(dirname "$0")" >/dev/null 2>&1; pwd -P)"
 
-  for module in "${JAVA_PARENT_MODULES[@]}"; do
+  for module in "${REACTOR_MODULES[@]}"; do
     if [ ! -f "${root_dir}/${module}/pom.xml" ]; then
       missing+=("${module}")
     fi
   done
 
   if [ "${#missing[@]}" -gt 0 ]; then
-    echo "Faltan modulos Java inicializados (pom.xml ausente):" >&2
+    echo "Faltan módulos del reactor inicializados (pom.xml ausente):" >&2
     printf '  - %s\n' "${missing[@]}" >&2
     echo "Ejecutando: ./githelper init para clonar modulos..." >&2
     if [ -x "${root_dir}/githelper" ]; then
@@ -42,7 +42,7 @@ ensure_java_parent_modules_ready() {
 
   # Re-verificar
   missing=()
-  for module in "${JAVA_PARENT_MODULES[@]}"; do
+  for module in "${REACTOR_MODULES[@]}"; do
     if [ ! -f "${root_dir}/${module}/pom.xml" ]; then
       missing+=("${module}")
     fi
@@ -54,19 +54,17 @@ ensure_java_parent_modules_ready() {
   fi
 }
 
-# check parameters passed to script and print usage
-if [ $# -lt 1 ]; then
-  echo "Usage: $0 <profile>"
-  echo "  profile: profile to build (default: lite)"
-  echo "  options: lite, lareferencia, ibict, rcaap"
-
-  exit 1
+if [ "$#" -gt 1 ]; then
+  echo "Usage: $0 [lite|lareferencia|ibict|rcaap]" >&2
+  exit 2
 fi
 
-ensure_java_parent_modules_ready
+PROFILE="${1:-lite}"
+case "${PROFILE}" in
+  lite|lareferencia|ibict|rcaap) ;;
+  *) echo "Unknown build profile: ${PROFILE}" >&2; echo "Usage: $0 [lite|lareferencia|ibict|rcaap]" >&2; exit 2 ;;
+esac
 
-if [ -z "$1" ]; then
-   mvn clean package install -DskipTests -Dmaven.javadoc.skip=true
-else
-   mvn clean package install -DskipTests -Dmaven.javadoc.skip=true -P$1
-fi
+ensure_reactor_modules_ready
+cd "$(cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+mvn clean install -DskipTests -Dmaven.javadoc.skip=true "-P${PROFILE}"

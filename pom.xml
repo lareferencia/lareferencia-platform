@@ -57,7 +57,6 @@
 	<jakarta.validation.version>3.0.2</jakarta.validation.version>
 	<spring-boot.executable>true</spring-boot.executable>
 	<lareferencia.shell.appname>lareferencia-shell</lareferencia.shell.appname>		<harvester.appname>harvester</harvester.appname>
-		<dashboard.rest.appname>dashboard-rest</dashboard.rest.appname>
 		<entity.rest.appname>entity-rest</entity.rest.appname>
 		<testcontainers.version>1.20.1</testcontainers.version>
 	</properties>
@@ -184,11 +183,12 @@
 		<module>lareferencia-shell-entity-plugin</module>
 		<module>lareferencia-shell</module>
 		<module>lareferencia-dark-lib</module>
-		<!-- Generates the React SPA into lrharvester-app/static before packaging the harvester. -->
+		<!-- Generates the React SPA into lrharvester-app/admin-static before packaging the harvester. -->
 		<module>lareferencia-lrharvester-admin-web</module>
+		<!-- Generates the Angular dashboard into lrharvester-app/dashboard-static. -->
+		<module>lareferencia-repository-dashboard</module>
 		<module>lareferencia-lrharvester-app</module>
 		<module>lareferencia-entity-rest</module>
-		<module>lareferencia-dashboard-rest</module>
 		<module>lareferencia-oai-pmh</module>
 	</modules>
 
