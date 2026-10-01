@@ -176,7 +176,11 @@ select_instance() {
     else
       printf 'Use isolated developer instance? [Y/n] '
       read -r answer
-      selected="${answer:+normal}"
+      case "$(printf '%s' "${answer:-y}" | tr '[:upper:]' '[:lower:]')" in
+        y|yes) selected='isolated' ;;
+        n|no) selected='normal' ;;
+        *) die "Please answer y or n" ;;
+      esac
     fi
   fi
   case "${selected}" in
@@ -312,7 +316,10 @@ rebuild_service() {
     restart_service "${service}"
   elif [ "${service}" = solr ] || [ "${service}" = vufind-web ]; then
     dc build "${service}"
-    restart_service "${service}"
+    # Image-based services must be recreated to run the newly built image;
+    # a plain restart keeps the container on the old image. --no-deps leaves
+    # the rest of the stack untouched.
+    dc up -d --no-deps "${service}"
   else
     die "rebuild supports Java services, solr, and vufind-web"
   fi

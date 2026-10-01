@@ -25,6 +25,14 @@ if [ -n "${EXTERNAL_CONFIG_DIR:-}" ]; then
   if [ -d "${APP_CONFIG_DIR}" ]; then
     cp -ru "${APP_CONFIG_DIR}/." "${EXTERNAL_CONFIG_DIR}/" 2>/dev/null || true
   fi
+  # cp -ru never removes files, so pre-v5 file-based auth artifacts can linger
+  # in an older external config directory. Retire the known files explicitly
+  # (see docs/DOCKER_DEV.md: identities are PostgreSQL-backed since v5).
+  rm -f \
+    "${EXTERNAL_CONFIG_DIR}/users.properties" \
+    "${EXTERNAL_CONFIG_DIR}/users.properties.default" \
+    "${EXTERNAL_CONFIG_DIR}/add-user.py" \
+    "${EXTERNAL_CONFIG_DIR}/application.properties.d/04-security.properties"
   APP_CONFIG_DIR="${EXTERNAL_CONFIG_DIR}"
 fi
 
