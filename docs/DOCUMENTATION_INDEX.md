@@ -84,7 +84,7 @@ Unchanged (verified as valid in the audit): `lareferencia-dark-lib`, `lareferenc
 | [`lareferencia-oai-pmh/docs/testing/oai-compatibility-contract.md`](../lareferencia-oai-pmh/docs/testing/oai-compatibility-contract.md) | Tests use the provider's own Solr 9.8 core copy; layer 5 pending |
 | [`testing/oai-incremental/README.md`](../testing/oai-incremental/README.md) | Ports corrected (8096/8196), `--core` unused, manifest scope behavior |
 | [`.agent/workflows/configure-vufind.md`](../.agent/workflows/configure-vufind.md) | Personal absolute path removed |
-| [`../aws-cloudformation/README.md`](../aws-cloudformation/README.md) | EC2 CloudFormation templates (`ec2.yaml`) + deploy/monitor scripts (pending commit) |
+| [CloudFormation infrastructure repository](https://github.com/LA-Referencia-IOI/larefererencia-infra-cloudformation) | EC2 templates, machine configurations, and deployment/monitoring scripts |
 
 ## How to keep this healthy
 
