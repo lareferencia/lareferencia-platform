@@ -2193,6 +2193,49 @@ case "${cmd}" in
       read -r -p "Type RESET to confirm: " confirmation
       [ "${confirmation}" != "RESET" ] && exit 1
     fi
+
+    echo "--- Loading cloned workspace modules from workspace.ini ---"
+    modules_to_remove=()
+    workspace_module_paths="$(python3 - "${ROOT_DIR}/workspace.ini" <<'PY'
+import configparser
+import sys
+from pathlib import Path
+
+manifest = Path(sys.argv[1])
+parser = configparser.ConfigParser(interpolation=None)
+parser.optionxform = str
+try:
+    if not parser.read(manifest):
+        raise ValueError(f"could not read {manifest}")
+    paths = []
+    for section in parser.sections():
+        if not section.startswith("module."):
+            continue
+        name = section[len("module."):].strip()
+        path = parser.get(section, "path", fallback=name).strip() or name
+        candidate = Path(path)
+        if not name or not path or path in {".", ".."} or candidate.is_absolute() or ".." in candidate.parts:
+            raise ValueError(f"invalid module path in [{section}]: {path!r}")
+        if "\n" in path or "\r" in path:
+            raise ValueError(f"invalid module path in [{section}]: newline is not allowed")
+        paths.append(path)
+    if not paths:
+        raise ValueError(f"{manifest} contains no [module.*] sections")
+    print("\n".join(paths))
+except Exception as error:
+    print(f"Error reading workspace module paths: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
+)" || exit 1
+    while IFS= read -r module; do
+      [ -n "${module}" ] || continue
+      module_dir="${ROOT_DIR}/${module}"
+      # Only remove initialized nested Git checkouts named by the manifest.
+      if [ -d "${module_dir}" ] && { [ -e "${module_dir}/.git" ] || [ -f "${module_dir}/.git" ]; }; then
+        modules_to_remove+=("${module}")
+      fi
+    done <<< "${workspace_module_paths}"
+
     echo "--- Stopping and removing all containers, networks and volumes ---"
     "${BASH_SOURCE[0]}" down v || true
 
@@ -2213,34 +2256,6 @@ case "${cmd}" in
     clean_data_preserving_tracked
 
     echo "--- Removing cloned workspace modules ---"
-    modules_to_remove=()
-    if [ -f "${ROOT_DIR}/modules.txt" ]; then
-      while IFS= read -r module || [ -n "$module" ]; do
-        [ -z "$module" ] && continue
-        [[ "$module" =~ ^# ]] && continue
-        # Trim whitespace
-        module="${module#"${module%%[![:space:]]*}"}"
-        module="${module%"${module##*[![:space:]]}"}"
-        
-        if [ -d "${ROOT_DIR}/${module}" ]; then
-          modules_to_remove+=("${module}")
-        fi
-      done < "${ROOT_DIR}/modules.txt"
-    else
-      # Fallback list if modules.txt is not found
-      fallback_modules=(
-        lareferencia-solr-cores lareferencia-oclc-harvester lareferencia-core-lib
-        lareferencia-entity-lib lareferencia-contrib-rcaap lareferencia-contrib-ibict
-        lareferencia-indexing-filters-lib lareferencia-shell-entity-plugin lareferencia-shell
-        lareferencia-dark-lib lareferencia-lrharvester-app lareferencia-entity-rest
-      )
-      for module in "${fallback_modules[@]}"; do
-        if [ -d "${ROOT_DIR}/${module}" ]; then
-          modules_to_remove+=("${module}")
-        fi
-      done
-    fi
-
     if [ ${#modules_to_remove[@]} -gt 0 ]; then
       if command -v docker >/dev/null 2>&1; then
         echo "Fixing permissions for cloned modules using Docker..."

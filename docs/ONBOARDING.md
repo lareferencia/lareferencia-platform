@@ -14,10 +14,11 @@ This repository is a **workspace of nested independent git repositories**:
   Docker orchestration, `testing/` and the helper scripts.
 - Each `lareferencia-*` directory is an **independent git repository** with its own
   history, cloned by [`githelper`](../githelper) according to `workspace.ini` (module →
-  URL/branch manifest) and listed in `modules.txt` (14 modules).
+  URL/branch manifest). Docker's `reset-data` also reads this manifest to find cloned
+  modules to remove.
 - The root `pom.xml` aggregates 11 Java modules (plus `lareferencia-lrharvester-admin-web`);
   `contrib-ibict`/`contrib-rcaap` are not part of the default reactor.
-- Platform version: `5.0.0-rc2` (Java 17, Spring Boot 3.5.0; CI also builds Java 21).
+- Platform version: `5.0.0-rc3` (Java 17, Spring Boot 3.5.0; CI also builds Java 21).
 
 ```bash
 git clone <this-repo>
