@@ -19,13 +19,13 @@ contratos nativos de `/api/v5`. Se añade un gateway local para simular hosts se
 la configuración de TLS y hostnames de producción debe aplicarse al proxy de despliegue.
 No exponer públicamente el puerto del Harvester.
 
-El proyecto padre está en `5.0.0-rc2`. El dashboard se alineó a esa versión y el tag
+El proyecto padre está en `5.0.0-rc3`. El dashboard se alineó a esa versión y el tag
 existente `2.2.0` conserva la versión anterior.
 
 ## Estado actual
 
 - [x] Clonar y registrar `lareferencia-repository-dashboard` como módulo Git del platform.
-- [x] Alinear `angular/package.json` y el lockfile raíz a `5.0.0-rc2`.
+- [x] Alinear `angular/package.json` y el lockfile raíz a `5.0.0-rc3`.
 - [x] Migrar autenticación, rutas y servicios Angular (compila; validación en navegador pendiente).
 - [x] Corregir y documentar brechas del adaptador `/api/v5/dashboard` (adapter y normalización del frontend en su lugar; validación runtime pendiente).
 - [ ] Validar los flujos Angular con `ADMIN` y `DASHBOARD`, y el rechazo de `READER`.

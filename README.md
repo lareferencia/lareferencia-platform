@@ -4,7 +4,7 @@ LA Referencia is a platform for harvesting, processing, and indexing scholarly m
 
 ## 🚀 Current Status
 
-**Current development version: 5.0.0-rc2** (branch `main`).
+**Current development version: 5.0.0-rc3** (branch `main`).
 
 - Full OAI-PMH harvesting and a modernized standalone OAI-PMH data provider
 - Entity-based metadata processing with filesystem + SQLite storage
@@ -343,7 +343,7 @@ mvn -pl lareferencia-oai-pmh test          # provider protocol tests (Testcontai
 
 \* Created or updated during the 2026-09-23 documentation work (see `docs/PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md`). Historical decision records live in `docs/archive/`.
 
-## 📝 Migration Guide: v4.x → 5.0.0-rc2
+## 📝 Migration Guide: v4.x → 5.0.0-rc3
 
 ### Required Actions
 
@@ -376,7 +376,7 @@ Licensed under the **GNU Affero General Public License v3.0** — see [LICENSE.t
 
 **Email**: [soporte@lareferencia.redclara.net](mailto:soporte@lareferencia.redclara.net)
 
-When requesting support, please include: platform version (e.g. `5.0.0-rc2`), affected module, relevant log excerpts, configuration snippets (without sensitive data) and steps to reproduce.
+When requesting support, please include: platform version (e.g. `5.0.0-rc3`), affected module, relevant log excerpts, configuration snippets (without sensitive data) and steps to reproduce.
 
 - **Website**: [https://www.lareferencia.info](https://www.lareferencia.info)
 - **Issues**: [GitHub Issues](https://github.com/lareferencia/lareferencia-platform/issues)
