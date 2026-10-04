@@ -76,6 +76,7 @@ Todas las respuestas son JSON normal. Las colecciones paginadas usan el mismo en
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/v5/networks` | Lista paginada. |
+| GET | `/api/v5/network-tags` | Etiquetas distintas de las redes autorizadas, ordenadas. |
 | POST | `/api/v5/networks` | Crea una red y sus vínculos. |
 | GET | `/api/v5/networks/{id}` | Obtiene una red. |
 | PUT | `/api/v5/networks/{id}` | Reemplaza toda la configuración. |
@@ -93,6 +94,43 @@ GET /api/v5/network-summaries?page=0&size=25&sort=name,asc
 ```
 
 Admite `q`, `acronym`, `name`, `institutionName`, `published`, `snapshotStatus` e `indexStatus`. Cada elemento contiene el último snapshot, el identificador y fecha del último snapshot válido y los conteos/listas de procesos en ejecución, cola y agenda.
+
+Las redes y los resúmenes incluyen `tags`, un array de strings (vacío para redes sin etiquetas).
+`GET /networks` y `GET /network-summaries` aceptan el parámetro repetible `tag` y
+`tagMode=all|any` (predeterminado `all`). La pertenencia es exacta, se normalizan espacios,
+Unicode NFC y mayúsculas/minúsculas, y el filtro se aplica en base de datos antes de paginar.
+Los conteos usan los mismos filtros y permisos que los resultados. En los resúmenes los tags
+se combinan mediante AND con búsqueda, publicación y estado de snapshots.
+
+```text
+GET /api/v5/network-summaries?tag=proyecto:piloto&tag=pais:ar&tagMode=all
+GET /api/v5/networks?tag=proyecto:piloto&tag=tipo:universidad&tagMode=any
+GET /api/v5/network-tags
+```
+
+Los tags son clasificación de networks, independiente de los sets OAI-PMH y los perfiles de
+atributos. No conceden permisos ni modifican cosecha, snapshots o índices. Se permiten hasta
+50 valores por solicitud, de 1 a 100 caracteres, sin caracteres de control; los duplicados se
+eliminan. Un tag inválido o `tagMode` desconocido devuelve `400 NETWORK_TAGS_INVALID`.
+Solo ADMIN puede modificar la configuración. Por compatibilidad, `PUT` o `PATCH` con `tags`
+omitido o `null` conserva las etiquetas existentes; `tags: []` las elimina explícitamente.
+En creación, la omisión produce una colección vacía. Se conserva la restricción existente
+que impide reemplazar configuración mientras la network tiene tareas activas o en cola.
+
+El intercambio XLSX incorpora la columna opcional `tagsJson`, con un array JSON de strings.
+Las planillas anteriores sin esa columna conservan los tags al actualizar. Una celda vacía
+o `[]` en una columna presente los elimina. La exportación incluye los tags y mantiene su
+alcance actual: todas las fuentes, independientemente del filtro visible en la UI.
+
+La persistencia usa `network_tag(network_id, tag)`, clave primaria compuesta, índice
+`(tag, network_id)` y borrado en cascada. Antes de ejecutar este código debe aplicarse la
+migración Flyway `V5.0.0.16__Network_tags.sql` mediante el mecanismo del módulo shell;
+el harvester mantiene `ddl-auto=none`. Las instalaciones existentes parten sin tags.
+La carga de colecciones usa batches para evitar una consulta adicional por cada fila.
+
+La UI permite edición con autocompletado, coincidencia Todas/Cualquiera y filtros persistidos
+en la URL. Las etiquetas no se muestran en las filas del inventario para conservar espacio. Cambiar los filtros reinicia la página y limpia la selección.
+Las acciones por lote siguen limitadas a las filas visibles seleccionadas.
 
 Ejemplo de creación o reemplazo:
 
