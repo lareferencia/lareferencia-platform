@@ -30,8 +30,8 @@ cd lareferencia-platform
 ## Prerequisites
 
 - JDK 17+ and Maven (the reactor builds with Java 17; CI also runs 21)
-- Docker (required to build the Admin Web and to run the wizards)
-- Node.js is only needed inside the build container (Node 22) — no local install needed
+- Docker (required to build the Admin Web and Dashboard and to run the wizards)
+- Node.js is only needed inside the build containers (Node 22 for Admin, Node 18 for Dashboard) — no local install needed
 - Python 3 is used by `githelper` (already in the scripts' shebang) and by some Docker
   tooling
 
@@ -42,7 +42,7 @@ cd lareferencia-platform
 ./build-java.sh ibict      # optional Maven profile: lareferencia | ibict | rcaap
 ./build.sh lareferencia    # Java modules + React Admin Web + Angular Dashboard
 ./build-admin-web.sh       # React Admin Web (Node 22 in Docker) → harvester admin-static/
-./build-dashboard.sh       # Angular Dashboard → harvester dashboard-static/
+./build-dashboard.sh       # Angular Dashboard (Node 18 in Docker) → harvester dashboard-static/
 mvn test                   # run tests (all reactor modules)
 mvn -pl lareferencia-oai-pmh test   # provider protocol tests (Testcontainers, Solr 9.8)
 ```
@@ -52,6 +52,7 @@ Notes:
 - `build-java.sh` explicitly excludes both frontends. Use `build.sh` for the
   complete platform, or `build-admin-web.sh` / `build-dashboard.sh` for one UI
   at a time (`./Docker/docker-dev.sh build dashboard` is the Docker Dev equivalent).
+- Both UI scripts compile in Docker so the host does not need a compatible Node binary or newer glibc. Direct Maven frontend builds still install Node on the host; use the UI scripts on older servers.
 - The Maven **profiles** `lareferencia` (default), `ibict` and `rcaap` select the
   country-specific contrib dependencies and branding in the harvester pom.
 - Version bumps: `./change-version.sh <version>` (`mvn versions:set` across the reactor).

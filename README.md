@@ -222,7 +222,7 @@ cd lareferencia-platform
 # Admin web only (Node 22, output copied into admin-static/)
 ./build-admin-web.sh
 
-# Dashboard only (Angular assets copied into dashboard-static/)
+# Dashboard only (Node 18 in Docker, output copied into dashboard-static/)
 ./build-dashboard.sh
 
 # Other build profiles: lite | rcaap | ibict
