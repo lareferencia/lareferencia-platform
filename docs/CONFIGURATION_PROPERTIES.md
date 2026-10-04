@@ -186,10 +186,11 @@ The worker indexes into `semantic.solr.url` (falls back to `frontend.solr.url`,
 `security.api-v5.page-size-max=200`,
 `api-v5.attribute-profiles-location=file:config/attribute-profiles`, and the
 `springdoc.*` block (OpenAPI `/api/v5/openapi`, Swagger `/api/v5/docs`, path/package filters).
-Session cookie properties set `HttpOnly`, `Secure`, `SameSite=Lax`, and a 30-minute
-timeout; `security.api-v5.cookies-secure` defaults to `true` and controls the CSRF
-cookie's Secure flag. Docker Dev overrides both session and CSRF Secure flags to
-`false` only for its local HTTP gateway. Spring Session JDBC uses the Flyway-created schema. Authentication no longer
+Distributed configuration sets `HttpOnly=true`, `SameSite=Lax`, a 30-minute
+timeout, and both session and CSRF Secure flags to `false` for HTTP development.
+For HTTPS deployments, set both `security.api-v5.cookies-secure=true` and
+`server.servlet.session.cookie.secure=true`. The CSRF Secure flag falls back to
+`true` in code if its property is omitted. Spring Session JDBC uses the Flyway-created schema. Authentication no longer
 has a `file`/`oidc`/`hybrid` mode. Full details: [`AUTHENTICATION.md`](AUTHENTICATION.md).
 Reference: [`AUTHENTICATION.md`](AUTHENTICATION.md) · [`HARVESTER_MANAGEMENT_API_V5.md`](HARVESTER_MANAGEMENT_API_V5.md).
 

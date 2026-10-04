@@ -32,15 +32,18 @@ El fragmento `lareferencia-lrharvester-app/config/application.properties.d/10-ap
 ```properties
 security.api-v5.allowed-origins=
 security.api-v5.page-size-max=200
+security.api-v5.cookies-secure=false
 server.servlet.session.cookie.http-only=true
-server.servlet.session.cookie.secure=true
+server.servlet.session.cookie.secure=false
 server.servlet.session.cookie.same-site=lax
 server.servlet.session.timeout=30m
 spring.session.store-type=jdbc
 spring.session.jdbc.initialize-schema=never
 ```
 
-La interfaz de producción y la API deben servirse bajo el mismo origen. Si durante desarrollo o despliegue se separan, configure en `security.api-v5.allowed-origins` los orígenes exactos permitidos, separados por comas; CORS admite credenciales y no debe abrirse con `*`. La cookie `Secure` requiere HTTPS en el navegador (incluido el TLS terminado en el proxy público). No cambie `initialize-schema=never`: Flyway administra el esquema.
+Los valores distribuidos permiten desarrollo por HTTP, incluidas direcciones IP remotas. Para desplegar con HTTPS, configure tanto `security.api-v5.cookies-secure=true` como `server.servlet.session.cookie.secure=true` y reinicie Harvester. Mantenga `server.servlet.session.cookie.http-only=true` en ambos casos.
+
+La interfaz de producción y la API deben servirse bajo el mismo origen. Si durante desarrollo o despliegue se separan, configure en `security.api-v5.allowed-origins` los orígenes exactos permitidos, separados por comas; CORS admite credenciales y no debe abrirse con `*`. La cookie `Secure` requiere HTTPS en el navegador (incluido el TLS terminado en el proxy público). Si el login detecta que está en HTTP y no recibió la cookie CSRF, mostrará un aviso: use HTTPS o configure cookies no seguras solo en un entorno local de desarrollo. No cambie `initialize-schema=never`: Flyway administra el esquema.
 
 ### Migrar el esquema y crear el primer administrador
 
@@ -60,6 +63,8 @@ security-create-admin admin
 ```
 
 `security-create-admin` solicita y confirma la contraseña sin mostrarla en pantalla. No acepta la contraseña como argumento ni funciona sin consola interactiva. El nombre se normaliza a minúsculas; admite letras ASCII, números y `._@+-`, con longitud de 3 a 100. La contraseña debe tener entre 12 y 200 caracteres. El comando guarda BCrypt y se niega a crear la cuenta si ya existe un administrador habilitado. No cree el primer administrador insertando a mano una contraseña.
+
+Para recuperar el acceso o cambiar una contraseña desde el shell, ejecute `security-reset-password <usuario>`. El comando solo modifica usuarios existentes, solicita y confirma la nueva contraseña sin mostrarla y revoca las sesiones activas de esa cuenta. También requiere una consola interactiva y acepta la misma longitud y formato de usuario.
 
 `database_migrate` aplica las migraciones pendientes con Flyway. Use las opciones `--out-of-order` o `--baseline-on-migrate` solo cuando el estado de esa base lo requiera; consulte `help database_migrate` y el runbook de base de datos antes de cambiar los valores por defecto. Mantenga una copia de seguridad según el procedimiento normal antes de migrar una base existente.
 

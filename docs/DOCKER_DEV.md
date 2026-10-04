@@ -148,6 +148,15 @@ to the interactive container, preserving its TTY:
 ./Docker/docker-dev.sh lrshell security-create-admin admin
 ```
 
+To reset an existing local user's password when Admin UI access is unavailable:
+
+```bash
+./Docker/docker-dev.sh lrshell security-reset-password admin
+```
+
+The shell prompts for the new password twice without echo and revokes that
+user's active sessions.
+
 `lrshell` starts PostgreSQL and Solr if needed. It uses the shell JAR already in
 `lareferencia-shell/target`; it does not compile it. `rebuild shell` compiles the
 shell and its Maven dependencies, then restarts the background shell service.
