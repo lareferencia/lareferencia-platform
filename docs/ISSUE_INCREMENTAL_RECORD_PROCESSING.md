@@ -53,6 +53,8 @@ Validation preparation uses the same statistics service instance for initializat
 
 The pipeline fingerprint includes the validator, both transformations in execution order, network metadata used by transformations and detailed diagnose mode. The old completion manifest is invalidated before work starts; a new one is published only on success. Legacy validator-only fingerprints cause a full validation once.
 
+Identify is advisory: handled request/parsing failures and unexpected runtime exceptions are logged and fall back to second granularity. Missing, blank or unsupported granularity values use the same fallback; whitespace around supported OAI granularities is normalized. Cancellation during Identify stops preparation without starting ListRecords. A subsequent ListRecords rejection still fails harvesting.
+
 Harvesting now discovers provider granularity by default, records UTC start times, retains provider deletion datestamps, reconciles final size from active catalog rows and preserves failures across pages and sets. Empty sets do not finalize a snapshot before other sets finish. Cancellation produces `HARVESTING_STOPPED`; storage or missing-metadata errors prevent success. An inherited active record rejected by prevalidation becomes a tombstone in the child.
 
 Completed harvests write `harvesting-configuration.json`, identifying the source, sets, metadata formats, prevalidator and UTC clock convention. Changed or missing provenance forces full harvesting. Therefore the first incremental harvest after upgrading an older installation establishes a full baseline. Missing parent catalogs are explicit errors rather than silently creating incomplete incremental snapshots.
