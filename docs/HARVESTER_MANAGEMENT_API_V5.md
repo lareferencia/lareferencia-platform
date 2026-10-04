@@ -95,6 +95,53 @@ GET /api/v5/network-summaries?page=0&size=25&sort=name,asc
 
 Admite `q`, `acronym`, `name`, `institutionName`, `published`, `snapshotStatus` e `indexStatus`. Cada elemento contiene el último snapshot, el identificador y fecha del último snapshot válido y los conteos/listas de procesos en ejecución, cola y agenda.
 
+### Filtros y orden operativo de fuentes
+
+`GET /api/v5/network-summaries` aplica todos los filtros y el orden en PostgreSQL
+antes de paginar, conservando la restricción de redes autorizadas. Los conteos
+usan los mismos filtros. No necesita columnas ni tablas nuevas.
+
+| Parámetro | Valores y significado |
+|---|---|
+| `harvestState` (repetible) | `valid`, `error`, `running`, `stopped`, `finished`, `none`; también estados exactos de `SnapshotStatus`. Valores de esta categoría se combinan con OR. |
+| `indexState` (repetible) | `INDEXED`, `FAILED`, `UNKNOWN`; OR dentro de la categoría. `UNKNOWN` incluye fuentes sin snapshot o sin resultado del indexador seleccionado. |
+| `validHarvest` | `latest` (la última es válida), `previous` (hay una válida anterior), `none` (ninguna válida), `any` (hay alguna válida). |
+| `indexer` | Nombre del bean. El filtro y el orden por indexación consultan esa entrada en el JSON del último snapshot; si falta, es `UNKNOWN`. Sin este parámetro se usa el resumen legacy. |
+| `failuresOnly` | `true`: fallo de cosecha OR fallo global de indexación, incluyendo el estado legacy de error de indexación. Se combina con los demás filtros mediante AND. |
+| `sort` | `campo,asc` o `campo,desc`. Campos: `acronym`, `tags`, `latestSnapshot`, `lastValidSnapshot`, `snapshotStatus`, `indexStatus`, `attention`, `id`, `name`, `institutionName`, `published`. |
+
+Las categorías distintas se combinan mediante AND. `snapshotStatus` e `indexStatus`
+siguen disponibles como filtros exactos por compatibilidad.
+
+El último snapshot y el último válido se seleccionan entre los no eliminados,
+por `startTime` descendente y luego ID descendente. Las fechas de ordenación usan
+la finalización, o el inicio cuando no hay finalización. Los desempates de fuentes
+usan acrónimo e ID; las fechas y etiquetas ausentes quedan al final en ambas direcciones.
+Las etiquetas se comparan como una lista ordenada alfabéticamente.
+
+`indexStatus,asc` ordena fallos, sin resultado y OK. `attention,asc` prioriza:
+error de cosecha sin válida, error con válida anterior, fallo global de indexación,
+cosecha detenida, sin válida y resto. `snapshotStatus,asc` agrupa estados con orden
+explícito: errores de cosecha e indexación legacy, detenida, reintentando, cosechando,
+indexando, esperando, desconocido, finalizado sin validar, sin cambios, validado,
+indexación finalizada legacy y sin snapshots. `desc` invierte cada prioridad.
+
+`GET /api/v5/network-indexers` devuelve los beans indexadores registrados y las claves
+persistidas en snapshots de las redes autorizadas, ordenados y sin duplicados.
+
+```text
+GET /api/v5/network-summaries?harvestState=error&validHarvest=previous&sort=attention,asc
+GET /api/v5/network-summaries?indexer=xoaiIndexerWorker&indexState=FAILED&sort=indexStatus,asc
+GET /api/v5/network-summaries?failuresOnly=true&sort=attention,asc
+GET /api/v5/network-indexers
+```
+
+La interfaz agrupa los controles en «Filtrar y ordenar», con criterios avanzados
+plegables, etiquetas removibles y accesos «Con fallos» y «Atención requerida».
+La URL conserva todos los criterios; cambiarlos restablece la página y la selección
+operativa. La columna de indexación sigue mostrando el resumen global del último
+snapshot, aunque el filtro consulte un indexador concreto.
+
 Las redes y los resúmenes incluyen `tags`, un array de strings (vacío para redes sin etiquetas).
 `GET /networks` y `GET /network-summaries` aceptan el parámetro repetible `tag` y
 `tagMode=all|any` (predeterminado `all`). La pertenencia es exacta, se normalizan espacios,
