@@ -1,6 +1,6 @@
 # Incremental Processing Developer Manual
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-10-04
 
 ## Purpose and implemented scope
 
@@ -43,6 +43,24 @@ The parent is the snapshot recorded as previousSnapshotId, not the most recently
 | SemanticIndexerWorker | Same contract plus embedding enrichment for valid UPSERTs. |
 | Spring XML worker definitions | Explicit solrRecordIDValue per transformation. |
 
+## Lifecycle corrections (2026-10-04)
+
+An empty incremental validation is a successful new validation: the child owns a copy of the parent's complete results, retains its active/valid/transformed totals, writes an `INCREMENTAL` completion manifest, and finishes as `VALID`.
+
+Validation preparation uses the same statistics service instance for initialization, observations and finalization. It removes old destination results only for full validation, opens the copied database before applying tombstones, and never deletes a reused copy. Final counters are reconstructed from all active SQLite rows, including inherited rows. Revalidated rows replace their previous detailed observations.
+
+`VALIDATING`, `VALIDATION_FINISHED_ERROR` and `VALIDATION_STOPPED` are appended to `SnapshotStatus`, preserving existing ordinal values. A snapshot becomes `VALID` only after successful result finalization and manifest publication. Failed or cancelled validation can be retried on its harvested catalog; it is never eligible as a completed parent. The API includes these states in its running/error/stopped filters. A requested full validation never reuses parent results.
+
+The pipeline fingerprint includes the validator, both transformations in execution order, network metadata used by transformations and detailed diagnose mode. The old completion manifest is invalidated before work starts; a new one is published only on success. Legacy validator-only fingerprints cause a full validation once.
+
+Harvesting now discovers provider granularity by default, records UTC start times, retains provider deletion datestamps, reconciles final size from active catalog rows and preserves failures across pages and sets. Empty sets do not finalize a snapshot before other sets finish. Cancellation produces `HARVESTING_STOPPED`; storage or missing-metadata errors prevent success. An inherited active record rejected by prevalidation becomes a tombstone in the child.
+
+Completed harvests write `harvesting-configuration.json`, identifying the source, sets, metadata formats, prevalidator and UTC clock convention. Changed or missing provenance forces full harvesting. Therefore the first incremental harvest after upgrading an older installation establishes a full baseline. Missing parent catalogs are explicit errors rather than silently creating incomplete incremental snapshots.
+
+Catalog and validation copies use SQLite `VACUUM INTO`, which includes committed WAL contents and leaves the parent unchanged.
+
+Regression tests: `IncrementalValidationLifecycleTest`, `HarvestingLifecycleTest`, `OAIHarvestResponseTest`, `HarvestingConfigurationStoreTest`, `SQLiteSnapshotCopyTest`, `ValidatorFingerprintServiceTest`, and `OAIRecordCatalogRepositoryIncrementalTest` in core-lib.
+
 ## 1. Harvesting
 
 ### On-disk layout
@@ -55,7 +73,7 @@ For an incremental action it calls findLastGoodKnownSnapshot. If no parent exist
 
 Full harvesting initializes an empty SQLite catalog and requests the complete source. Incremental harvesting copies the parent catalog, clears inherited change_type values, and applies only records and deleted headers returned by the OAI-PMH window. An empty incremental harvest is still successful: the copied catalog remains the complete snapshot and all rows have change_type=NULL.
 
-For every event the worker stores XML in IMetadataStore, upserts OAIRecord through OAIRecordCatalogRepository, and updates the snapshot count. It always closes the catalog and marks the snapshot finished or failed. stop() signals both harvester and worker; cleanup is performed by the main run lifecycle.
+For every event the worker stores XML in IMetadataStore, upserts OAIRecord through OAIRecordCatalogRepository, and updates progress. Final size is reconciled from active catalog rows. It closes the catalog and marks the snapshot finished, failed or stopped. stop() signals both harvester and worker; cleanup is performed by the main run lifecycle.
 
 ### Action orchestration
 
@@ -112,9 +130,9 @@ Validation counters query active rows with deleted=0. Tombstones remain invalid 
 
 ## 4. Validator manifest and fingerprint
 
-ValidatorFingerprint preserves the existing validator fingerprint and adds optional root-level scope. A current manifest has formatVersion, algorithm SHA-256, canonicalizer validator-v1, hash, and scope. Scope is FULL or INCREMENTAL.
+ValidatorFingerprint identifies the complete validation pipeline and includes root-level scope. A current manifest has formatVersion 2, algorithm SHA-256, canonicalizer validation-pipeline-v2, hash, and scope. Scope is FULL or INCREMENTAL.
 
-ValidationWorker writes the manifest after deciding whether the parent database is reusable. INCREMENTAL is written only when a parent exists, its manifest is readable, fingerprints match, and the validation copy succeeds. A requested full run, changed fingerprint, missing parent or manifest, copy failure, or unverifiable condition produces FULL.
+ValidationWorker computes the fingerprint during preparation and writes the completion manifest only after results and final totals have been persisted. INCREMENTAL is written only when a parent exists, its manifest is readable, fingerprints match, and the validation copy succeeds. A requested full run, changed fingerprint, missing parent or manifest, copy failure, or unverifiable condition produces FULL.
 
 Historical manifests containing only the fingerprint still deserialize because scope is optional, but missing scope is unsafe and forces full validation. A warning tells operators to regenerate validation with an explicit scope.
 
