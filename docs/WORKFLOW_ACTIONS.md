@@ -31,6 +31,13 @@ Defined in `lareferencia-core-lib` and persisted by migration
 | `network_action` | `NetworkActionConfiguration` | Per-network config: `enabled`, `scheduleEnabled`, JSONB `configuration`, `updatedBy` |
 | `application_worker_configuration` | — | Worker-level parameterization exposed in the Admin UI |
 
+On first creation, the legacy catalogue applies the order and enabled states from
+`V5.0.0.12__Set_Default_Legacy_Action_Order_And_Enabled.sql`, even when migrations ran
+before the action rows existed. Additional legacy actions start disabled after the
+known actions. Later discoveries append disabled in action-key order; reconciliation
+preserves existing order, enabled states and configuration. Missing actions remain
+unavailable in their original positions and recover their policy when rediscovered.
+
 - Workers read options from `NetworkRunningContext.getBooleanActionOption(...)` — e.g. `HarvestingWorker`
   (`FORCE_FULL_HARVESTING`) and `ValidationWorker` (`DETAILED_DIAGNOSE`).
 - Scheduled execution is guarded by `WorkflowService.setScheduledProcessGuard(BiConsumer<...>)` so the
