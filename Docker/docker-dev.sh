@@ -30,6 +30,40 @@ is_java_service() {
 }
 is_truthy() { case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in 1|true|on|yes) return 0;; *) return 1;; esac; }
 
+ensure_gum() {
+  command -v gum >/dev/null 2>&1 && return 0
+  local version=0.15.0 os arch filename url temp_dir gum_binary
+  case "$(uname -s)" in
+    Darwin|Linux) os="$(uname -s)" ;;
+    *) die 'Unsupported OS for gum; install gum manually or use command-line commands' ;;
+  esac
+  case "$(uname -m)" in
+    x86_64) arch=x86_64 ;;
+    arm64|aarch64) arch=arm64 ;;
+    *) die 'Unsupported architecture for gum; install gum manually or use command-line commands' ;;
+  esac
+  command -v curl >/dev/null 2>&1 || die 'curl is required to download gum; install gum manually or use command-line commands'
+  filename="gum_${version}_${os}_${arch}.tar.gz"
+  url="https://github.com/charmbracelet/gum/releases/download/v${version}/${filename}"
+  temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/lr-dev-gum.XXXXXX")"
+  echo "Downloading gum v${version} for ${os}-${arch}..." >&2
+  if ! curl -fsSL --connect-timeout 15 --max-time 120 "$url" -o "${temp_dir}/${filename}" ||
+     ! tar -xzf "${temp_dir}/${filename}" -C "$temp_dir"; then
+    rm -rf -- "$temp_dir"
+    die 'Failed to download/extract gum; install gum manually or use command-line commands'
+  fi
+  gum_binary="$(find "$temp_dir" -type f -name gum -print -quit)"
+  if [ -z "$gum_binary" ]; then
+    rm -rf -- "$temp_dir"
+    die 'The gum release archive contains no gum binary'
+  fi
+  mkdir -p "${SCRIPT_DIR}/.bin"
+  chmod +x "$gum_binary"
+  mv "$gum_binary" "${SCRIPT_DIR}/.bin/gum"
+  rm -rf -- "$temp_dir"
+  export PATH="${SCRIPT_DIR}/.bin:${PATH}"
+}
+
 ensure_dev_env() {
   if [ ! -f "${DEV_ENV_FILE}" ]; then
     # Keep this local-only file out of Git without changing tracked ignore files.
@@ -212,7 +246,7 @@ dc() {
   args+=(--env-file "${DEV_ENV_FILE}")
   local profiles="$(env_get DEV_COMPOSE_PROFILES '')" profile
   IFS=, read -ra profile_list <<< "${profiles}"
-  for profile in "${profile_list[@]}"; do [ -n "${profile}" ] && args+=(--profile "${profile}"); done
+  for profile in "${profile_list[@]-}"; do [ -n "${profile}" ] && args+=(--profile "${profile}"); done
   "${args[@]}" "$@"
 }
 
@@ -279,6 +313,7 @@ compile_selected_java() {
 rebuild_platform() {
   selected_services
   [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
+  ensure_vufind_for_services "${DEV_SELECTED_SERVICES[@]}"
   echo "Rebuilding Java applications, Admin Web, and Repository Dashboard..."
   compile_all
   echo "Starting local developer services with the rebuilt platform..."
@@ -287,6 +322,7 @@ rebuild_platform() {
 
 restart_service() {
   local service="$1"
+  ensure_vufind_for_services "$service"
   # The application JAR is mounted from the host. Restarting reruns the
   # developer entrypoint and loads the new JAR without replacing the container.
   if dc ps -a --services 2>/dev/null | grep -Fxq "${service}"; then
@@ -305,6 +341,7 @@ run_spring_shell() {
 
 rebuild_service() {
   local service="$1"
+  ensure_vufind_for_services "$service"
   if [ "${service}" = frontend ] || [ "${service}" = admin-web ]; then
     compile_frontend
     restart_service harvester
@@ -394,10 +431,35 @@ clean_developer_instance() {
 start_selected() {
   selected_services
   [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
+  ensure_vufind_for_services "${DEV_SELECTED_SERVICES[@]}"
   echo "Compiling selected Java services before startup..."
   compile_selected_java
   echo "Starting local developer services with the newly compiled local artifacts."
   dc up -d --build "${DEV_SELECTED_SERVICES[@]}"
+}
+
+ensure_vufind_for_services() {
+  local service needed=false checkout_dir repo_url repo_ref
+  for service in "$@"; do
+    case "$service" in vufind-web|vufind-scss-watch) needed=true ;; esac
+  done
+  [ "$needed" = true ] || return 0
+  [ ! -f "${ROOT_DIR}/vufind/composer.json" ] || return 0
+  [ ! -e "${ROOT_DIR}/vufind/.git" ] || die 'VuFind checkout is incomplete; restore its composer.json before starting it'
+  repo_url="${VUFIND_REPO_URL:-$(base_env_get VUFIND_REPO_URL https://github.com/vufind-org/vufind)}"
+  repo_ref="${VUFIND_REF:-$(base_env_get VUFIND_REF v11.0.1)}"
+  checkout_dir="$(mktemp -d "${TMPDIR:-/tmp}/lr-dev-vufind.XXXXXX")"
+  echo "Preparing VuFind ${repo_ref}..."
+  if ! git clone --depth 1 --branch "$repo_ref" --single-branch "$repo_url" "${checkout_dir}/checkout"; then
+    rm -rf -- "$checkout_dir"
+    die 'Failed to clone VuFind'
+  fi
+  # Docker can create local/ and vendor/ before the source is cloned.
+  # Preserve those files while filling in the missing checkout.
+  mkdir -p "${ROOT_DIR}/vufind"
+  cp -an "${checkout_dir}/checkout/." "${ROOT_DIR}/vufind/"
+  rm -rf -- "$checkout_dir"
+  [ -f "${ROOT_DIR}/vufind/composer.json" ] || die 'VuFind checkout contains no composer.json'
 }
 
 clear_screen() { printf '\033c'; }
@@ -473,12 +535,9 @@ execute_with_progress() {
 }
 
 wizard() {
+  ensure_gum
   ensure_dev_env
   while true; do
-    if ! command -v gum >/dev/null 2>&1; then
-      echo 'gum is required for the developer wizard; use command-line commands instead.' >&2
-      return 1
-    fi
     clear_screen
     local checks c1 c2 c3 revision mode prefix offset profile data_root
     checks="$(get_check_status)"; IFS='|' read -r c1 c2 c3 <<< "$checks"
@@ -557,6 +616,7 @@ case "${command}" in
     if [ "$#" -eq 0 ]; then
       start_selected
     else
+      ensure_vufind_for_services "$@"
       for service in "$@"; do
         is_java_service "${service}" && compile_service "${service}"
       done

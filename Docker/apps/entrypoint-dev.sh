@@ -66,6 +66,11 @@ if [ -f "${OVERRIDE_FILE}" ]; then
   rm -f "${OVERRIDE_FILE}"
 fi
 
+if [ "${APP_MODULE}" = lareferencia-shell ]; then
+  mkdir -p /dev-data/shell
+  JAVA_OVERRIDE_PROPS+=("-Dspring.shell.history.name=/dev-data/shell/spring-shell.log")
+fi
+
 if [ "${APP_MODULE}" = "lareferencia-shell" ] && is_truthy "${SHELL_IDLE}" && [ "${#APP_ARGS[@]}" -eq 0 ]; then
   echo "Starting ${APP_MODULE} in idle mode."
   exec tail -f /dev/null

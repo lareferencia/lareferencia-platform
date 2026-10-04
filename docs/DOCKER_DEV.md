@@ -4,6 +4,10 @@
 
 `Docker/docker-dev.sh` provides an isolated development workflow for the LA Referencia platform. It is intentionally independent from `Docker/docker.sh`: the normal Docker wizard, the original Compose file, existing Dockerfiles, and existing entrypoints remain unchanged.
 
+Running `./Docker/docker-dev.sh` opens the interactive wizard. If `gum` is missing, the wizard downloads v0.15.0 from the official GitHub release into `Docker/.bin/` (requires `curl` and `tar` on macOS or Linux). Later runs reuse that binary. Command-line commands do not require `gum`.
+
+Starting, rebuilding, or restarting VuFind prepares a missing source checkout automatically (default: `v11.0.1`; override with `VUFIND_REPO_URL` and `VUFIND_REF`). Existing files in `vufind/` are preserved, including directories created by Docker before the first startup. Spring Shell stores its developer history in `/dev-data/shell/spring-shell.log`, outside the read-only source mount.
+
 ## Components
 
 The developer workflow adds four files:
