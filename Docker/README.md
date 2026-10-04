@@ -2,6 +2,18 @@
 
 Choose your language: [English](#english) | [Español](#español) | [Português](#português)
 
+Análisis técnico completo del script normal (español): [funcionamiento de docker.sh, construcción, configuración, almacenamiento y mantenimiento](ANALISIS_OPERATIVO_DOCKER_SH.md).
+
+English translation: [complete operational analysis of docker.sh](ANALISIS_OPERATIVO_DOCKER_SH.en.md).
+
+Análisis técnico completo del script de desarrollo (español): [funcionamiento de docker-dev.sh, compilación, Vite, gateway, persistencia, limpieza y limitaciones](ANALISIS_OPERATIVO_DOCKER_DEV_SH.md).
+
+English translation: [complete operational analysis of docker-dev.sh](ANALISIS_OPERATIVO_DOCKER_DEV_SH.en.md).
+
+Comparación y plan de mejoras (español): [normal y dev, recomendaciones separadas, normalización de directorios y migración de datos](COMPARACION_DOCKER_NORMAL_Y_DEV.md).
+
+English translation: [comparison and improvement plan for normal and dev](COMPARACION_DOCKER_NORMAL_Y_DEV.en.md).
+
 ---
 
 ## English
