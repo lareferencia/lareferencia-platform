@@ -874,6 +874,7 @@ write_java_build_manifests() {
 }
 
 run_global_build() {
+  local use_no_cache="${1:-false}"
   compile_java_modules
 
   echo "--- Building images using Multi-stage Dockerfiles ---"
@@ -885,7 +886,13 @@ run_global_build() {
   if [ "$(get_module_state "watch")" = "on" ]; then
     profile_args+=(--profile watch)
   fi
-  dc "${profile_args[@]}" build --no-cache
+  
+  local build_args=(build)
+  if [ "${use_no_cache}" = true ]; then
+    build_args+=(--no-cache)
+  fi
+
+  dc "${profile_args[@]}" "${build_args[@]}"
   echo "--- Build completed successfully ---"
 }
 
@@ -2121,14 +2128,13 @@ case "${cmd}" in
     if [ "${build_flag}" = true ]; then
       ensure_java_parent_modules_ready "${pull_modules_flag}"
       contains_item solr "${services[@]-}" && ensure_solr_build_context
-      run_global_build
+      run_global_build "${no_cache_flag}"
       run_init_db
     fi
 
     args=(up -d --remove-orphans)
     if [ "${build_flag}" = true ]; then
       args+=(--force-recreate --build)
-      [ "${no_cache_flag}" = true ] && args+=(--no-cache)
     fi
 
     if [ "${#COLLECTED_PROFILES[@]}" -gt 0 ]; then
