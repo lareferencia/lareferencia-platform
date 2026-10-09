@@ -152,13 +152,13 @@ fi
 cd "${APP_DIR}"
 
 # RUN LOGIC
-if [ -f "application/app.jar" ]; then
+if [ -f "app.jar" ]; then
   echo "Starting ${APP_MODULE} via single JAR (as lareferencia)..."
-  exec gosu lareferencia java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" -jar application/app.jar "${APP_ARGS[@]}"
+  exec gosu lareferencia java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" -jar app.jar "${APP_ARGS[@]}"
 else
   echo "Starting ${APP_MODULE} via JarLauncher (Layers) (as lareferencia)..."
   LAUNCHER="org.springframework.boot.loader.launch.JarLauncher"
-  if ! java -cp . "${LAUNCHER}" --help >/dev/null 2>&1; then
+  if [ ! -f "org/springframework/boot/loader/launch/JarLauncher.class" ]; then
       LAUNCHER="org.springframework.boot.loader.JarLauncher"
   fi
   exec gosu lareferencia java ${JAVA_OPTS:-} "${JAVA_OVERRIDE_PROPS[@]}" -Dapp.config.dir="${APP_RUN_CONFIG_DIR}" "${LAUNCHER}" "${APP_ARGS[@]}"

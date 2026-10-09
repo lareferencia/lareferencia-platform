@@ -118,6 +118,18 @@ gum() {
 
 # --- Helpers ---
 
+short_hash_string() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf "%s" "$1" | sha256sum | awk '{print substr($1, 1, 7)}'
+  elif command -v shasum >/dev/null 2>&1; then
+    printf "%s" "$1" | shasum -a 256 | awk '{print substr($1, 1, 7)}'
+  elif command -v md5sum >/dev/null 2>&1; then
+    printf "%s" "$1" | md5sum | awk '{print substr($1, 1, 7)}'
+  else
+    printf "%s" "$1" | md5 | awk '{print substr($1, 1, 7)}'
+  fi
+}
+
 ensure_env_file() {
   if [ ! -f "${ENV_FILE}" ]; then
     if [ -f "${ENV_EXAMPLE}" ]; then
@@ -174,7 +186,9 @@ export_service_prefix() {
     local clean_name="${prefix%[_-]}"
     export COMPOSE_PROJECT_NAME="${clean_name//_/-}"
   else
-    export COMPOSE_PROJECT_NAME="lareferencia"
+    local dir_hash
+    dir_hash="$(short_hash_string "${ROOT_DIR}")"
+    export COMPOSE_PROJECT_NAME="lareferencia-${dir_hash}"
     export SERVICE_PREFIX=""
   fi
 
@@ -276,10 +290,34 @@ apply_resource_profile() {
   set_env_var "LR_RESOURCE_PROFILE" "${profile}"
 }
 
+export_image_tag() {
+  local commit_hash=""
+  # Market practice is to use the short hash (first 7 characters)
+  if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    commit_hash="$(git -C "${ROOT_DIR}" rev-parse --short=7 HEAD 2>/dev/null || true)"
+  fi
+  
+  local profile
+  profile="$(get_env_var LR_BUILD_PROFILE "lareferencia")"
+  
+  local dir_hash
+  dir_hash="$(short_hash_string "${ROOT_DIR}")"
+
+  local base_tag="${profile}-${dir_hash}"
+
+  if [ -n "${commit_hash}" ]; then
+    export LR_IMAGE_TAG="${base_tag}-${commit_hash}"
+  else
+    export LR_IMAGE_TAG="${base_tag}"
+  fi
+  set_env_var "LR_IMAGE_TAG" "${LR_IMAGE_TAG}"
+}
+
 dc() {
   ensure_env_file
   export_salted_ports
   export_service_prefix
+  export_image_tag
   sync_compose_profiles
   
   # Lógica para Solr Externo
@@ -542,9 +580,12 @@ are_images_built() {
     case "${s}" in
       harvester|entity-rest|shell|solr|vufind-web|vufind-scss-watch|oai-pmh)
         checked_any=true
-        local img_id
-        img_id=$(dc images -q "${s}" 2>/dev/null || true)
-        if [ -z "${img_id}" ]; then
+        local env_tag
+        env_tag="$(get_env_var LR_IMAGE_TAG "")"
+        local env_profile
+        env_profile="$(get_env_var LR_BUILD_PROFILE "lareferencia")"
+        local expected_tag="${env_tag:-${env_profile}}"
+        if ! docker image inspect "lareferencia/${s}:${expected_tag}" >/dev/null 2>&1; then
           missing_image=true
           break
         fi
@@ -734,7 +775,8 @@ compile_java_modules() {
   # Ensure the named volume exists
   docker volume create lr-maven-cache >/dev/null 2>&1 || true
   
-  local profile="${LR_BUILD_PROFILE:-lareferencia}"
+  local profile
+  profile="$(get_env_var LR_BUILD_PROFILE "lareferencia")"
   
   local custom_settings_file="${ROOT_DIR}/Docker/maven-mirror-alternative.xml"
   local settings_arg=""
@@ -901,31 +943,40 @@ exec_shell_command_interactive() {
 clean_data_preserving_tracked() {
   local rel_data_dir="${DATA_DIR#${ROOT_DIR}/}"
   local rel_volume_dir="${VOLUME_DIR#${ROOT_DIR}/}"
-  echo "--- Cleaning data in ${rel_data_dir} and ${rel_volume_dir} ---"
 
-  # On Linux, containers (e.g. postgres) create files as root or internal UIDs (999).
-  # We must fix permissions using Docker before the host user can delete them.
+  local explicit_paths=(
+    "${rel_data_dir}"
+    "${rel_volume_dir}/postgres"
+    "${rel_volume_dir}/solr"
+    "${rel_volume_dir}/elasticsearch"
+    "${rel_volume_dir}/lareferencia"
+    "${rel_volume_dir}/vufind"
+    "${rel_volume_dir}/vufind-db"
+  )
+
+  echo "--- Surgically cleaning data in explicitly mapped directories ---"
+
   if command -v docker >/dev/null 2>&1; then
     echo "Fixing permissions for data directories using Docker..."
-    docker run --rm -v "${ROOT_DIR}:/workspace" alpine sh -c "chmod -R ugo+rwX /workspace/${rel_data_dir} /workspace/${rel_volume_dir} 2>/dev/null" || true
+    local chmod_paths=""
+    for p in "${explicit_paths[@]}"; do
+      chmod_paths="${chmod_paths} /workspace/${p}"
+    done
+    # Give permissions to the explicit subdirectories recursively, AND to their parent directory non-recursively
+    # so the host user (git clean) is allowed to 'unlink' and delete the folder itself.
+    docker run --rm -v "${ROOT_DIR}:/workspace" alpine sh -c "chmod ugo+rwX /workspace/${rel_data_dir} /workspace/${rel_volume_dir} 2>/dev/null; chmod -R ugo+rwX ${chmod_paths} 2>/dev/null" || true
   fi
 
   if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    # Git clean excluding the m2 directory
-    local paths_to_clean=()
-    [ -n "${rel_data_dir}" ] && paths_to_clean+=("${rel_data_dir}")
-    [ -n "${rel_volume_dir}" ] && paths_to_clean+=("${rel_volume_dir}")
-    
-    if [ ${#paths_to_clean[@]} -gt 0 ]; then
-      git -C "${ROOT_DIR}" clean -fdx -e "m2/" -- "${paths_to_clean[@]}"
+    if [ ${#explicit_paths[@]} -gt 0 ]; then
+      git -C "${ROOT_DIR}" clean -fdx -- "${explicit_paths[@]}"
     fi
   else
-    # Find/delete excluding the m2 path
-    for dir in "${DATA_DIR}" "${VOLUME_DIR}"; do
-      if [ -d "${dir}" ]; then
-        find "${dir}" -mindepth 1 -path "${dir}/m2" -prune -o ! -name '.gitkeep' -type f -delete
-        find "${dir}" -mindepth 1 -path "${dir}/m2" -prune -o -type l -delete
-        find "${dir}" -mindepth 1 -path "${dir}/m2" -prune -o -type d -empty -delete
+    for dir in "${explicit_paths[@]}"; do
+      local full_dir="${ROOT_DIR}/${dir}"
+      if [ -d "${full_dir}" ]; then
+        # Remove everything inside the targeted directory, keeping the folder itself and any .gitkeep
+        find "${full_dir}" -mindepth 1 ! -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
       fi
     done
   fi
@@ -1402,112 +1453,66 @@ wizard_shell() {
 }
 
 wizard_harvester_users() {
-  local users_file="${ROOT_DIR}/Docker/volume/lareferencia/lrharvester-app/config/users.properties"
-  local add_user_script="${ROOT_DIR}/lareferencia-lrharvester-app/config/add-user.py"
-
   while true; do
     clear_screen
-    gum style --foreground 80 --bold --underline "👥 Manage Harvester Users"
+    gum style --foreground 80 --bold --underline "👥 Manage Harvester Users (V5 SQL)"
     echo
 
     local choice
     choice=$(gum choose \
       "📋 List Users" \
-      "➕ Create User" \
+      "👑 Create First Admin" \
+      "🔑 Reset Password" \
       "🗑️  Delete User" \
       "🔙 Back to Main Menu")
 
     case "$choice" in
       "📋 List Users")
-        echo -e "\n${C_CYAN}Current Users:${C_RESET}"
-        local users_list=$(dc exec -T harvester cat /config/users.properties 2>/dev/null | grep -v "^#" | grep "=" | cut -d'=' -f1)
-        if [ -n "$users_list" ]; then
-          echo "$users_list" | while read -r user; do
-            echo " - $user"
-          done
+        echo -e "\n${C_CYAN}Current Users in Database:${C_RESET}"
+        if dc ps --status running --services 2>/dev/null | grep -q "^postgres$"; then
+          dc exec -T postgres psql -U lrharvester -d lrharvester -c "SELECT username, global_role, enabled, created_at FROM local_user;" || echo "Failed to query database."
         else
-          echo "No users found (file does not exist or is empty)."
+          echo "Postgres container is not running."
         fi
         echo
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
-      "➕ Create User")
-        local username=$(gum input --placeholder "Username")
+      "👑 Create First Admin")
+        local username=$(gum input --placeholder "Admin Username")
         if [ -z "$username" ]; then continue; fi
-        local password=$(gum input --password --placeholder "Password")
-        if [ -z "$password" ]; then continue; fi
-        local role=$(gum choose "ROLE_ADMIN" "ROLE_USER")
-        
-        echo "Creating user..."
-        
-        # Ensure bcrypt is available
-        local python_cmd="python3"
-        if ! python3 -c "import bcrypt" 2>/dev/null; then
-          echo -e "${C_YELLOW}bcrypt module not found. Setting up local venv...${C_RESET}"
-          if [ ! -d "${SCRIPT_DIR}/.bin/venv" ]; then
-            python3 -m venv "${SCRIPT_DIR}/.bin/venv"
-          fi
-          "${SCRIPT_DIR}/.bin/venv/bin/pip" install --quiet bcrypt
-          python_cmd="${SCRIPT_DIR}/.bin/venv/bin/python3"
-        fi
-        
-        if [ -x "${add_user_script}" ] || command -v "${python_cmd}" >/dev/null 2>&1; then
-          local tmp_file="/tmp/lr_users.properties"
-          dc exec -T harvester cat /config/users.properties > "${tmp_file}" 2>/dev/null || touch "${tmp_file}"
-          
-          if USERS_FILE="${tmp_file}" "${python_cmd}" "${add_user_script}" "$username" "$password" "$role"; then
-            # Write back using docker exec to avoid permission denied on host
-            cat "${tmp_file}" | dc exec -T harvester sh -c "cat > /config/users.properties"
-            
-            # Sync to running container
-            dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
-            dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
-          else
-            echo -e "${C_RED}Falha ao criar o usuário. Ele não foi salvo no container.${C_RESET}"
-          fi
-          
-          rm -f "${tmp_file}"
-        else
-          echo -e "${C_RED}Error: Python3 is required to create users.${C_RESET}"
-        fi
+        echo "Launching Spring Shell to create admin..."
+        exec_shell_command_interactive "security-create-admin" "$username"
+        echo
+        gum input --placeholder "Press Enter to continue..." > /dev/null
+        ;;
+      "🔑 Reset Password")
+        local username=$(gum input --placeholder "Username to reset")
+        if [ -z "$username" ]; then continue; fi
+        echo "Launching Spring Shell to reset password..."
+        exec_shell_command_interactive "security-reset-password" "$username"
         echo
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
       "🗑️  Delete User")
-        local tmp_file="/tmp/lr_users.properties"
-        dc exec -T harvester cat /config/users.properties > "${tmp_file}" 2>/dev/null || touch "${tmp_file}"
-        
-        local users=$(grep -v "^#" "${tmp_file}" | grep "=" | cut -d'=' -f1)
-        if [ -z "$users" ]; then
-          echo "No users to delete."
-          sleep 2
-          rm -f "${tmp_file}"
-          continue
-        fi
-        
-        local user_to_delete=$(echo "$users" | gum choose)
-        if [ -n "$user_to_delete" ]; then
-          if gum confirm "Are you sure you want to delete user '$user_to_delete'?"; then
-            awk -v user="$user_to_delete" -F'=' '$1 != user' "${tmp_file}" > "${tmp_file}.new" && mv "${tmp_file}.new" "${tmp_file}"
-            
-            # Write back via docker exec
-            cat "${tmp_file}" | dc exec -T harvester sh -c "cat > /config/users.properties"
-            
-            # Sync to running container
-            dc exec -T harvester cp /config/users.properties /tmp/lr-config/lareferencia-lrharvester-app/users.properties 2>/dev/null || true
-            dc exec -T harvester cp /config/users.properties /workspace/lareferencia-lrharvester-app/config/users.properties 2>/dev/null || true
-            echo -e "${C_GREEN}User '$user_to_delete' deleted.${C_RESET}"
+        local username=$(gum input --placeholder "Username to delete")
+        if [ -z "$username" ]; then continue; fi
+        if gum confirm "Are you sure you want to delete user $username?"; then
+          if dc ps --status running --services 2>/dev/null | grep -q "^postgres$"; then
+            dc exec -T postgres psql -U lrharvester -d lrharvester -c "DELETE FROM local_user WHERE username = '${username}';" && echo -e "${C_GREEN}User deleted.${C_RESET}" || echo -e "${C_RED}Failed to delete user.${C_RESET}"
+          else
+            echo "Postgres container is not running."
           fi
         fi
-        rm -f "${tmp_file}"
+        echo
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
-      "🔙 Back to Main Menu")
-        break
+      "🔙 Back to Main Menu" | "")
+        return
         ;;
     esac
   done
 }
+
 
 wizard_backup() {
   while true; do
@@ -1962,7 +1967,28 @@ wizard_main() {
       "🧹 Reset Data (CLEAN ALL)")
         echo
         gum style --foreground 204 --border double --border-foreground 204 --padding "0 1" "⚠️  DANGER ZONE: ALL DATA AND ALL CONTAINERS WILL BE PERMANENTLY DELETED"
-        if gum confirm "Are you absolutely sure you want to reset EVERYTHING?"; then
+        
+        # EXPLICIT LIST OF NORMAL DIRECTORIES TO CLEAN
+        local rel_data_dir="${DATA_DIR#${ROOT_DIR}/}"
+        local rel_volume_dir="${VOLUME_DIR#${ROOT_DIR}/}"
+        local explicit_paths=(
+          "${rel_data_dir}"
+          "${rel_volume_dir}/postgres"
+          "${rel_volume_dir}/solr"
+          "${rel_volume_dir}/elasticsearch"
+          "${rel_volume_dir}/lareferencia"
+          "${rel_volume_dir}/vufind"
+          "${rel_volume_dir}/vufind-db"
+        )
+        
+        echo -e "${C_YELLOW}This will remove ALL Compose containers for project:${C_RESET} ${COMPOSE_PROJECT_NAME}"
+        echo -e "${C_YELLOW}And permanently delete data ONLY in these specific directories:${C_RESET}"
+        for p in "${explicit_paths[@]}"; do
+          echo -e "  - ${p}"
+        done
+        echo -e "${C_YELLOW}And any generated/cloned workspace modules.${C_RESET}\n"
+
+        if gum confirm "Are you sure you want to delete these containers and directories?"; then
           "${BASH_SOURCE[0]}" reset-data --yes
           gum input --placeholder "System reset completed. Press Enter to continue..." > /dev/null
         fi
@@ -2195,8 +2221,28 @@ case "${cmd}" in
   reset-data)
     auto_yes=false
     [ "${1:-}" = "--yes" ] && auto_yes=true
+    
+    # EXPLICIT LIST OF NORMAL DIRECTORIES TO CLEAN (Used here for the dry-run display)
+    rel_data_dir="${DATA_DIR#${ROOT_DIR}/}"
+    rel_volume_dir="${VOLUME_DIR#${ROOT_DIR}/}"
+    explicit_paths=(
+      "${rel_data_dir}"
+      "${rel_volume_dir}/postgres"
+      "${rel_volume_dir}/solr"
+      "${rel_volume_dir}/elasticsearch"
+      "${rel_volume_dir}/lareferencia"
+      "${rel_volume_dir}/vufind"
+      "${rel_volume_dir}/vufind-db"
+    )
+
     if [ "${auto_yes}" != true ]; then
-      echo -e "${C_RED}This will clear data in Docker/data, REMOVE ALL containers, and DELETE cloned modules!${C_RESET}"
+      echo -e "${C_RED}⚠️  DANGER ZONE: SURGICAL RESET${C_RESET}"
+      echo -e "This will remove the Compose containers for project: ${C_YELLOW}${COMPOSE_PROJECT_NAME}${C_RESET}"
+      echo -e "And permanently delete data ONLY in these specific directories:"
+      for p in "${explicit_paths[@]}"; do
+        echo -e "  - ${p}"
+      done
+      echo -e "\nOther directories (like dev or backups) will remain untouched."
       read -r -p "Type RESET to confirm: " confirmation
       [ "${confirmation}" != "RESET" ] && exit 1
     fi
@@ -2246,19 +2292,7 @@ PY
     echo "--- Stopping and removing all containers, networks and volumes ---"
     "${BASH_SOURCE[0]}" down v || true
 
-    # Remove any compose containers matching the lareferencia-platform project name patterns
-    if command -v docker >/dev/null 2>&1; then
-      compose_containers=$(docker ps -a --filter "label=com.docker.compose.project" --format "{{.ID}} {{.Names}}" 2>/dev/null || true)
-      if [ -n "${compose_containers}" ]; then
-        echo "--- Cleaning up related compose containers from other project names ---"
-        while read -r cid cname; do
-          if [ -n "${cname}" ] && [[ "${cname}" == *"lareferencia"* || "${cname}" == "lr-"* || "${cname}" == "laref"* ]]; then
-            echo "Stopping & removing container: ${cname}"
-            docker rm -f "${cid}" >/dev/null 2>&1 || true
-          fi
-        done <<< "${compose_containers}"
-      fi
-    fi
+
 
     clean_data_preserving_tracked
 

@@ -42,7 +42,7 @@ admin=$2a$10$4y1zPBq1Sab.k62WLj7QNudiifOuJq/Da27oIT1S7SgPwdvheGw5W,ROLE_ADMIN
 > ℹ️ **Actualizado 2026-09-23:** el validador acepta prefijos `$2a$`, `$2b$` y `$2y$` (ver `FileBasedUserDetailsService`). `add-user.py` genera `$2a$` por compatibilidad.
 
 ### 3. `add-user.py`
-**Ubicación**: `lareferencia-lrharvester-app/config/add-user.py`
+**Ubicación**: `Docker/volume/lareferencia/lrharvester-app/config/add-user.py`
 
 Script Python para agregar usuarios al archivo. Soporta modo interactivo y línea de comandos.
 

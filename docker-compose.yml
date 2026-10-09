@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Docker/vufind/Dockerfile
-    image: lareferencia/vufind-web:${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/vufind-web:${LR_IMAGE_TAG:-${LR_BUILD_PROFILE:-lareferencia}}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-vufind-web
     depends_on:
       vufind-db:
@@ -80,7 +80,7 @@ services:
     build:
       context: .
       dockerfile: Docker/solr/Dockerfile
-    image: lareferencia/solr:${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/solr:${LR_IMAGE_TAG:-${LR_BUILD_PROFILE:-lareferencia}}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-solr
     networks:
       default:
@@ -147,7 +147,7 @@ services:
       args:
         APP_MODULE: lareferencia-lrharvester-app
         LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-    image: lareferencia/harvester:${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/harvester:${LR_IMAGE_TAG:-${LR_BUILD_PROFILE:-lareferencia}}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-harvester
     depends_on:
       postgres:
@@ -191,7 +191,7 @@ services:
       args:
         APP_MODULE: lareferencia-entity-rest
         LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-    image: lareferencia/entity-rest:${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/entity-rest:${LR_IMAGE_TAG:-${LR_BUILD_PROFILE:-lareferencia}}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-entity-rest
     depends_on:
       postgres:
@@ -239,7 +239,7 @@ services:
       args:
         APP_MODULE: lareferencia-oai-pmh
         LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-    image: lareferencia/oai-pmh:${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/oai-pmh:${LR_IMAGE_TAG:-${LR_BUILD_PROFILE:-lareferencia}}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-oai-pmh
     depends_on:
       solr:
@@ -278,7 +278,7 @@ services:
       args:
         APP_MODULE: lareferencia-shell
         LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-    image: lareferencia/db-init:${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/db-init:${LR_IMAGE_TAG:-${LR_BUILD_PROFILE:-lareferencia}}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-db-init
     depends_on:
       postgres:
@@ -312,7 +312,7 @@ services:
       args:
         APP_MODULE: lareferencia-shell
         LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
-    image: lareferencia/shell:${LR_BUILD_PROFILE:-lareferencia}
+    image: lareferencia/shell:${LR_IMAGE_TAG:-${LR_BUILD_PROFILE:-lareferencia}}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-shell
     stdin_open: true
     tty: true

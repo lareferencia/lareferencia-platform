@@ -7,10 +7,15 @@ ARG APP_MODULE
 COPY ${APP_MODULE}/target/${APP_MODULE}-*.jar /tmp/app.jar
 COPY ${APP_MODULE}/target/docker-build-info.properties /tmp/docker-build-info.properties
 
-# Extração das camadas (Modern Spring Boot 3.x)
 RUN \
     java -Djarmode=tools -jar /tmp/app.jar extract --layers --launcher --destination /build/extracted/ || \
     (mkdir -p /build/extracted/application && cp /tmp/app.jar /build/extracted/application/app.jar)
+
+RUN mkdir -p /build/extracted/dependencies \
+             /build/extracted/spring-boot-loader \
+             /build/extracted/snapshot-dependencies \
+             /build/extracted/application
+
 RUN cp /tmp/docker-build-info.properties /build/extracted/docker-build-info.properties
 
 # --- Stage 2: Runtime ---
@@ -26,8 +31,11 @@ WORKDIR /workspace
 ARG APP_MODULE
 ENV APP_MODULE=${APP_MODULE}
 
-# 4. Copiar as camadas extraídas ou o JAR de fallback
-COPY --from=builder /build/extracted/ /workspace/${APP_MODULE}/
+COPY --from=builder /build/extracted/dependencies/ /workspace/${APP_MODULE}/
+COPY --from=builder /build/extracted/spring-boot-loader/ /workspace/${APP_MODULE}/
+COPY --from=builder /build/extracted/snapshot-dependencies/ /workspace/${APP_MODULE}/
+# Camada que muda com maior frequência (seu código fonte) por último:
+COPY --from=builder /build/extracted/application/ /workspace/${APP_MODULE}/
 
 # 5. Copiar apenas recursos externos necessários do contexto de build
 COPY ${APP_MODULE}/confi[g]/ /workspace/${APP_MODULE}/config/
