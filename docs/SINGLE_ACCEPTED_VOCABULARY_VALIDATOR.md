@@ -85,6 +85,14 @@ Using the example vocabulary above:
 | `Scientific article`, `Publication` | Invalid | Two separate invalid results: `Scientific article` and `Publication`. |
 | No values | Invalid | An absence-of-values result. |
 
+## Result text length
+
+Original field values longer than 255 Unicode code points are omitted from `results`, rather than truncated. Values of exactly 255 code points are retained unchanged. This filters long license texts out of diagnostics.
+
+For concurrent vocabulary matches, filter individual occurrences by this limit before joining them. The joined result may exceed 255 code points because it represents multiple short values. If all otherwise reportable occurrences are too long, emit `no_reportable_values_found` with the rule's validity instead of storing the long text.
+
+Membership, acceptance, exclusions, and occurrence counts still use complete original values. Long occurrences can therefore affect validity even though their text is omitted. Metadata is not modified. A missing field remains `no_occurrences_found`; a field containing only configured other-vocabulary values remains `no_vocabulary_occurrences_found`. Existing stored results are not rewritten.
+
 ## Record validity and reporting
 
 The rule stores occurrence details for reporting. Each result uses `ContentValidatorResult`, which contains `valid` and `receivedValue`.
