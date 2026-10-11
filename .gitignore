@@ -1,5 +1,6 @@
 HELP.md
 /target/
+/data/dark/keys/
 !.mvn/wrapper/maven-wrapper.jar
 
 ### Docker local binaries ###
