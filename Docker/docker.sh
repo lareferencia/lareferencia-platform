@@ -1605,15 +1605,6 @@ wizard_backup() {
 # Auto-generated full-state backup script for LA Referencia
 set -e
 
-if docker compose version >/dev/null 2>&1; then
-  DC_CMD="docker compose"
-elif command -v docker-compose >/dev/null 2>&1; then
-  DC_CMD="docker-compose"
-else
-  echo "Error: docker compose or docker-compose not found."
-  exit 1
-fi
-
 PROJECT_DIR="${ROOT_DIR}"
 DEST_DIR="${dest_dir}"
 DATE=\$(date +"%Y%m%d_%H%M")
@@ -1621,44 +1612,21 @@ BACKUP_PATH="\$DEST_DIR/\$DATE"
 SNAPSHOT_NAME="lareferencia_snapshot_\$DATE.tar.gz"
 
 mkdir -p "\$BACKUP_PATH"
-
-echo "1. Exporting Database Dumps..."
 cd "\$PROJECT_DIR"
-\$DC_CMD exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" || true
-\$DC_CMD exec -T mariadb mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" || true
 
-echo "2. Pausing indexers safely..."
-\$DC_CMD stop solr elasticsearch vufind || true
+cleanup() {
+  echo "Ensuring services are resumed..."
+  ./Docker/docker.sh start solr elasticsearch vufind-web 2>/dev/null || true
+}
+trap cleanup EXIT
 
-echo "3. Packaging absolute snapshot (Git, Configs, Volumes)..."
-tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
-    --exclude="*/target" \\
-    --exclude="./Docker/volume/lareferencia/postgres" \\
-    --exclude="./Docker/volume/vufind/data/db" \\
-    --exclude="./.idea" \\
-    -C "\$PROJECT_DIR" . \\
-    -C "\$BACKUP_PATH" postgres_dump.sql mysql_vufind_dump.sql
-
-rm -f "\$BACKUP_PATH/postgres_dump.sql" "\$BACKUP_PATH/mysql_vufind_dump.sql"
-
-echo "4. Restarting services..."
-\$DC_CMD start || true
-
-echo "5. Generating autonomous restore script..."
+echo "1. Generating autonomous restore script..."
 cat << 'RESTORE_EOF' > "\$BACKUP_PATH/restore.sh"
 #!/usr/bin/env bash
-
-if docker compose version >/dev/null 2>&1; then
-  DC_CMD="docker compose"
-elif command -v docker-compose >/dev/null 2>&1; then
-  DC_CMD="docker-compose"
-else
-  echo "Error: docker compose or docker-compose not found."
-  exit 1
-fi
+set -e
 
 echo "Restoring LA Referencia Full State Snapshot..."
-TAR_FILE=\$(ls *.tar.gz | head -n 1)
+TAR_FILE=\$(ls *.tar.gz 2>/dev/null | head -n 1)
 if [ -z "\$TAR_FILE" ]; then
   echo "Error: Snapshot tar.gz not found!"
   exit 1
@@ -1668,13 +1636,25 @@ echo "Extracting snapshot..."
 tar -xzf "\$TAR_FILE"
 
 echo "Booting Databases..."
-./Docker/docker.sh dc up -d postgres mariadb
-echo "Waiting 15s for databases to initialize..."
-sleep 15
+./Docker/docker.sh up postgres vufind-db
+
+echo "Waiting for databases to initialize..."
+retries=30
+while [ "\$retries" -gt 0 ]; do
+  if ./Docker/docker.sh dc exec -T postgres pg_isready -U lrharvester -d lrharvester >/dev/null 2>&1; then
+    break
+  fi
+  retries=\$((retries - 1))
+  sleep 1
+done
 
 echo "Restoring Dumps..."
-cat postgres_dump.sql | ./Docker/docker.sh dc exec -T postgres psql -U lrharvester -d lrharvester || true
-cat mysql_vufind_dump.sql | ./Docker/docker.sh dc exec -T mariadb mysql -u vufind -pvufind vufind || true
+if [ -s postgres_dump.sql ]; then
+  cat postgres_dump.sql | ./Docker/docker.sh dc exec -T postgres psql -U lrharvester -d lrharvester || true
+fi
+if [ -s mysql_vufind_dump.sql ]; then
+  cat mysql_vufind_dump.sql | ./Docker/docker.sh dc exec -T vufind-db mysql -u vufind -pvufind vufind || true
+fi
 
 echo "Booting remaining infrastructure..."
 ./Docker/docker.sh up
@@ -1682,6 +1662,33 @@ echo "Restore complete! Environment is ready."
 RESTORE_EOF
 
 chmod +x "\$BACKUP_PATH/restore.sh"
+
+echo "2. Exporting Database Dumps..."
+./Docker/docker.sh dc exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" 2>/dev/null || true
+./Docker/docker.sh dc exec -T vufind-db mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" 2>/dev/null || true
+
+echo "3. Pausing indexers safely..."
+./Docker/docker.sh stop solr elasticsearch vufind-web 2>/dev/null || true
+
+echo "4. Packaging absolute snapshot (Git, Configs, Volumes)..."
+tar_code=0
+tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
+    --exclude="*/target" \\
+    --exclude="./Docker/volume/lareferencia/postgres" \\
+    --exclude="./Docker/volume/vufind/data/db" \\
+    --exclude="./.idea" \\
+    -C "\$PROJECT_DIR" . \\
+    -C "\$BACKUP_PATH" postgres_dump.sql mysql_vufind_dump.sql || tar_code=\$?
+
+if [ "\$tar_code" -ne 0 ] && [ "\$tar_code" -ne 1 ]; then
+  echo "Error: tar failed with exit code \$tar_code" >&2
+  exit "\$tar_code"
+fi
+
+rm -f "\$BACKUP_PATH/postgres_dump.sql" "\$BACKUP_PATH/mysql_vufind_dump.sql"
+
+echo "5. Restarting services..."
+./Docker/docker.sh start solr elasticsearch vufind-web 2>/dev/null || true
 
 echo "Cleaning old backups (keeping 7 days)..."
 find "\$DEST_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} \;
@@ -1694,7 +1701,7 @@ EOF
       
       if command -v crontab >/dev/null 2>&1; then
         local cron_job="$random_min 3 * * * cd ${ROOT_DIR} && bash .system_backup.sh >> ${ROOT_DIR}/.cron_backup.log 2>&1"
-        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh" || true; echo "$cron_job") | crontab -
+        (crontab -l 2>/dev/null | grep -F -v ".system_backup.sh" || true; echo "$cron_job") | crontab -
         gum style --foreground 114 "✅ Cron job successfully configured for: 03:${random_min} AM"
       elif command -v systemctl >/dev/null 2>&1; then
         local systemd_dir="${HOME}/.config/systemd/user"
@@ -1731,7 +1738,7 @@ SYSTEMD_TMR
       fi
     else
       if command -v crontab >/dev/null 2>&1; then
-        (crontab -l 2>/dev/null | grep -v "${ROOT_DIR}/.system_backup.sh") | crontab - || true
+        (crontab -l 2>/dev/null | grep -F -v ".system_backup.sh" || true) | crontab -
       fi
       if command -v systemctl >/dev/null 2>&1; then
         systemctl --user disable --now lareferencia-backup.timer 2>/dev/null || true
@@ -2211,6 +2218,10 @@ case "${cmd}" in
     for p in "${COLLECTED_PROFILES[@]-}"; do p_args+=(--profile "$p"); done
     
     dc "${p_args[@]}" "${cmd}" "${services[@]}"
+    ;;
+
+  dc)
+    dc "$@"
     ;;
 
   pull)
