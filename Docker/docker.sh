@@ -574,12 +574,10 @@ are_images_built() {
   fi
 
   local missing_image=false
-  local checked_any=false
   local s
   for s in "${services[@]}"; do
     case "${s}" in
       harvester|entity-rest|shell|solr|vufind-web|vufind-scss-watch|oai-pmh)
-        checked_any=true
         local env_tag
         env_tag="$(get_env_var LR_IMAGE_TAG "")"
         local env_profile
@@ -593,10 +591,10 @@ are_images_built() {
     esac
   done
   
-  if [ "${checked_any}" = true ] && [ "${missing_image}" = false ]; then
-    return 0
+  if [ "${missing_image}" = true ]; then
+    return 1
   fi
-  return 1
+  return 0
 }
 
 sync_solr_assets_from_vufind() {
@@ -896,6 +894,22 @@ run_global_build() {
   echo "--- Build completed successfully ---"
 }
 
+wait_for_postgres() {
+  local retries=30
+  echo -n "Waiting for PostgreSQL to be ready..."
+  while [ "${retries}" -gt 0 ]; do
+    if dc exec -T postgres pg_isready -U lrharvester -d lrharvester >/dev/null 2>&1; then
+      echo " ready."
+      return 0
+    fi
+    retries=$((retries - 1))
+    echo -n "."
+    sleep 1
+  done
+  echo -e "\n\033[31m❌ Timed out waiting for PostgreSQL to become ready.\033[0m" >&2
+  return 1
+}
+
 run_init_db() {
   local shell_cmd=("$@")
   if [ "${#shell_cmd[@]}" -eq 0 ]; then
@@ -907,10 +921,11 @@ run_init_db() {
   fi
 
   echo "--- Cleaning up potential remnants from previous runs ---"
-  # Garante que containers que possam estar em estado de erro ou travados sejam removidos
-  dc --profile tools rm -f -s -v postgres solr shell db-init 2>/dev/null || true
+  # Clean up ephemeral containers only, preserving infrastructure (postgres/solr)
+  dc --profile tools rm -f -s -v shell db-init 2>/dev/null || true
   echo "--- Running Database Initialization ---"
   dc --profile tools up -d postgres solr
+  wait_for_postgres
   
   # Executa a inicialização em foreground (logs capturados externamente se necessário)
   dc --profile tools run --rm -T --no-deps shell /usr/local/bin/lr-app-entrypoint.sh "${shell_cmd[@]}"
@@ -926,6 +941,7 @@ run_init_db() {
 
 ensure_shell_service_running() {
   dc up -d postgres solr
+  wait_for_postgres
   return 0
 }
 
@@ -2214,7 +2230,6 @@ case "${cmd}" in
 
   init-db)
     ensure_java_parent_modules_ready
-    ensure_shell_service_running
     run_init_db "$@"
     ;;
 
