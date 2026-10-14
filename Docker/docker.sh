@@ -31,6 +31,8 @@ JAVA_PARENT_MODULES=(
   lareferencia-shell-entity-plugin
   lareferencia-shell
   lareferencia-dark-lib
+  lareferencia-lrharvester-admin-web
+  lareferencia-repository-dashboard
   lareferencia-lrharvester-app
   lareferencia-entity-rest
   lareferencia-oai-pmh
@@ -789,7 +791,7 @@ compile_java_modules() {
     -v \"${ROOT_DIR}:/workspace\" \
     -w /workspace \
     maven:3.9.11-eclipse-temurin-17 \
-    mvn clean package ${settings_arg} -DskipTests -Dspring-boot.repackage.executable=false -P${profile}"
+    mvn clean package ${settings_arg} -DskipTests -Dmaven.javadoc.skip=true -Dno-frontends -Dspring-boot.repackage.executable=false -P${profile}"
     
   eval "${compile_cmd}"
   
@@ -871,9 +873,86 @@ write_java_build_manifests() {
     >> "${ROOT_DIR}/lareferencia-lrharvester-app/target/docker-build-info.properties"
 }
 
+clean_dangling_images() {
+  local dangling
+  dangling="$(docker images -f "dangling=true" -q 2>/dev/null || true)"
+  if [ -n "${dangling}" ]; then
+    echo "Cleaning up dangling intermediate images to reclaim disk space..."
+    docker image prune -f >/dev/null 2>&1 || true
+  fi
+}
+
+prune_docker_build_artifacts() {
+  echo -e "\n${C_CYAN}--- Pruning Docker Build Artifacts & Cache ---${C_RESET}"
+  echo "1. Removing dangling images (<none>:<none>)..."
+  docker image prune -f || true
+
+  echo -e "\n2. Removing BuildKit builder cache..."
+  docker builder prune -f || true
+
+  echo -e "\n${C_GREEN}Current Docker Disk Usage:${C_RESET}"
+  docker system df || true
+  echo -e "${C_GREEN}Prune completed successfully.${C_RESET}"
+}
+
+build_parallel_components() {
+  echo -e "\n${C_CYAN}--- Building Components in Parallel (Java Backend, Admin Web, Repository Dashboard) ---${C_RESET}"
+
+  local pids=()
+  local names=("Java Backend" "React Admin Web" "Angular Dashboard")
+  local log_dir="${ROOT_DIR}/Docker/data/build-logs"
+  mkdir -p "${log_dir}"
+
+  local java_log="${log_dir}/build-java.log"
+  local admin_log="${log_dir}/build-admin.log"
+  local dash_log="${log_dir}/build-dashboard.log"
+
+  # 1. Java Backend Compilation (Maven temurin-17 with -Dno-frontends)
+  (
+    compile_java_modules
+  ) > "${java_log}" 2>&1 &
+  pids+=($!)
+  echo "  ▶ [1/3] Java Backend compilation started (PID: ${pids[0]})..."
+
+  # 2. React Admin Web Build (Node 22)
+  (
+    "${ROOT_DIR}/build-admin-web.sh"
+  ) > "${admin_log}" 2>&1 &
+  pids+=($!)
+  echo "  ▶ [2/3] React Admin Web build started (PID: ${pids[1]})..."
+
+  # 3. Angular Dashboard Build (Node 18)
+  (
+    "${ROOT_DIR}/build-dashboard.sh"
+  ) > "${dash_log}" 2>&1 &
+  pids+=($!)
+  echo "  ▶ [3/3] Angular Dashboard build started (PID: ${pids[2]})..."
+
+  local failed=0
+  local logs=("${java_log}" "${admin_log}" "${dash_log}")
+
+  for i in "${!pids[@]}"; do
+    if ! wait "${pids[$i]}"; then
+      echo -e "\n${C_RED}❌ ${names[$i]} build failed! (Log: ${logs[$i]})${C_RESET}"
+      echo -e "${C_YELLOW}--- Last 25 lines of ${logs[$i]} ---${C_RESET}"
+      tail -n 25 "${logs[$i]}" >&2
+      failed=1
+    else
+      echo -e "${C_GREEN}✔ ${names[$i]} completed successfully.${C_RESET}"
+    fi
+  done
+
+  if [ "${failed}" -ne 0 ]; then
+    echo -e "\n${C_RED}Error: One or more component builds failed. Aborting.${C_RESET}" >&2
+    return 1
+  fi
+
+  echo -e "${C_GREEN}--- All components built successfully in parallel ---${C_RESET}\n"
+}
+
 run_global_build() {
   local use_no_cache="${1:-false}"
-  compile_java_modules
+  build_parallel_components
 
   echo "--- Building images using Multi-stage Dockerfiles ---"
   local profile_args=()
@@ -892,6 +971,7 @@ run_global_build() {
 
   dc "${profile_args[@]}" "${build_args[@]}"
   echo "--- Build completed successfully ---"
+  clean_dangling_images
 }
 
 wait_for_postgres() {
@@ -1834,6 +1914,7 @@ wizard_main() {
       "⚡ Resource Profile: [${res_profile}]"
       "📡 Configure External Solr"
       "🛠️ Run Init-DB (migrations)"
+      "🧹 Prune Docker Build Cache & Images"
       "🧹 Reset Data (CLEAN ALL)"
       "🚪 Exit"
     )
@@ -1994,6 +2075,10 @@ wizard_main() {
         execute_with_progress "\"${BASH_SOURCE[0]}\" init-db" "Database Migrations"
         gum input --placeholder "Press Enter to continue..." > /dev/null
         ;;
+      "🧹 Prune Docker Build Cache & Images")
+        prune_docker_build_artifacts
+        gum input --placeholder "Prune completed. Press Enter to continue..." > /dev/null
+        ;;
       "🧹 Reset Data (CLEAN ALL)")
         echo
         gum style --foreground 204 --border double --border-foreground 204 --padding "0 1" "⚠️  DANGER ZONE: ALL DATA AND ALL CONTAINERS WILL BE PERMANENTLY DELETED"
@@ -2044,6 +2129,7 @@ Core Commands:
   modules <on|off>     Enable/disable modules (vufind, elastic, watch, oai)
   res <profile>        Apply resource profile (low, medium, high, custom)
   init-db              Migrate database
+  prune                Reclaim disk space (prune dangling images and build cache)
   reset-data           Clean Docker/data
   shell <service>      Start a bash shell in a running container
   lrshell-interactive  Start interactive session in the shell container
@@ -2211,7 +2297,11 @@ case "${cmd}" in
     ensure_vufind_for_services "${services[@]}"
     if [ "${cmd}" = "build" ]; then
       ensure_java_parent_modules_ready false
-      compile_java_modules
+      if [ "${#services[@]}" -eq 0 ] || contains_item harvester "${services[@]}"; then
+        build_parallel_components
+      else
+        compile_java_modules
+      fi
     fi
     
     p_args=()
@@ -2248,6 +2338,10 @@ case "${cmd}" in
     ensure_java_parent_modules_ready
     ensure_shell_service_running
     exec_shell_command_interactive "$@"
+    ;;
+
+  prune)
+    prune_docker_build_artifacts
     ;;
 
   reset-data)
