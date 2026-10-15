@@ -15,10 +15,18 @@ echo 'Building the admin web with Node 22 in Docker...'
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   -e NPM_CONFIG_CACHE=/tmp/npm-cache \
-  -v "${ADMIN_DIR}:/workspace/admin-web" \
+  -v "${ADMIN_DIR}:/workspace/admin-web:ro" \
   -v "${HARVESTER_DIR}:/workspace/harvester" \
-  -w /workspace/admin-web \
   node:22-bookworm-slim \
-  sh -ec 'npm ci --no-audit --no-fund && npm run build && rm -rf /workspace/harvester/admin-static && mkdir -p /workspace/harvester/admin-static && cp -a dist/. /workspace/harvester/admin-static/'
+  sh -ec '
+    mkdir -p /tmp/app
+    tar -C /workspace/admin-web --exclude=node_modules --exclude=dist --exclude=.git --exclude=node -cf - . | tar -C /tmp/app -xf -
+    cd /tmp/app
+    npm ci --no-audit --no-fund
+    npm run build
+    rm -rf /workspace/harvester/admin-static
+    mkdir -p /workspace/harvester/admin-static
+    cp -a dist/. /workspace/harvester/admin-static/
+  '
 
 echo "Admin web built and published to ${STATIC_DIR}"

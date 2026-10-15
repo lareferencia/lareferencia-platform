@@ -18,10 +18,18 @@ echo 'Building the Angular Repository Dashboard with Node 18 in Docker...'
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   -e NPM_CONFIG_CACHE=/tmp/npm-cache \
-  -v "${ANGULAR_DIR}:/workspace/dashboard" \
+  -v "${ANGULAR_DIR}:/workspace/dashboard:ro" \
   -v "${HARVESTER_DIR}:/workspace/harvester" \
-  -w /workspace/dashboard \
   node:18-bookworm-slim \
-  sh -ec 'npm ci --no-audit --no-fund && npm run build && rm -rf /workspace/harvester/dashboard-static && mkdir -p /workspace/harvester/dashboard-static && cp -a dist/frontend/. /workspace/harvester/dashboard-static/'
+  sh -ec '
+    mkdir -p /tmp/app
+    tar -C /workspace/dashboard --exclude=node_modules --exclude=dist --exclude=.git -cf - . | tar -C /tmp/app -xf -
+    cd /tmp/app
+    npm ci --no-audit --no-fund
+    npm run build
+    rm -rf /workspace/harvester/dashboard-static
+    mkdir -p /workspace/harvester/dashboard-static
+    cp -a dist/frontend/. /workspace/harvester/dashboard-static/
+  '
 
 echo "Dashboard built and published to ${STATIC_DIR}"
