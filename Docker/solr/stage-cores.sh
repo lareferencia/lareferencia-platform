@@ -53,40 +53,63 @@ if [ ! -f "${SRC_VUFIND}/composer.json" ]; then
   git clone --quiet --depth 1 --branch "${repo_ref}" --single-branch "${repo_url}" "${SRC_VUFIND}"
 fi
 
-# 2. Verify source core directories
+# 2. Check OAI source directory (lareferencia-oai-pmh)
 if [ ! -d "${SRC_OAI}" ]; then
-  echo "Error: OAI source core directory '${SRC_OAI}' does not exist!" >&2
-  echo "Please check out lareferencia-oai-pmh before staging Solr cores." >&2
-  exit 1
+  if [ -x "${ROOT_DIR}/githelper" ]; then
+    echo "OAI source directory not found. Initializing lareferencia-oai-pmh using githelper..."
+    "${ROOT_DIR}/githelper" init --modules lareferencia-oai-pmh 2>/dev/null || true
+  elif command -v python3 >/dev/null 2>&1 && [ -f "${ROOT_DIR}/githelper" ]; then
+    echo "OAI source directory not found. Initializing lareferencia-oai-pmh using githelper..."
+    python3 "${ROOT_DIR}/githelper" init --modules lareferencia-oai-pmh 2>/dev/null || true
+  fi
+fi
+
+# 3. Validate source core availability
+has_oai=true
+has_biblio=true
+
+if [ ! -d "${SRC_OAI}" ]; then
+  echo "Warning: OAI source core directory '${SRC_OAI}' does not exist yet." >&2
+  echo "         OAI core staging will be deferred until lareferencia-oai-pmh is initialized." >&2
+  has_oai=false
 fi
 
 if [ ! -d "${SRC_BIBLIO}" ]; then
-  echo "Error: Biblio source core directory '${SRC_BIBLIO}' does not exist in VuFind checkout!" >&2
+  echo "Warning: Biblio source core directory '${SRC_BIBLIO}' does not exist in VuFind checkout!" >&2
+  has_biblio=false
+fi
+
+if [ "${has_oai}" = false ] && [ "${has_biblio}" = false ]; then
+  echo "Error: Neither OAI nor Biblio core directories are available. Cannot stage Solr cores." >&2
   exit 1
 fi
 
-# 3. Create destination staging directories
+# 4. Create destination staging directories
 mkdir -p "${DST_CORES}/oai" "${DST_CORES}/biblio" "${DST_JARS}" "${DST_IMPORT}" "${DST_VENDOR}"
 
-# 4. Stage OAI core from lareferencia-oai-pmh (source of truth)
-echo "Staging 'oai' core from lareferencia-oai-pmh/solr.core/oai..."
-rm -rf "${DST_CORES}/oai"
-mkdir -p "${DST_CORES}/oai"
-cp -a "${SRC_OAI}/." "${DST_CORES}/oai/"
-if [ ! -f "${DST_CORES}/oai/core.properties" ]; then
-  echo "name=oai" > "${DST_CORES}/oai/core.properties"
+# 5. Stage OAI core from lareferencia-oai-pmh (if present)
+if [ "${has_oai}" = true ]; then
+  echo "Staging 'oai' core from lareferencia-oai-pmh/solr.core/oai..."
+  rm -rf "${DST_CORES}/oai"
+  mkdir -p "${DST_CORES}/oai"
+  cp -a "${SRC_OAI}/." "${DST_CORES}/oai/"
+  if [ ! -f "${DST_CORES}/oai/core.properties" ]; then
+    echo "name=oai" > "${DST_CORES}/oai/core.properties"
+  fi
 fi
 
-# 5. Stage Biblio core from vufind (source of truth, untouched)
-echo "Staging 'biblio' core from vufind/solr/vufind/biblio..."
-rm -rf "${DST_CORES}/biblio"
-mkdir -p "${DST_CORES}/biblio"
-cp -a "${SRC_BIBLIO}/." "${DST_CORES}/biblio/"
-if [ ! -f "${DST_CORES}/biblio/core.properties" ]; then
-  echo "name=biblio" > "${DST_CORES}/biblio/core.properties"
+# 6. Stage Biblio core from vufind (if present)
+if [ "${has_biblio}" = true ]; then
+  echo "Staging 'biblio' core from vufind/solr/vufind/biblio..."
+  rm -rf "${DST_CORES}/biblio"
+  mkdir -p "${DST_CORES}/biblio"
+  cp -a "${SRC_BIBLIO}/." "${DST_CORES}/biblio/"
+  if [ ! -f "${DST_CORES}/biblio/core.properties" ]; then
+    echo "name=biblio" > "${DST_CORES}/biblio/core.properties"
+  fi
 fi
 
-# 6. Stage VuFind JARs and import assets
+# 7. Stage VuFind JARs and import assets
 if [ -d "${SRC_JARS}" ]; then
   echo "Staging supporting JARs from vufind/solr/vufind/jars..."
   rm -rf "${DST_JARS}"
@@ -106,12 +129,20 @@ if [ -d "${SRC_VENDOR}" ]; then
   cp "${SRC_VENDOR}"/lucene-analysis-icu-*.jar "${DST_VENDOR}/" 2>/dev/null || true
 fi
 
-# 7. Record source repository and revision used for each core
-oai_repo="$(git -C "${ROOT_DIR}/lareferencia-oai-pmh" config --get remote.origin.url 2>/dev/null || echo "lareferencia-oai-pmh")"
-oai_rev="$(git -C "${ROOT_DIR}/lareferencia-oai-pmh" rev-parse HEAD 2>/dev/null || echo "unknown")"
+# 8. Record source repository and revision used for each core
+oai_repo="uninitialized"
+oai_rev="none"
+if [ "${has_oai}" = true ]; then
+  oai_repo="$(git -C "${ROOT_DIR}/lareferencia-oai-pmh" config --get remote.origin.url 2>/dev/null || echo "lareferencia-oai-pmh")"
+  oai_rev="$(git -C "${ROOT_DIR}/lareferencia-oai-pmh" rev-parse HEAD 2>/dev/null || echo "unknown")"
+fi
 
-vufind_repo="$(git -C "${SRC_VUFIND}" config --get remote.origin.url 2>/dev/null || echo "vufind")"
-vufind_rev="$(git -C "${SRC_VUFIND}" rev-parse HEAD 2>/dev/null || echo "unknown")"
+vufind_repo="uninitialized"
+vufind_rev="none"
+if [ "${has_biblio}" = true ]; then
+  vufind_repo="$(git -C "${SRC_VUFIND}" config --get remote.origin.url 2>/dev/null || echo "vufind")"
+  vufind_rev="$(git -C "${SRC_VUFIND}" rev-parse HEAD 2>/dev/null || echo "unknown")"
+fi
 
 cat <<EOF > "${DST_CORES}/build-info.properties"
 solr.version=9.11.0

@@ -731,7 +731,7 @@ ensure_vufind_checkout() {
   echo "--- VuFind checkout completed successfully ---"
 
   if [ "${cloned_vufind}" = true ]; then
-    sync_solr_assets_from_vufind > /dev/null 2>&1
+    sync_solr_assets_from_vufind || true
   fi
 }
 
