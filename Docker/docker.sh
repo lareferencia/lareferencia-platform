@@ -814,10 +814,16 @@ ensure_java_parent_modules_ready() {
     echo "Missing initialized Java workspace modules (pom.xml absent):" >&2
     printf '  - %s\n' "${missing[@]}" >&2
     echo "Cloning missing modules using githelper..." >&2
+    local missing_list
+    missing_list="$(IFS=,; echo "${missing[*]}")"
+    local git_clone_jobs
+    git_clone_jobs="$(get_env_var "GIT_CLONE_JOBS" "4")"
+    local git_clone_depth
+    git_clone_depth="$(get_env_var "GIT_CLONE_DEPTH" "1")"
     if [ -x "${ROOT_DIR}/githelper" ]; then
-      "${ROOT_DIR}/githelper" init
+      "${ROOT_DIR}/githelper" init --jobs "${git_clone_jobs}" --depth "${git_clone_depth}" --modules "${missing_list}"
     else
-      python3 "${ROOT_DIR}/githelper" init
+      python3 "${ROOT_DIR}/githelper" init --jobs "${git_clone_jobs}" --depth "${git_clone_depth}" --modules "${missing_list}"
     fi
   fi
 

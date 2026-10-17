@@ -8,9 +8,10 @@ import configparser
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 MANIFEST_FILE = "workspace.ini"
@@ -560,6 +561,53 @@ def cmd_status(args: argparse.Namespace) -> int:
     return print_status(root, modules, dirty_only=args.dirty)
 
 
+def init_module(
+    module: ModuleMeta,
+    root: Path,
+    workspace: Workspace,
+    branch_set_name: Optional[str],
+    depth: int,
+) -> Tuple[str, str, Optional[str]]:
+    repo = root / module.path
+    branch = None
+    if not module.tag:
+        branch = target_branch_for_module(workspace, branch_set_name, module) if branch_set_name else module.branch
+
+    if repo.exists():
+        if is_git_repository(repo):
+            if module.tag:
+                fetch_result = ensure_remote_refs(repo)
+                if fetch_result.returncode != 0:
+                    return ("error", f"{module.name}: fetch failed: {fetch_result.stderr or fetch_result.stdout}", None)
+                tag_result = switch_to_tag(repo, module)
+                if tag_result.returncode != 0:
+                    return ("error", f"{module.name}: {tag_result.stderr or tag_result.stdout}", None)
+                return ("existing", f"OK   {module.name}: repository exists and is pinned to tag '{module.tag}'.", None)
+            else:
+                return ("existing", f"OK   {module.name}: repository already exists at {module.path}.", None)
+        else:
+            return ("error", f"{module.name}: path exists but is not a git repository: {module.path}", None)
+
+    target = module.tag or branch
+    clone_cmd = ["clone", "--branch", target]
+    if depth > 0:
+        clone_cmd.extend(["--depth", str(depth), "--single-branch"])
+    clone_cmd.extend(["--", module.url, module.path])
+
+    clone_result = run_git(clone_cmd, root)
+    if clone_result.returncode == 0:
+        if module.tag:
+            tag_result = switch_to_tag(repo, module)
+            if tag_result.returncode != 0:
+                return ("error", f"{module.name}: {tag_result.stderr or tag_result.stdout}", None)
+            return ("cloned", f"OK   {module.name}: cloned and pinned to tag '{module.tag}' in {module.path}.", None)
+        else:
+            return ("cloned", f"OK   {module.name}: cloned branch '{branch}' into {module.path}.", None)
+    else:
+        kind = "tag" if module.tag else "branch"
+        return ("error", f"{module.name}: clone failed for {kind} '{target}': {clone_result.stderr or clone_result.stdout}", None)
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
@@ -576,51 +624,38 @@ def cmd_init(args: argparse.Namespace) -> int:
     if branch_set_name and not branch_set_exists(workspace, branch_set_name):
         info(f"No branch-set for '{branch_set_name}'; using module defaults.")
 
-    for module in modules:
-        repo = root / module.path
-        branch = None
-        if not module.tag:
-            branch = target_branch_for_module(workspace, branch_set_name, module) if branch_set_name else module.branch
+    jobs = getattr(args, "jobs", 4) or 1
+    depth = getattr(args, "depth", 0) or 0
 
-        if repo.exists():
-            if is_git_repository(repo):
-                if module.tag:
-                    fetch_result = ensure_remote_refs(repo)
-                    if fetch_result.returncode != 0:
-                        warn(f"{module.name}: fetch failed: {fetch_result.stderr or fetch_result.stdout}")
-                        errors += 1
-                        continue
-                    tag_result = switch_to_tag(repo, module)
-                    if tag_result.returncode != 0:
-                        warn(f"{module.name}: {tag_result.stderr or tag_result.stdout}")
-                        errors += 1
-                        continue
-                    info(f"OK   {module.name}: repository exists and is pinned to tag '{module.tag}'.")
+    if jobs > 1 and len(modules) > 1:
+        with ThreadPoolExecutor(max_workers=min(jobs, len(modules))) as executor:
+            futures = {
+                executor.submit(init_module, module, root, workspace, branch_set_name, depth): module
+                for module in modules
+            }
+            for future in as_completed(futures):
+                status, msg, _ = future.result()
+                if status == "existing":
+                    info(msg)
+                    existing += 1
+                elif status == "cloned":
+                    info(msg)
+                    cloned += 1
                 else:
-                    info(f"OK   {module.name}: repository already exists at {module.path}.")
-                existing += 1
-            else:
-                warn(f"{module.name}: path exists but is not a git repository: {module.path}")
-                errors += 1
-            continue
-
-        target = module.tag or branch
-        clone_result = run_git(["clone", "--branch", target, "--", module.url, module.path], root)
-        if clone_result.returncode == 0:
-            if module.tag:
-                tag_result = switch_to_tag(repo, module)
-                if tag_result.returncode != 0:
-                    warn(f"{module.name}: {tag_result.stderr or tag_result.stdout}")
+                    warn(msg)
                     errors += 1
-                    continue
-                info(f"OK   {module.name}: cloned and pinned to tag '{module.tag}' in {module.path}.")
+    else:
+        for module in modules:
+            status, msg, _ = init_module(module, root, workspace, branch_set_name, depth)
+            if status == "existing":
+                info(msg)
+                existing += 1
+            elif status == "cloned":
+                info(msg)
+                cloned += 1
             else:
-                info(f"OK   {module.name}: cloned branch '{branch}' into {module.path}.")
-            cloned += 1
-        else:
-            kind = "tag" if module.tag else "branch"
-            warn(f"{module.name}: clone failed for {kind} '{target}': {clone_result.stderr or clone_result.stdout}")
-            errors += 1
+                warn(msg)
+                errors += 1
 
     info(f"Summary: cloned={cloned} existing={existing} errors={errors}")
     return 1 if errors else 0
@@ -1017,6 +1052,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--set", dest="branch_set", help="Use this branch-set while cloning.")
     p_init.add_argument("--branch", dest="legacy_branch", help=argparse.SUPPRESS)
     p_init.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")
+    p_init.add_argument("--depth", type=int, default=0, help="Create shallow clones with specified depth (e.g. 1).")
+    p_init.add_argument("-j", "--jobs", type=int, default=4, help="Number of concurrent clone jobs (default: 4).")
     p_init.set_defaults(func=cmd_init)
 
     p_sync = subparsers.add_parser(

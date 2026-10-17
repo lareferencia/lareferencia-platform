@@ -57,10 +57,10 @@ fi
 if [ ! -d "${SRC_OAI}" ]; then
   if [ -x "${ROOT_DIR}/githelper" ]; then
     echo "OAI source directory not found. Initializing lareferencia-oai-pmh using githelper..."
-    "${ROOT_DIR}/githelper" init --modules lareferencia-oai-pmh 2>/dev/null || true
+    "${ROOT_DIR}/githelper" init --depth 1 --modules lareferencia-oai-pmh 2>/dev/null || true
   elif command -v python3 >/dev/null 2>&1 && [ -f "${ROOT_DIR}/githelper" ]; then
     echo "OAI source directory not found. Initializing lareferencia-oai-pmh using githelper..."
-    python3 "${ROOT_DIR}/githelper" init --modules lareferencia-oai-pmh 2>/dev/null || true
+    python3 "${ROOT_DIR}/githelper" init --depth 1 --modules lareferencia-oai-pmh 2>/dev/null || true
   fi
 fi
 
