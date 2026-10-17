@@ -310,10 +310,82 @@ compile_selected_java() {
   fi
 }
 
+prepare_solr_staging() {
+  if [ -x "${ROOT_DIR}/Docker/solr/stage-cores.sh" ]; then
+    "${ROOT_DIR}/Docker/solr/stage-cores.sh"
+    return $?
+  fi
+  if [ -f "${ROOT_DIR}/Docker/solr/stage-cores.sh" ]; then
+    bash "${ROOT_DIR}/Docker/solr/stage-cores.sh"
+    return $?
+  fi
+
+  echo "=== Staging Solr 9.11.0 assets and core configurations ==="
+  local src_oai="${ROOT_DIR}/lareferencia-oai-pmh/solr.core/oai"
+  local src_vufind="${ROOT_DIR}/vufind"
+  local src_biblio="${src_vufind}/solr/vufind/biblio"
+  local src_jars="${src_vufind}/solr/vufind/jars"
+  local src_import="${src_vufind}/import"
+  local src_vendor="${src_vufind}/solr/vendor/modules/analysis-extras/lib"
+
+  local dst_cores="${ROOT_DIR}/Docker/solr/cores"
+  local dst_jars="${ROOT_DIR}/Docker/solr/jars"
+  local dst_import="${ROOT_DIR}/Docker/solr/import"
+  local dst_vendor="${ROOT_DIR}/Docker/solr/vendor"
+
+  ensure_vufind_for_services vufind-web
+
+  mkdir -p "${dst_cores}/oai" "${dst_cores}/biblio" "${dst_jars}" "${dst_import}" "${dst_vendor}"
+
+  if [ -d "${src_oai}" ]; then
+    rm -rf "${dst_cores}/oai"
+    mkdir -p "${dst_cores}/oai"
+    cp -a "${src_oai}/." "${dst_cores}/oai/"
+    [ -f "${dst_cores}/oai/core.properties" ] || echo "name=oai" > "${dst_cores}/oai/core.properties"
+  fi
+
+  if [ -d "${src_biblio}" ]; then
+    rm -rf "${dst_cores}/biblio"
+    mkdir -p "${dst_cores}/biblio"
+    cp -a "${src_biblio}/." "${dst_cores}/biblio/"
+    [ -f "${dst_cores}/biblio/core.properties" ] || echo "name=biblio" > "${dst_cores}/biblio/core.properties"
+  fi
+
+  if [ -d "${src_jars}" ]; then
+    rm -rf "${dst_jars}"
+    mkdir -p "${dst_jars}"
+    cp -a "${src_jars}/." "${dst_jars}/"
+  fi
+
+  if [ -d "${src_import}" ]; then
+    rm -rf "${dst_import}"
+    mkdir -p "${dst_import}"
+    cp -a "${src_import}/." "${dst_import}/"
+  fi
+
+  if [ -d "${src_vendor}" ]; then
+    cp "${src_vendor}"/icu4j-*.jar "${dst_vendor}/" 2>/dev/null || true
+    cp "${src_vendor}"/lucene-analysis-icu-*.jar "${dst_vendor}/" 2>/dev/null || true
+  fi
+
+  cat <<EOF > "${dst_cores}/build-info.properties"
+solr.version=9.11.0
+core.oai.source=lareferencia-oai-pmh
+core.biblio.source=vufind
+staged_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+
+  touch "${dst_cores}/.gitkeep" "${dst_jars}/.gitkeep" "${dst_import}/.gitkeep"
+  echo "=== Staging complete. ==="
+}
+
 rebuild_platform() {
   selected_services
   [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
   ensure_vufind_for_services "${DEV_SELECTED_SERVICES[@]}"
+  if contains solr "${DEV_SELECTED_SERVICES[@]}"; then
+    prepare_solr_staging
+  fi
   echo "Rebuilding Java applications, Admin Web, and Repository Dashboard..."
   compile_all
   echo "Starting local developer services with the rebuilt platform..."
@@ -352,6 +424,9 @@ rebuild_service() {
     compile_service "${service}"
     restart_service "${service}"
   elif [ "${service}" = solr ] || [ "${service}" = vufind-web ]; then
+    if [ "${service}" = solr ]; then
+      prepare_solr_staging
+    fi
     dc build "${service}"
     # Image-based services must be recreated to run the newly built image;
     # a plain restart keeps the container on the old image. --no-deps leaves
@@ -395,8 +470,15 @@ watch_service() {
 }
 
 reload_solr() {
-  echo "Restarting Solr to apply local core changes..."
-  restart_service solr
+  echo "Updating Solr core configurations from modules..."
+  prepare_solr_staging
+  if dc ps --status running solr 2>/dev/null | grep -q solr; then
+    echo "Applying core configuration updates inside running Solr container..."
+    dc exec -T solr /usr/local/bin/lr-solr-entrypoint.sh update-config
+  else
+    echo "Restarting Solr container..."
+    restart_service solr
+  fi
 }
 
 clean_developer_instance() {
@@ -598,7 +680,8 @@ Commands:
   rebuild <service>      Compile/rebuild and recreate one service
   watch <service>        Watch Java sources and rebuild on change
   frontend-dev            Start or restart the live Vite admin web server
-  reload solr            Restart Solr after core changes
+  reload solr            Update and reload Solr after core changes
+  solr [update-config]   Stage and apply Solr core configuration changes
   logs [service]         Follow logs
   shell [service]        Open a shell (default: harvester)
   lrshell [command...]   Open an interactive Spring Shell or run shell commands with a TTY
@@ -642,6 +725,15 @@ case "${command}" in
     ;;
   watch) [ "$#" -eq 1 ] || die 'watch requires a Java service'; watch_service "$1" ;;
   reload) [ "${1:-}" = solr ] || die 'only reload solr is supported'; reload_solr ;;
+  solr)
+    sub="${1:-update-config}"
+    [ "$#" -gt 0 ] && shift || true
+    case "${sub}" in
+      update-config|reload) reload_solr ;;
+      stage) prepare_solr_staging ;;
+      *) die 'Usage: ./Docker/docker-dev.sh solr [update-config|stage]' ;;
+    esac
+    ;;
   help|-h|--help) usage ;;
   *) die "Unknown command: ${command}" ;;
 esac

@@ -144,12 +144,12 @@ ensure_env_file() {
 
 get_env_var() {
   local key="$1"
-  local default_value="$2"
+  local default_value="${2:-}"
   local value=""
 
   if [ -f "${ENV_FILE}" ]; then
     local found
-    found="$(awk -F= -v k="${key}" '$1 ~ "^[[:space:]]*"k"[[:space:]]*$" {v=$2} END {gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^"|"$/, "", v); print v}' "${ENV_FILE}" || true)"
+    found="$(awk -v k="${key}" '$0 ~ "^[[:space:]]*"k"[[:space:]]*=" {idx=index($0, "="); v=substr($0, idx+1)} END {gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^"|"$/, "", v); gsub(/^'\''|'\''$/, "", v); print v}' "${ENV_FILE}" || true)"
     if [ -n "${found}" ]; then
       value="${found}"
     fi
@@ -599,27 +599,112 @@ are_images_built() {
   return 0
 }
 
-sync_solr_assets_from_vufind() {
-  local src_import="${ROOT_DIR}/vufind/import"
-  local src_jars="${ROOT_DIR}/vufind/solr/vufind/jars"
-  local src_vendor="${ROOT_DIR}/vufind/solr/vendor/modules/analysis-extras/lib"
-  local dst_import="${ROOT_DIR}/Docker/solr/import"
+prepare_solr_staging() {
+  if [ -x "${ROOT_DIR}/Docker/solr/stage-cores.sh" ]; then
+    "${ROOT_DIR}/Docker/solr/stage-cores.sh"
+    return $?
+  fi
+  if [ -f "${ROOT_DIR}/Docker/solr/stage-cores.sh" ]; then
+    bash "${ROOT_DIR}/Docker/solr/stage-cores.sh"
+    return $?
+  fi
+
+  echo "=== Staging Solr 9.11.0 assets and core configurations ==="
+  local src_oai="${ROOT_DIR}/lareferencia-oai-pmh/solr.core/oai"
+  local src_vufind="${ROOT_DIR}/vufind"
+  local src_biblio="${src_vufind}/solr/vufind/biblio"
+  local src_jars="${src_vufind}/solr/vufind/jars"
+  local src_import="${src_vufind}/import"
+  local src_vendor="${src_vufind}/solr/vendor/modules/analysis-extras/lib"
+
+  local dst_cores="${ROOT_DIR}/Docker/solr/cores"
   local dst_jars="${ROOT_DIR}/Docker/solr/jars"
+  local dst_import="${ROOT_DIR}/Docker/solr/import"
   local dst_vendor="${ROOT_DIR}/Docker/solr/vendor"
 
-  echo "Syncing Docker/solr/assets from vufind/..."
-  
-  rm -rf "${dst_import}" "${dst_jars}" "${dst_vendor}"
-  mkdir -p "${dst_import}" "${dst_jars}" "${dst_vendor}"
+  # Ensure required checkouts are present
+  ensure_vufind_checkout
 
-  if [ -d "${src_import}" ]; then cp -a "${src_import}/." "${dst_import}/"; fi
-  if [ -d "${src_jars}" ]; then cp -a "${src_jars}/." "${dst_jars}/"; fi
-  if [ -d "${src_vendor}" ]; then 
+  mkdir -p "${dst_cores}/oai" "${dst_cores}/biblio" "${dst_jars}" "${dst_import}" "${dst_vendor}"
+
+  # 1. Stage OAI core from lareferencia-oai-pmh (source of truth)
+  if [ -d "${src_oai}" ]; then
+    echo "Staging 'oai' core from lareferencia-oai-pmh/solr.core/oai..."
+    rm -rf "${dst_cores}/oai"
+    mkdir -p "${dst_cores}/oai"
+    cp -a "${src_oai}/." "${dst_cores}/oai/"
+    if [ ! -f "${dst_cores}/oai/core.properties" ]; then
+      echo "name=oai" > "${dst_cores}/oai/core.properties"
+    fi
+  else
+    echo "Warning: OAI core directory '${src_oai}' not found!" >&2
+  fi
+
+  # 2. Stage Biblio core from vufind (source of truth, untouched)
+  if [ -d "${src_biblio}" ]; then
+    echo "Staging 'biblio' core from vufind/solr/vufind/biblio..."
+    rm -rf "${dst_cores}/biblio"
+    mkdir -p "${dst_cores}/biblio"
+    cp -a "${src_biblio}/." "${dst_cores}/biblio/"
+    if [ ! -f "${dst_cores}/biblio/core.properties" ]; then
+      echo "name=biblio" > "${dst_cores}/biblio/core.properties"
+    fi
+  else
+    echo "Warning: Biblio core directory '${src_biblio}' not found!" >&2
+  fi
+
+  # 3. Stage VuFind JARs and import assets
+  if [ -d "${src_jars}" ]; then
+    echo "Staging supporting JARs from vufind/solr/vufind/jars..."
+    rm -rf "${dst_jars}"
+    mkdir -p "${dst_jars}"
+    cp -a "${src_jars}/." "${dst_jars}/"
+  fi
+
+  if [ -d "${src_import}" ]; then
+    echo "Staging import assets from vufind/import..."
+    rm -rf "${dst_import}"
+    mkdir -p "${dst_import}"
+    cp -a "${src_import}/." "${dst_import}/"
+  fi
+
+  if [ -d "${src_vendor}" ]; then
     cp "${src_vendor}"/icu4j-*.jar "${dst_vendor}/" 2>/dev/null || true
     cp "${src_vendor}"/lucene-analysis-icu-*.jar "${dst_vendor}/" 2>/dev/null || true
   fi
 
-  echo "Sync Solr assets complete."
+  # 4. Record source repository and revision used for each core
+  local oai_repo="lareferencia-oai-pmh"
+  local oai_rev="unknown"
+  if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}/lareferencia-oai-pmh" rev-parse --git-dir >/dev/null 2>&1; then
+    oai_repo="$(git -C "${ROOT_DIR}/lareferencia-oai-pmh" config --get remote.origin.url 2>/dev/null || echo "lareferencia-oai-pmh")"
+    oai_rev="$(git -C "${ROOT_DIR}/lareferencia-oai-pmh" rev-parse HEAD 2>/dev/null || echo "unknown")"
+  fi
+
+  local vufind_repo="vufind"
+  local vufind_rev="unknown"
+  if command -v git >/dev/null 2>&1 && git -C "${src_vufind}" rev-parse --git-dir >/dev/null 2>&1; then
+    vufind_repo="$(git -C "${src_vufind}" config --get remote.origin.url 2>/dev/null || echo "vufind")"
+    vufind_rev="$(git -C "${src_vufind}" rev-parse HEAD 2>/dev/null || echo "unknown")"
+  fi
+
+  cat <<EOF > "${dst_cores}/build-info.properties"
+solr.version=9.11.0
+core.oai.source=lareferencia-oai-pmh
+core.oai.repository=${oai_repo}
+core.oai.revision=${oai_rev}
+core.biblio.source=vufind
+core.biblio.repository=${vufind_repo}
+core.biblio.revision=${vufind_rev}
+staged_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+
+  touch "${dst_cores}/.gitkeep" "${dst_jars}/.gitkeep" "${dst_import}/.gitkeep"
+  echo "=== Staging complete. ==="
+}
+
+sync_solr_assets_from_vufind() {
+  prepare_solr_staging
 }
 
 ensure_vufind_checkout() {
@@ -640,9 +725,10 @@ ensure_vufind_checkout() {
     exit 1
   fi
 
-  # Silently clone
-  git clone --quiet --branch "${repo_ref}" --single-branch "${repo_url}" "${ROOT_DIR}/vufind" > /dev/null 2>&1
+  echo "--- VuFind not found. Cloning ${repo_url} (ref: ${repo_ref}) with --depth 1 ---"
+  git clone --progress --depth 1 --branch "${repo_ref}" --single-branch "${repo_url}" "${ROOT_DIR}/vufind"
   cloned_vufind=true
+  echo "--- VuFind checkout completed successfully ---"
 
   if [ "${cloned_vufind}" = true ]; then
     sync_solr_assets_from_vufind > /dev/null 2>&1
@@ -694,26 +780,22 @@ dir_has_non_gitkeep_content() {
 }
 
 ensure_solr_build_context() {
-  local import_dir="${ROOT_DIR}/Docker/solr/import"
-  local jars_dir="${ROOT_DIR}/Docker/solr/jars"
+  prepare_solr_staging
+}
 
-  mkdir -p "${import_dir}" "${jars_dir}"
-  touch "${import_dir}/.gitkeep" "${jars_dir}/.gitkeep"
-
-  if ! dir_has_non_gitkeep_content "${import_dir}" || ! dir_has_non_gitkeep_content "${jars_dir}"; then
-    if [ -d "${ROOT_DIR}/vufind/import" ] && [ -d "${ROOT_DIR}/vufind/solr/vufind/jars" ]; then
-      echo "Missing/incomplete Solr assets; syncing from vufind/..."
-      sync_solr_assets_from_vufind
-    else
-      echo "Warning: Docker/solr/import or Docker/solr/jars is empty. Solr will build with placeholders." >&2
-    fi
+update_solr_config() {
+  prepare_solr_staging
+  if dc ps --status running solr 2>/dev/null | grep -q solr; then
+    echo "Updating Solr configuration inside running container..."
+    dc exec -T solr /usr/local/bin/lr-solr-entrypoint.sh update-config
+  else
+    echo "Solr container is not running. Staged configuration will be applied on next startup."
   fi
 }
 
 refresh_solr_for_vufind_assets() {
-  ensure_vufind_checkout
-  sync_solr_assets_from_vufind
-  echo "Recreating solr service to apply jars/import from VuFind..."
+  prepare_solr_staging
+  echo "Recreating solr service to apply staged assets..."
   dc up -d --force-recreate solr
 }
 
@@ -769,6 +851,19 @@ ensure_m2_cache_dir() {
   return 0
 }
 
+ensure_volume_directories() {
+  local es_dir="${VOLUME_DIR}/elasticsearch"
+  mkdir -p "${es_dir}/data" "${es_dir}/log" 2>/dev/null || true
+  chmod -R ugo+rwX "${es_dir}" 2>/dev/null || true
+
+  # If permissions cannot be set by host user (e.g. directory created by root), fix via container
+  if [ ! -w "${es_dir}/log" ] || [ ! -w "${es_dir}/data" ]; then
+    if command -v docker >/dev/null 2>&1; then
+      docker run --rm -v "${VOLUME_DIR}:/vol" alpine sh -c "mkdir -p /vol/elasticsearch/data /vol/elasticsearch/log && chmod -R 777 /vol/elasticsearch" 2>/dev/null || true
+    fi
+  fi
+}
+
 compile_java_modules() {
   echo "--- Compiling Java Modules (using named volume lr-maven-cache) ---"
   
@@ -785,8 +880,25 @@ compile_java_modules() {
     settings_arg="-s /workspace/Docker/maven-mirror-alternative.xml"
   fi
 
+  local nice_prefix=""
+  if command -v nice >/dev/null 2>&1; then
+    nice_prefix="nice -n 10 "
+  fi
+
+  local java_cpus
+  java_cpus="$(get_env_var "LR_JAVA_BUILD_CPUS" "2")"
+
+  local java_mem
+  java_mem="$(get_env_var "LR_JAVA_BUILD_MEMORY" "2g")"
+
+  local java_opts
+  java_opts="$(get_env_var "LR_JAVA_BUILD_OPTS" "-Xmx1536m -XX:ActiveProcessorCount=2 -XX:ParallelGCThreads=2")"
+
   # Run maven compilation inside a container with the named volume
-  local compile_cmd="docker run --rm \
+  local compile_cmd="${nice_prefix}docker run --rm \
+    --cpus=\"${java_cpus}\" \
+    --memory=\"${java_mem}\" \
+    -e MAVEN_OPTS=\"${java_opts}\" \
     -v lr-maven-cache:/root/.m2 \
     -v \"${ROOT_DIR}:/workspace\" \
     -w /workspace \
@@ -895,11 +1007,7 @@ prune_docker_build_artifacts() {
   echo -e "${C_GREEN}Prune completed successfully.${C_RESET}"
 }
 
-build_parallel_components() {
-  echo -e "\n${C_CYAN}--- Building Components in Parallel (Java Backend, Admin Web, Repository Dashboard) ---${C_RESET}"
-
-  local pids=()
-  local names=("Java Backend" "React Admin Web" "Angular Dashboard")
+build_components() {
   local log_dir="${ROOT_DIR}/Docker/data/build-logs"
   mkdir -p "${log_dir}"
 
@@ -907,51 +1015,106 @@ build_parallel_components() {
   local admin_log="${log_dir}/build-admin.log"
   local dash_log="${log_dir}/build-dashboard.log"
 
-  # 1. Java Backend Compilation (Maven temurin-17 with -Dno-frontends)
-  (
-    compile_java_modules
-  ) > "${java_log}" 2>&1 &
-  pids+=($!)
-  echo "  ▶ [1/3] Java Backend compilation started (PID: ${pids[0]})..."
-
-  # 2. React Admin Web Build (Node 22)
-  (
-    "${ROOT_DIR}/build-admin-web.sh"
-  ) > "${admin_log}" 2>&1 &
-  pids+=($!)
-  echo "  ▶ [2/3] React Admin Web build started (PID: ${pids[1]})..."
-
-  # 3. Angular Dashboard Build (Node 18)
-  (
-    "${ROOT_DIR}/build-dashboard.sh"
-  ) > "${dash_log}" 2>&1 &
-  pids+=($!)
-  echo "  ▶ [3/3] Angular Dashboard build started (PID: ${pids[2]})..."
-
-  local failed=0
-  local logs=("${java_log}" "${admin_log}" "${dash_log}")
-
-  for i in "${!pids[@]}"; do
-    if ! wait "${pids[$i]}"; then
-      echo -e "\n${C_RED}❌ ${names[$i]} build failed! (Log: ${logs[$i]})${C_RESET}"
-      echo -e "${C_YELLOW}--- Last 25 lines of ${logs[$i]} ---${C_RESET}"
-      tail -n 25 "${logs[$i]}" >&2
-      failed=1
-    else
-      echo -e "${C_GREEN}✔ ${names[$i]} completed successfully.${C_RESET}"
-    fi
-  done
-
-  if [ "${failed}" -ne 0 ]; then
-    echo -e "\n${C_RED}Error: One or more component builds failed. Aborting.${C_RESET}" >&2
-    return 1
+  local nice_prefix=""
+  if command -v nice >/dev/null 2>&1; then
+    nice_prefix="nice -n 10 "
   fi
 
-  echo -e "${C_GREEN}--- All components built successfully in parallel ---${C_RESET}\n"
+  local parallel_mode
+  parallel_mode="$(get_env_var "BUILD_PARALLEL" "false")"
+
+  if [ "${parallel_mode}" = "true" ]; then
+    echo -e "\n${C_CYAN}--- Building Components in Parallel (Java Backend, Admin Web, Repository Dashboard) ---${C_RESET}"
+
+    local pids=()
+    local names=("Java Backend" "React Admin Web" "Angular Dashboard")
+    local logs=("${java_log}" "${admin_log}" "${dash_log}")
+
+    # 1. Java Backend Compilation (Maven temurin-17 with -Dno-frontends)
+    (
+      compile_java_modules
+    ) > "${java_log}" 2>&1 &
+    pids+=($!)
+    echo "  ▶ [1/3] Java Backend compilation started (PID: ${pids[0]})..."
+
+    # 2. React Admin Web Build (Node 22)
+    (
+      eval ${nice_prefix}"\"${ROOT_DIR}/build-admin-web.sh\""
+    ) > "${admin_log}" 2>&1 &
+    pids+=($!)
+    echo "  ▶ [2/3] React Admin Web build started (PID: ${pids[1]})..."
+
+    # 3. Angular Dashboard Build (Node 18)
+    (
+      eval ${nice_prefix}"\"${ROOT_DIR}/build-dashboard.sh\""
+    ) > "${dash_log}" 2>&1 &
+    pids+=($!)
+    echo "  ▶ [3/3] Angular Dashboard build started (PID: ${pids[2]})..."
+
+    local failed=0
+    for i in "${!pids[@]}"; do
+      if ! wait "${pids[$i]}"; then
+        echo -e "\n${C_RED}❌ ${names[$i]} build failed! (Log: ${logs[$i]})${C_RESET}"
+        echo -e "${C_YELLOW}--- Last 25 lines of ${logs[$i]} ---${C_RESET}"
+        tail -n 25 "${logs[$i]}" >&2
+        failed=1
+      else
+        echo -e "${C_GREEN}✔ ${names[$i]} completed successfully.${C_RESET}"
+      fi
+    done
+
+    if [ "${failed}" -ne 0 ]; then
+      echo -e "\n${C_RED}Error: One or more component builds failed. Aborting.${C_RESET}" >&2
+      return 1
+    fi
+
+    echo -e "${C_GREEN}--- All components built successfully in parallel ---${C_RESET}\n"
+    return 0
+  fi
+
+  # Sequential execution (Default - Prevents high CPU saturation and server freezes)
+  echo -e "\n${C_CYAN}--- Building Components Sequentially (React Admin Web, Angular Dashboard, Java Backend) ---${C_RESET}"
+
+  # 1. React Admin Web Build (Node 22)
+  echo "  ▶ [1/3] Building React Admin Web (Node 22)..."
+  if ! ( eval ${nice_prefix}"\"${ROOT_DIR}/build-admin-web.sh\"" ) > "${admin_log}" 2>&1; then
+    echo -e "\n${C_RED}❌ React Admin Web build failed! (Log: ${admin_log})${C_RESET}"
+    echo -e "${C_YELLOW}--- Last 25 lines of ${admin_log} ---${C_RESET}"
+    tail -n 25 "${admin_log}" >&2
+    return 1
+  fi
+  echo -e "  ${C_GREEN}✔ React Admin Web completed successfully.${C_RESET}"
+
+  # 2. Angular Dashboard Build (Node 18)
+  echo "  ▶ [2/3] Building Angular Dashboard (Node 18)..."
+  if ! ( eval ${nice_prefix}"\"${ROOT_DIR}/build-dashboard.sh\"" ) > "${dash_log}" 2>&1; then
+    echo -e "\n${C_RED}❌ Angular Dashboard build failed! (Log: ${dash_log})${C_RESET}"
+    echo -e "${C_YELLOW}--- Last 25 lines of ${dash_log} ---${C_RESET}"
+    tail -n 25 "${dash_log}" >&2
+    return 1
+  fi
+  echo -e "  ${C_GREEN}✔ Angular Dashboard completed successfully.${C_RESET}"
+
+  # 3. Java Backend Compilation (Maven temurin-17)
+  echo "  ▶ [3/3] Compiling Java Backend Modules (Temurin-17)..."
+  if ! compile_java_modules > "${java_log}" 2>&1; then
+    echo -e "\n${C_RED}❌ Java Backend compilation failed! (Log: ${java_log})${C_RESET}"
+    echo -e "${C_YELLOW}--- Last 25 lines of ${java_log} ---${C_RESET}"
+    tail -n 25 "${java_log}" >&2
+    return 1
+  fi
+  echo -e "  ${C_GREEN}✔ Java Backend completed successfully.${C_RESET}"
+
+  echo -e "${C_GREEN}--- All components built successfully sequentially ---${C_RESET}\n"
+}
+
+build_parallel_components() {
+  build_components "$@"
 }
 
 run_global_build() {
   local use_no_cache="${1:-false}"
+  prepare_solr_staging
   build_parallel_components
 
   echo "--- Building images using Multi-stage Dockerfiles ---"
@@ -1310,15 +1473,11 @@ execute_with_progress() {
     set -e # Re-enable exit on error
     printf "\033[?25h" # Show cursor
     
-    # Clear all 8 lines of progress only if we actually drew the box
-    if [ $i -gt 0 ]; then
-      printf "\r\033[7A"
-      for k in {1..8}; do printf "\033[K\n"; done
-      printf "\r\033[8A"
-    fi
+    # Cleanly replace the progress/spinner line without fragile multi-line ANSI cursor jumps
+    printf "\r\033[K"
 
     if [ $status -eq 0 ]; then
-        printf "\r  ${C_GREEN}✅ ${label} Completed!${C_RESET}\n"
+        printf "  ${C_GREEN}✅ ${label} Completed!${C_RESET}\n"
     else
         local rev="unknown"
         if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR:-.}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -1879,6 +2038,10 @@ wizard_main() {
     local cache_display="ON"
     [ "${cache_state}" = "off" ] && cache_display="OFF"
     
+    local parallel_state="$(get_env_var BUILD_PARALLEL "false")"
+    local concurrency_display="Sequential"
+    [ "${parallel_state}" = "true" ] && concurrency_display="Parallel"
+    
     # Status Table
     local res_profile="$(get_env_var LR_RESOURCE_PROFILE "medium")"
     local status_text="Project: ${COMPOSE_PROJECT_NAME:-lareferencia} | Prefix: ${prefix} | Offset: ${offset} | Profile: ${profile} | Resources: ${res_profile}"
@@ -1898,6 +2061,7 @@ wizard_main() {
       "🧹 Teardown Platform (down - clean)"
       "📦 Manage Modules (on/off)"
       "🏗️ Build Cache: [${cache_display}]"
+      "⚙️ Build Concurrency: [${concurrency_display}]"
       "📝 View Logs (follow)"
       "💻 Enter Container Shell"
       "💾 System Backup"
@@ -1971,6 +2135,13 @@ wizard_main() {
           set_env_var "DOCKER_BUILD_CACHE" "off"
         else
           set_env_var "DOCKER_BUILD_CACHE" "on"
+        fi
+        ;;
+      "⚙️ Build Concurrency: ["*)
+        if [ "${parallel_state}" = "true" ]; then
+          set_env_var "BUILD_PARALLEL" "false"
+        else
+          set_env_var "BUILD_PARALLEL" "true"
         fi
         ;;
       "📝 View Logs (follow)")
@@ -2129,6 +2300,7 @@ Core Commands:
   modules <on|off>     Enable/disable modules (vufind, elastic, watch, oai)
   res <profile>        Apply resource profile (low, medium, high, custom)
   init-db              Migrate database
+  solr [update-config] Update Solr core configurations from modules with index preservation
   prune                Reclaim disk space (prune dangling images and build cache)
   reset-data           Clean Docker/data
   shell <service>      Start a bash shell in a running container
@@ -2225,6 +2397,7 @@ case "${cmd}" in
 
     ensure_m2_cache_dir
     ensure_vufind_for_services "${services[@]}"
+    ensure_volume_directories
 
     if [ "${build_flag}" = false ]; then
       if ! are_images_built "${services[@]}"; then
@@ -2295,11 +2468,27 @@ case "${cmd}" in
     
     ensure_m2_cache_dir
     ensure_vufind_for_services "${services[@]}"
+    if [ "${cmd}" = "start" ] || [ "${cmd}" = "restart" ]; then
+      ensure_volume_directories
+    fi
     if [ "${cmd}" = "build" ]; then
       ensure_java_parent_modules_ready false
+      if [ "${#services[@]}" -eq 0 ] || contains_item solr "${services[@]}"; then
+        prepare_solr_staging
+      fi
+      local has_java_services=false
+      for s in "${services[@]}"; do
+        case "$s" in
+          harvester|entity-rest|shell|oai-pmh|db-init)
+            has_java_services=true
+            break
+            ;;
+        esac
+      done
+
       if [ "${#services[@]}" -eq 0 ] || contains_item harvester "${services[@]}"; then
         build_parallel_components
-      else
+      elif [ "${has_java_services}" = true ]; then
         compile_java_modules
       fi
     fi
@@ -2460,6 +2649,23 @@ PY
     profile="${1:-}"
     [ -z "${profile}" ] && echo "Usage: res <low|medium|high|custom>" && exit 1
     apply_resource_profile "${profile}"
+    ;;
+
+  solr)
+    subcmd="${1:-update-config}"
+    [ "$#" -gt 0 ] && shift || true
+    case "${subcmd}" in
+      update-config)
+        update_solr_config "$@"
+        ;;
+      stage)
+        prepare_solr_staging
+        ;;
+      *)
+        echo "Usage: ./Docker/docker.sh solr [update-config|stage]" >&2
+        exit 1
+        ;;
+    esac
     ;;
 
   *)

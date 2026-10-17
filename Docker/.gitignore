@@ -10,7 +10,10 @@ data/**
 !data/**/
 !data/**/.gitkeep
 
-# Solr assets synced from VuFind at runtime (keep placeholders)
+# Solr assets synced from modules at runtime/build (keep placeholders)
+solr/cores/**
+!solr/cores/**/
+!solr/cores/**/.gitkeep
 solr/import/**
 !solr/import/**/
 !solr/import/**/.gitkeep
