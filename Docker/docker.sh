@@ -900,6 +900,21 @@ compile_java_modules() {
   local java_opts
   java_opts="$(get_env_var "LR_JAVA_BUILD_OPTS" "-Xmx1536m -XX:ActiveProcessorCount=2 -XX:ParallelGCThreads=2")"
 
+  local maven_image="maven:3.9.11-eclipse-temurin-17"
+  if ! docker image inspect "${maven_image}" >/dev/null 2>&1; then
+    echo "Pulling Maven builder image (${maven_image})..."
+    local pull_attempts=3
+    until docker pull "${maven_image}" || [ "${pull_attempts}" -le 1 ]; do
+      echo "Docker pull timed out or failed. Retrying in 3 seconds... (${pull_attempts} attempts left)"
+      pull_attempts=$((pull_attempts - 1))
+      sleep 3
+    done
+    if ! docker image inspect "${maven_image}" >/dev/null 2>&1; then
+      echo "Error: Failed to pull builder image ${maven_image} after multiple attempts." >&2
+      return 1
+    fi
+  fi
+
   # Run maven compilation inside a container with the named volume
   local compile_cmd="${nice_prefix}docker run --rm \
     --cpus=\"${java_cpus}\" \
@@ -908,7 +923,7 @@ compile_java_modules() {
     -v lr-maven-cache:/root/.m2 \
     -v \"${ROOT_DIR}:/workspace\" \
     -w /workspace \
-    maven:3.9.11-eclipse-temurin-17 \
+    ${maven_image} \
     mvn clean package ${settings_arg} -DskipTests -Dmaven.javadoc.skip=true -Dno-frontends -Dspring-boot.repackage.executable=false -P${profile}"
     
   eval "${compile_cmd}"
@@ -1103,7 +1118,7 @@ build_components() {
 
   # 3. Java Backend Compilation (Maven temurin-17)
   echo "  ▶ [3/3] Compiling Java Backend Modules (Temurin-17)..."
-  if ! compile_java_modules > "${java_log}" 2>&1; then
+  if ! ( compile_java_modules 2>&1 | tee "${java_log}" ); then
     echo -e "\n${C_RED}❌ Java Backend compilation failed! (Log: ${java_log})${C_RESET}"
     echo -e "${C_YELLOW}--- Last 25 lines of ${java_log} ---${C_RESET}"
     tail -n 25 "${java_log}" >&2
@@ -1332,6 +1347,20 @@ execute_with_progress() {
     eval "$cmd" > "$log_file" 2>&1 &
     local pid=$!
     
+    local interrupted=false
+    cleanup_on_interrupt() {
+      interrupted=true
+      printf "\033[?25h"
+      printf "\r\033[K\n  ${C_YELLOW}⚠️  Execution cancelled by user (Ctrl+C). Terminating background task...${C_RESET}\n"
+      if [ -n "${pid:-}" ] && kill -0 "${pid}" 2>/dev/null; then
+        pkill -P "${pid}" 2>/dev/null || true
+        kill -TERM "${pid}" 2>/dev/null || true
+        sleep 0.5
+        kill -9 "${pid}" 2>/dev/null || true
+      fi
+    }
+    trap cleanup_on_interrupt INT TERM
+    
     local width=15
     local i=0
     local cpu_val="0"
@@ -1361,6 +1390,9 @@ execute_with_progress() {
     # Disable exit on error temporarily to handle the wait manually
     set +e
     while kill -0 $pid 2>/dev/null; do
+        if [ "${interrupted}" = true ]; then
+          break
+        fi
         # Move cursor up 7 lines ONLY on subsequent iterations to avoid overlapping prior output on start
         if [ $i -gt 0 ]; then
           printf "\r\033[7A"
@@ -1420,27 +1452,32 @@ execute_with_progress() {
         if (( i % 15 == 0 )); then
           if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS CPU: ps sum normalized by cores
-            local raw_cpu=$(ps -A -o %cpu | awk '{s+=$1} END {printf "%.0f", s}')
+            local raw_cpu=$(LC_ALL=C ps -A -o %cpu | LC_ALL=C awk '{s+=$1} END {printf "%.0f", s}')
+            [[ "$raw_cpu" =~ ^[0-9]+$ ]] || raw_cpu=0
             cpu_val=$(( raw_cpu / ncpu ))
-            [ $cpu_val -gt 100 ] && cpu_val=100
+            [ "$cpu_val" -gt 100 ] && cpu_val=100
             # macOS Mem: Approximation via vm_stat
-            mem_val=$(memory_pressure | grep "System-wide memory free percentage" | awk '{print 100-$5}' || echo "0")
+            mem_val=$(LC_ALL=C memory_pressure | grep "System-wide memory free percentage" | LC_ALL=C awk '{printf "%.0f", 100-$5}' || echo "0")
           else
-            # Linux fallback
-            cpu_val=$(top -bn1 | grep "Cpu(s)" | awk '{s+=$2+$4} END {print s}' | cut -d. -f1 || echo "0")
-            mem_val=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100}' || echo "0")
+            # Linux fallback (force C locale to avoid comma decimals and translated labels)
+            cpu_val=$(LC_ALL=C top -bn1 | grep -i "Cpu(s)" | tr ',' '.' | LC_ALL=C awk '{s+=$2+$4} END {printf "%.0f", s}' || echo "0")
+            mem_val=$(LC_ALL=C free | grep -i "Mem" | tr ',' '.' | LC_ALL=C awk '{printf "%.0f", $3/$2 * 100}' || echo "0")
           fi
+          [[ "$cpu_val" =~ ^[0-9]+$ ]] || cpu_val=0
+          [[ "$mem_val" =~ ^[0-9]+$ ]] || mem_val=0
         fi
 
         # Helper for mini-bar graph
         draw_mini_graph() {
-          local val=$1
+          local val="${1:-0}"
+          [[ "$val" =~ ^[0-9]+$ ]] || val=0
           local color=$C_GREEN
-          [ $val -gt 60 ] && color=$C_YELLOW
-          [ $val -gt 85 ] && color=$C_RED
+          [ "$val" -gt 60 ] && color=$C_YELLOW
+          [ "$val" -gt 85 ] && color=$C_RED
           
           local blocks=(" " "▂" "▃" "▄" "▅" "▆" "▇" "█")
           local idx=$(( val * 7 / 100 ))
+          [ "$idx" -gt 7 ] && idx=7
           printf "${color}${blocks[$idx]}${C_RESET}"
         }
 
@@ -1448,7 +1485,7 @@ execute_with_progress() {
         local status_text="Initializing..."
         if [ -f "$log_file" ]; then
           local found
-          found=$(grep -E "Container|Building|#|Step|cloned|pulled|Cloning|Pulling" "$log_file" | tail -n 1 | sed -E 's/.*Container ([^ ]+).*/\1/; s/.*Building ([^ ]+).*/\1/; s/.*#[0-9]+ (\[[^]]+\]).*/\1/; s/.*OK[[:space:]]+(lareferencia-[^:]+): (cloned|pulled).*/\2 \1/; s/.*(Cloning|Pulling) (missing|updates)( for existing)? modules.*/\1 modules/; s/lareferencia-//g')
+          found=$(grep -E "Container|Building|Compiling|#|Step|cloned|pulled|Cloning|Pulling" "$log_file" | tail -n 1 | sed -E 's/.*Container ([^ ]+).*/\1/; s/.*(Building|Compiling) ([^ ]+).*/\2/; s/.*#[0-9]+ (\[[^]]+\]).*/\1/; s/.*OK[[:space:]]+(lareferencia-[^:]+): (cloned|pulled).*/\2 \1/; s/.*(Cloning|Pulling) (missing|updates)( for existing)? modules.*/\1 modules/; s/lareferencia-//g')
           if [ -n "$found" ]; then
              status_text="$found"
           fi
@@ -1473,6 +1510,15 @@ execute_with_progress() {
         i=$((i + 1))
         sleep 0.1
     done
+    
+    # Restore trap
+    trap - INT TERM
+
+    if [ "${interrupted}" = true ]; then
+        set -e
+        printf "\033[?25h"
+        return 130
+    fi
     
     wait $pid
     local status=$?
@@ -2015,6 +2061,23 @@ SYSTEMD_TMR
 wizard_main() {
   # Set terminal title
   printf "\033]0;Lareferencia Docker Wizard\007"
+  
+  # Ensure cursor is always restored on interruption or normal exit
+  trap 'printf "\033[?25h"; echo -e "\n${C_CYAN}Goodbye! 👋${C_RESET}"; exit 0' INT TERM
+
+  run_wizard_action() {
+    local cmd="$1"
+    local label="$2"
+    execute_with_progress "${cmd}" "${label}"
+    local status=$?
+    if [ ${status} -eq 130 ]; then
+      echo -e "\n${C_YELLOW}Action cancelled by user.${C_RESET}"
+      sleep 0.8
+      return 130
+    fi
+    gum input --placeholder "Press Enter to continue..." > /dev/null 2>&1 || true
+    return ${status}
+  }
 
   while true; do
     clear_screen
@@ -2094,6 +2157,14 @@ wizard_main() {
       --item.bold --selected.bold --selected.background 80 --selected.foreground 232 \
       --cursor.bold --cursor.foreground 80 \
       "${menu_options[@]}")
+    local gum_status=$?
+
+    # Handle Ctrl+C, Escape, or Exit option
+    if [ ${gum_status} -ne 0 ] || [ -z "${choice}" ] || [ "${choice}" = "🚪 Exit" ]; then
+      printf "\033[?25h"
+      echo -e "\n${C_CYAN}Goodbye! 👋${C_RESET}"
+      exit 0
+    fi
 
     case "$choice" in
       "🚀 Start Platform")
@@ -2106,8 +2177,7 @@ wizard_main() {
         fi
         
         local build_cmd="\"${BASH_SOURCE[0]}\" up"
-        execute_with_progress "${build_cmd}" "Platform Start"
-        gum input --placeholder "Press Enter to continue..." > /dev/null
+        run_wizard_action "${build_cmd}" "Platform Start"
         ;;
       "🔄 Rebuild & Start Platform")
         echo -e "\n${C_GREEN}🔄 Rebuilding and starting the platform...${C_RESET}"
@@ -2120,18 +2190,15 @@ wizard_main() {
         
         local build_cmd="\"${BASH_SOURCE[0]}\" up --build --pull-modules"
         [ "${cache_state}" = "off" ] && build_cmd="${build_cmd} --no-cache"
-        execute_with_progress "${build_cmd}" "Platform Rebuild & Start"
-        gum input --placeholder "Press Enter to continue..." > /dev/null
+        run_wizard_action "${build_cmd}" "Platform Rebuild & Start"
         ;;
       "🛑 Stop Platform (stop - fast)")
         echo -e "\n${C_RED}🛑 Stopping the platform (preserving containers)...${C_RESET}"
-        execute_with_progress "\"${BASH_SOURCE[0]}\" stop" "Stopping Platform"
-        gum input --placeholder "Press Enter to continue..." > /dev/null
+        run_wizard_action "\"${BASH_SOURCE[0]}\" stop" "Stopping Platform"
         ;;
       "🧹 Teardown Platform (down - clean)")
         echo -e "\n${C_RED}🧹 Tearing down the platform (removing containers)...${C_RESET}"
-        execute_with_progress "\"${BASH_SOURCE[0]}\" down" "Teardown Platform"
-        gum input --placeholder "Press Enter to continue..." > /dev/null
+        run_wizard_action "\"${BASH_SOURCE[0]}\" down" "Teardown Platform"
         ;;
       "📦 Manage Modules (on/off)")
         wizard_modules
@@ -2249,8 +2316,7 @@ wizard_main() {
         ;;
       "🛠️ Run Init-DB (migrations)")
         echo -e "\n${C_MAGENTA}🛠️  Running database migrations...${C_RESET}"
-        execute_with_progress "\"${BASH_SOURCE[0]}\" init-db" "Database Migrations"
-        gum input --placeholder "Press Enter to continue..." > /dev/null
+        run_wizard_action "\"${BASH_SOURCE[0]}\" init-db" "Database Migrations"
         ;;
       "🧹 Prune Docker Build Cache & Images")
         prune_docker_build_artifacts
