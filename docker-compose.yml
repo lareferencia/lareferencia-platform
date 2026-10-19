@@ -172,7 +172,7 @@ services:
       FRONTEND_SOLR_URL: http://solr:8983/solr/biblio
       XOAI_SOLR_URL: http://solr:8983/solr/oai
     ports:
-      - "127.0.0.1:${LR_PORT_HARVESTER:-8090}:8090"
+      - "${LR_IP_HARVESTER:-127.0.0.1}:${LR_PORT_HARVESTER:-8090}:8090"
     volumes:
       - ./Docker/config-overrides:/docker-overrides:ro
       - ./Docker/volume/lareferencia/lrharvester-app/config:/config

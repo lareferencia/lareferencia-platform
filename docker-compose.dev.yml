@@ -47,7 +47,7 @@ services:
       DEV_MODE: "true"
       JAVA_OPTS: "-Dsecurity.api-v5.cookies-secure=false -Dserver.servlet.session.cookie.secure=false"
     ports: !override
-      - "127.0.0.1:${LR_PORT_HARVESTER:-8190}:8090"
+      - "${LR_IP_HARVESTER:-127.0.0.1}:${LR_PORT_HARVESTER:-8190}:8090"
     volumes:
       - .:/workspace:ro
       - ${DEV_DATA_ROOT}:/dev-data

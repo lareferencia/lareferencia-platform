@@ -238,6 +238,10 @@ export_salted_ports() {
   set_env_var "LR_PORT_ELASTIC_9200" "${LR_PORT_ELASTIC_9200}"
   set_env_var "LR_PORT_ELASTIC_9300" "${LR_PORT_ELASTIC_9300}"
   set_env_var "LR_PORT_OAI" "${LR_PORT_OAI}"
+
+  local harvester_ip
+  harvester_ip="$(get_env_var LR_IP_HARVESTER "127.0.0.1")"
+  export LR_IP_HARVESTER="${harvester_ip}"
 }
 
 sync_compose_profiles() {
@@ -1962,11 +1966,17 @@ echo "3. Pausing indexers safely..."
 ./Docker/docker.sh stop solr elasticsearch vufind-web 2>/dev/null || true
 
 echo "4. Packaging absolute snapshot (Git, Configs, Volumes)..."
+if command -v docker >/dev/null 2>&1; then
+  docker run --rm -v "\$PROJECT_DIR/Docker/volume:/volume" -v "\$PROJECT_DIR/Docker/data:/data" alpine sh -c "find /volume /data \\( -path '*/postgres' -o -path '*/vufind/data/db' -o -path '*/vufind-db' \\) -prune -o -exec chmod ugo+rX {} + 2>/dev/null || true" 2>/dev/null || true
+fi
 tar_code=0
 tar -czf "\$BACKUP_PATH/\$SNAPSHOT_NAME" \\
     --exclude="*/target" \\
     --exclude="./Docker/volume/lareferencia/postgres" \\
     --exclude="./Docker/volume/vufind/data/db" \\
+    --exclude="./Docker/volume/vufind-db" \\
+    --exclude="./Docker/volume/dev/*/lareferencia/postgres" \\
+    --exclude="./Docker/volume/dev/*/vufind/data/db" \\
     --exclude="./.idea" \\
     -C "\$PROJECT_DIR" . \\
     -C "\$BACKUP_PATH" postgres_dump.sql mysql_vufind_dump.sql || tar_code=\$?
@@ -1982,7 +1992,7 @@ echo "5. Restarting services..."
 ./Docker/docker.sh start solr elasticsearch vufind-web 2>/dev/null || true
 
 echo "Cleaning old backups (keeping 7 days)..."
-find "\$DEST_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} \;
+find "\$DEST_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} \\;
 EOF
 
     chmod +x "${ROOT_DIR}/.system_backup.sh"
