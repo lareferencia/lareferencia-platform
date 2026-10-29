@@ -476,7 +476,7 @@ El asistente usa gum. Si está disponible en PATH lo reutiliza; si hay `Docker/.
 
 No hay checksum de la descarga, actualización automática del binario instalado ni bloqueo entre dos descargas simultáneas. El temp bajo `${TMPDIR:-/tmp}/lr-dev-gum.XXXXXX` se borra en éxito y en los fallos tratados, pero no tiene trap para interrupciones o todos los fallos intermedios. Los comandos CLI normales no requieren gum; la confirmación de clean puede usar texto cuando falta.
 
-`get_check_status` consulta Docker, `docker compose version` y `docker info`; muestra indicadores, no constituye una validación exhaustiva ni evita seleccionar acciones cuando el daemon no está disponible. No valida disco, RAM, DNS, checkout completo, permisos de mounts, puertos libres ni éxito de una futura compilación.
+`check_required_dependencies` consulta Docker, `docker compose version` y `docker info`; muestra indicadores, no constituye una validación exhaustiva ni evita seleccionar acciones cuando el daemon no está disponible. No valida disco, RAM, DNS, checkout completo, permisos de mounts, puertos libres ni éxito de una futura compilación.
 
 ## 12 Compilación Java
 

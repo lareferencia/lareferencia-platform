@@ -1573,13 +1573,15 @@ ensure_docker_installed() {
   fi
 }
 
-get_check_status() {
+check_required_dependencies() {
   local docker_ok="${C_GREEN}✓${C_RESET} Docker"
   local compose_ok="${C_GREEN}✓${C_RESET} Compose"
   local daemon_ok="${C_GREEN}✓${C_RESET} Daemon"
 
-  if ! command -v docker >/dev/null 2>&1; then
-    docker_ok="${C_RED}✗${C_RESET} Docker"
+  if command -v docker >/dev/null 2>&1 && docker buildx version >/dev/null 2>&1; then
+    docker_ok="${C_GREEN}✓${C_RESET} Docker & Buildx"
+  else
+    docker_ok="${C_RED}✗${C_RESET} Docker & Buildx"
   fi
 
   if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
@@ -2093,7 +2095,7 @@ wizard_main() {
     clear_screen
     
     local checks
-    checks=$(get_check_status)
+    checks=$(check_required_dependencies)
     IFS='|' read -r c1 c2 c3 <<< "$checks"
 
     local project_revision="unknown"

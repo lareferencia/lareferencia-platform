@@ -477,7 +477,7 @@ The assistant uses gum. If available in PATH reuse; if there is `Docker/.bin/gum
 
 No download checksum, automatic binary update installed or lock between two simultaneous downloads. The low temp `${TMPDIR:-/tmp}/lr-dev-gum.XXXXXX` is successfully deleted and in the treated failures, but has no loop for interruptions or all intermediate failures. Normal CLI commands do not require gum; clean confirmation can use text when missing.
 
-`get_check_status` Docker's office, `docker compose version` and `docker info`; shows indicators, does not constitute an exhaustive validation or avoid selecting actions when daemon is not available. No disk, RAM, DNS, complete checkout, mount permissions, free ports or success of a future compilation.
+`check_required_dependencies` Docker's office, `docker compose version` and `docker info`; shows indicators, does not constitute an exhaustive validation or avoid selecting actions when daemon is not available. No disk, RAM, DNS, complete checkout, mount permissions, free ports or success of a future compilation.
 
 ## 12 Java compilation
 

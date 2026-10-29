@@ -1462,7 +1462,7 @@ The line numbers correspond to the snapshot indicated at the start. The index al
 | [`show_current_config`](docker.sh#L985) |985|Auxiliary textual display; defined, without active call in wizard _ main.|
 | [`execute_with_progress`](docker.sh#L1002) |1002|Eval in background, temporary log, animation and propagation of result.|
 | [`ensure_docker_installed`](docker.sh#L1187) |1187|Valid presence of Docker / Composer; does not install or validate minimum version.|
-| [`get_check_status`](docker.sh#L1207) |1207|Check tools and docker info for header.|
+| [`check_required_dependencies`](docker.sh#L1207) |1207|Check tools and docker info for header.|
 | [`get_service_port`](docker.sh#L1227) |1227|Visual port from offset, without container inspection.|
 | [`print_module_status_columns`](docker.sh#L1247) |1247|Render modules with gum and running state; group Core / Harvester.|
 | [`wizard_modules`](docker.sh#L1306) |1306|Rewrite optional and active selection Solr for VuFind / Harvester.|

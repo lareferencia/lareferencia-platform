@@ -1461,7 +1461,7 @@ Los números de línea corresponden al snapshot indicado al inicio. El índice p
 | [`show_current_config`](docker.sh#L985) | 985 | Pantalla textual auxiliar; definida, sin llamada activa en wizard_main. |
 | [`execute_with_progress`](docker.sh#L1002) | 1002 | Eval en background, log temporal, animación y propagación de resultado. |
 | [`ensure_docker_installed`](docker.sh#L1187) | 1187 | Valida presencia de Docker/Compose; no instala ni valida versión mínima. |
-| [`get_check_status`](docker.sh#L1207) | 1207 | Comprueba herramientas y docker info para cabecera. |
+| [`check_required_dependencies`](docker.sh#L1207) | 1207 | Comprueba herramientas y docker info para cabecera. |
 | [`get_service_port`](docker.sh#L1227) | 1227 | Puerto visual a partir del offset, sin inspección del contenedor. |
 | [`print_module_status_columns`](docker.sh#L1247) | 1247 | Renderiza módulos con gum y estado running; agrupa Core/Harvester. |
 | [`wizard_modules`](docker.sh#L1306) | 1306 | Reescribe selección opcional y activa Solr para VuFind/Harvester. |
