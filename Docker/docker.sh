@@ -1344,8 +1344,8 @@ show_current_config() {
 execute_with_progress() {
     local cmd="$1"
     local label="$2"
-    local log_file="${3:-/tmp/lareferencia-docker.log}"
-    
+    local log_file="${3:-/tmp/lareferencia-docker_${COMPOSE_PROJECT_NAME}.log}"
+
     rm -f "$log_file"
     # Execute command in background and capture PID
     eval "$cmd" > "$log_file" 2>&1 &
