@@ -114,7 +114,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:17-alpine3.23
+    image: postgres:14.15-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-postgres
     networks:
       default:
