@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Fake `docker` for contract tests: records every call in $FAKE_LOG and answers
+# the few queries docker.sh depends on. Never touches the real Docker daemon.
+#
+# Knobs (environment variables):
+#   FAKE_DOCKER_DOWN=1        `docker info` fails (daemon not running)
+#   FAKE_RUNNING="a b"        services reported by `compose ps --status running --services`
+#   FAKE_IMAGES=all|none|<text>  which `docker image inspect lareferencia/...` succeed:
+#                             every image (default), none, or those whose name contains <text>
+#   FAKE_FAIL="pattern"       any call whose command line contains the pattern exits 1
+set -u
+line="docker"
+for arg in "$@"; do
+  case "${arg}" in
+    *[[:space:]]*|'') line="${line} '${arg}'" ;;
+    *)                line="${line} ${arg}" ;;
+  esac
+done
+echo "${line}" >> "${FAKE_LOG:?FAKE_LOG not set}"
+
+if [ -n "${FAKE_FAIL:-}" ] && [[ "${line}" == *"${FAKE_FAIL}"* ]]; then
+  echo "fake docker: forced failure (${FAKE_FAIL})" >&2
+  exit 1
+fi
+
+# Strip `compose -f <file> --env-file <file> --profile <p>...` to find the subcommand.
+args=("$@")
+if [ "${args[0]:-}" = "compose" ]; then
+  args=("${args[@]:1}")
+  while [ "${#args[@]}" -gt 0 ]; do
+    case "${args[0]}" in
+      -f|--env-file|--profile|-p) args=("${args[@]:2}") ;;
+      *) break ;;
+    esac
+  done
+  case "${args[*]:-}" in
+    version*)                      echo "Docker Compose version v2.99.0-fake" ;;
+    "ps --status running --services") for s in ${FAKE_RUNNING:-}; do echo "${s}"; done ;;
+    "ps --status running "*)       for s in ${FAKE_RUNNING:-}; do [ "${s}" = "${args[3]:-}" ] && echo "${s}"; done ;;
+  esac
+  exit 0
+fi
+
+case "${1:-}" in
+  info)
+    [ "${FAKE_DOCKER_DOWN:-0}" = 1 ] && exit 1
+    echo "fake docker daemon" ;;
+  buildx)  echo "github.com/docker/buildx v0.99.0-fake" ;;
+  images)  : ;;   # no dangling images
+  image)
+    if [ "${2:-}" = "inspect" ]; then
+      case "${3:-}" in
+        lareferencia/*)
+          case "${FAKE_IMAGES:-all}" in
+            all)  ;;
+            none) exit 1 ;;
+            *)    [[ "${3}" == *"${FAKE_IMAGES}"* ]] || exit 1 ;;
+          esac ;;
+      esac
+    fi ;;
+esac
+exit 0

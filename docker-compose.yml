@@ -114,7 +114,9 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:14.15-alpine
+    # Pin another version with LR_POSTGRES_IMAGE in Docker/.env (see Docker/lib/database.sh).
+    # Changing the MAJOR version requires a migration: ./Docker/docker.sh postgres upgrade
+    image: ${LR_POSTGRES_IMAGE:-postgres:17-alpine3.23}
     container_name: ${COMPOSE_PROJECT_NAME:-lr}-postgres
     networks:
       default:

@@ -1,0 +1,6 @@
+# shellcheck configuration for Docker/ (used by Docker/tests/run.sh lint).
+shell=bash
+# docker.sh sources lib/*.sh in a loop, so each file is analyzed alone and
+# globals/functions shared between files look unused or never called:
+#   SC2034 variable appears unused   SC2120/SC2119 function arguments never passed
+disable=SC2034,SC2120,SC2119

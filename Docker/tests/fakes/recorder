@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Stand-in for project scripts (githelper, build-admin-web.sh, stage-cores.sh...):
+# records "<name relative to the sandbox> <args>" and succeeds.
+# FAKE_FAIL works as in fakes/docker.
+name="${0#"${SANDBOX_ROOT:?}/"}"
+echo "${name} $*" >> "${FAKE_LOG:?FAKE_LOG not set}"
+if [ -n "${FAKE_FAIL:-}" ] && [[ "${name} $*" == *"${FAKE_FAIL}"* ]]; then
+  echo "${name}: forced failure" >&2
+  exit 1
+fi
+exit 0

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Fake `git` for contract tests.
+#   - read-only commands go to the real git (rev-parse, describe, status...)
+#   - network commands (clone, pull, fetch, push) are only recorded; `clone`
+#     creates an empty checkout with a composer.json so VuFind looks cloned
+#   - `clean` is recorded and executed ONLY inside $SANDBOX_ROOT
+set -u
+REAL_GIT="${REAL_GIT:?REAL_GIT not set}"
+
+# Find the subcommand after global options (-C <dir>, -c <k=v>).
+dir="$PWD" i=1 sub=""
+while [ "${i}" -le "$#" ]; do
+  arg="${!i}"
+  case "${arg}" in
+    -C) i=$((i + 1)); dir="${!i}" ;;
+    -c) i=$((i + 1)) ;;
+    -*) ;;
+    *)  sub="${arg}"; break ;;
+  esac
+  i=$((i + 1))
+done
+
+record() { echo "git $*" >> "${FAKE_LOG:?FAKE_LOG not set}"; }
+
+case "${sub}" in
+  clone)
+    record "$@"
+    target="${!#}"
+    mkdir -p "${target}" && echo '{}' > "${target}/composer.json"
+    ;;
+  pull|fetch|push|reset|checkout|submodule)
+    record "$@"
+    ;;
+  clean)
+    record "$@"
+    case "$(cd "${dir}" && pwd -P)/" in
+      "$(cd "${SANDBOX_ROOT:?}" && pwd -P)/"*) exec "${REAL_GIT}" "$@" ;;
+      *) echo "fake git: refusing to clean outside the sandbox: ${dir}" >&2; exit 1 ;;
+    esac
+    ;;
+  *)
+    exec "${REAL_GIT}" "$@"
+    ;;
+esac

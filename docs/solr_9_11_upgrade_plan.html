@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plano de Atualização: Solr 9.11.0 & Desacoplamento de Cores</title>
+  <!-- Mermaid.js for rendering diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      securityLevel: 'loose',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    });
+  </script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-light: #eff6ff;
+      --text: #1f2937;
+      --text-muted: #4b5563;
+      --bg: #f9fafb;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --border-dark: #d1d5db;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-light: #fffbeb;
+      --danger: #ef4444;
+      --danger-light: #fef2f2;
+      --code-bg: #1e293b;
+      --code-text: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--border);
+      padding: 2.5rem;
+    }
+
+    header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .badge-container {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-blue { background: var(--primary-light); color: var(--primary); }
+    .badge-green { background: var(--success-light); color: var(--success); }
+    .badge-yellow { background: var(--warning-light); color: var(--warning); }
+
+    h1 {
+      font-size: 2rem;
+      color: #111827;
+      margin-bottom: 0.5rem;
+      line-height: 1.25;
+    }
+
+    p.lead {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      color: #111827;
+      margin: 2rem 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      color: #1f2937;
+      margin: 1.25rem 0 0.5rem 0;
+    }
+
+    p {
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+
+    li {
+      margin-bottom: 0.35rem;
+    }
+
+    .diagram-card {
+      background: #ffffff;
+      border: 1px solid var(--border-dark);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      overflow-x: auto;
+    }
+
+    .diagram-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+      border-left: 3px solid var(--primary);
+      padding-left: 0.5rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.25rem 0;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    tr:nth-child(even) {
+      background: #fdfdfd;
+    }
+
+    pre, code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1rem 0;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    code:not(pre code) {
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.9em;
+      border: 1px solid #e2e8f0;
+    }
+
+    .alert {
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      margin: 1.25rem 0;
+      border-left: 4px solid transparent;
+    }
+
+    .alert-info {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: #1e3a8a;
+    }
+
+    .alert-warning {
+      background: var(--warning-light);
+      border-color: var(--warning);
+      color: #78350f;
+    }
+
+    .alert-success {
+      background: var(--success-light);
+      border-color: var(--success);
+      color: #064e3b;
+    }
+
+    .phase-card {
+      background: #fafafa;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .phase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .phase-number {
+      background: var(--primary);
+      color: white;
+      font-weight: bold;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+    }
+
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li {
+      position: relative;
+      padding-left: 1.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .checklist li::before {
+      content: "✔";
+      position: absolute;
+      left: 0;
+      color: var(--success);
+      font-weight: bold;
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="badge-container">
+      <span class="badge badge-blue">LA Referencia Platform</span>
+      <span class="badge badge-green">Solr 9.11.0</span>
+      <span class="badge badge-yellow">Arquitetura de Cores</span>
+    </div>
+    <h1>Plano de Execução: Atualização do Solr 9.11.0 & Desacoplamento dos Cores</h1>
+    <p class="lead">Unificação da governança das configurações nos módulos de origem (OAI-PMH & VuFind), eliminação de cópias órfãs no repositório Docker e mecanismo de atualização seguro com preservação de índice.</p>
+  </header>
+
+  <section>
+    <h2>1. Visão Geral da Arquitetura & Fluxo de Staging</h2>
+    <p>O diagrama abaixo ilustra como as fontes da verdade fornecem os arquivos de configuração para o diretório de staging transitório, como a imagem é construída sem dependências da web externa e como o volume persistente preserva os dados de índice.</p>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Diagrama de Fluxo e Componentes</div>
+      <pre class="mermaid">
+flowchart TD
+    subgraph Sources["1. Fontes da Verdade (Módulos)"]
+        OAI["lareferencia-oai-pmh/solr.core/oai/<br/>• core.properties, conf/<br/>• Tipos *PointField (Solr 9)"]
+        VUFIND_CORE["vufind/solr/vufind/biblio/<br/>• core.properties, conf/<br/>• Versão/checkout selecionado"]
+        VUFIND_JARS["vufind/solr/vufind/jars/<br/>• MarcImporter.jar<br/>• browse-handler.jar<br/>• sqlite-jdbc.jar"]
+        VUFIND_IMPORT["vufind/import/<br/>• Regras de mapeamento e scripts"]
+    end
+
+    subgraph Staging["2. Staging Transitório (Não rastreado no Git)"]
+        STAGE_DIR["Docker/solr/cores/<br/>Docker/solr/jars/<br/>Docker/solr/import/<br/>+ build-info.properties (Repo + Commit Hash)"]
+    end
+
+    subgraph ImageBuild["3. Build da Imagem Docker (Solr 9.11.0)"]
+        DOCKERFILE["Docker/solr/Dockerfile<br/>• FROM solr:9.11.0 (Ubuntu Jammy)<br/>• Instalação gosu (apt-get)<br/>• analysis-extras (nativo)<br/>• COPY ativos do staging"]
+    end
+
+    subgraph ContainerRuntime["4. Inicialização & Persistência (/var/solr/data)"]
+        ENTRYPOINT["Docker/solr/entrypoint.sh"]
+        DATA_VOLUME[("Volume Persistente<br/>/var/solr/data")]
+        
+        INDEX_DATA["Índice Lucene Preservado<br/>• biblio/data/<br/>• oai/data/"]
+        CORE_CONF["Configurações Ativas<br/>• biblio/conf/<br/>• oai/conf/<br/>• conf.bak.TIMESTAMP"]
+    end
+
+    OAI -->|docker.sh / docker-dev.sh sync| STAGE_DIR
+    VUFIND_CORE -->|docker.sh / docker-dev.sh sync| STAGE_DIR
+    VUFIND_JARS -->|docker.sh / docker-dev.sh sync| STAGE_DIR
+    VUFIND_IMPORT -->|docker.sh / docker-dev.sh sync| STAGE_DIR
+
+    STAGE_DIR -->|COPY no docker build| DOCKERFILE
+    DOCKERFILE --> ENTRYPOINT
+    ENTRYPOINT -->|Fresh Init / Update| DATA_VOLUME
+    DATA_VOLUME --- INDEX_DATA
+    DATA_VOLUME --- CORE_CONF
+
+    classDef sourceStyle fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px;
+    classDef stageStyle fill:#fef3c7,stroke:#d97706,stroke-width:2px;
+    classDef buildStyle fill:#e0e7ff,stroke:#4338ca,stroke-width:2px;
+    classDef runStyle fill:#dcfce7,stroke:#15803d,stroke-width:2px;
+
+    class OAI,VUFIND_CORE,VUFIND_JARS,VUFIND_IMPORT sourceStyle;
+    class STAGE_DIR stageStyle;
+    class DOCKERFILE buildStyle;
+    class ENTRYPOINT,DATA_VOLUME,INDEX_DATA,CORE_CONF runStyle;
+      </pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Comparativo: Estado Atual vs. Estado Desejado</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Componente / Requisito</th>
+          <th>Estado Atual (Problema)</th>
+          <th>Novo Estado (Solução)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Versão do Solr</strong></td>
+          <td><code>solr:9.8.0</code></td>
+          <td><code>solr:9.11.0</code> oficial com <code>gosu</code> instalado</td>
+        </tr>
+        <tr>
+          <td><strong>Core <code>oai</code></strong></td>
+          <td>Cópia independente e defasada em <code>Docker/solr/cores/oai</code> (usa <code>LUCENE_42</code> e tipos obsoletos <code>Trie*Field</code>)</td>
+          <td>Obtido diretamente de <code>lareferencia-oai-pmh/solr.core/oai</code> (usa <code>*PointField</code> e versão moderna)</td>
+        </tr>
+        <tr>
+          <td><strong>Core <code>biblio</code></strong></td>
+          <td>Cópia com patches manuais injetados no Docker (campo <code>vector</code> e <code>knn_vector</code> adicionados manualmente)</td>
+          <td>Obtido diretamente de <code>vufind/solr/vufind/biblio</code> de forma inalterada. Suporte vetorial fornecido pelo próprio repositório VuFind quando ativo.</td>
+        </tr>
+        <tr>
+          <td><strong>JARs Auxiliares</strong></td>
+          <td>Baixados via <code>wget</code> da branch <code>master</code> do GitHub (risco de divergência de versão)</td>
+          <td>Obtidos do mesmo checkout selecionado em <code>vufind/solr/vufind/jars/</code></td>
+        </tr>
+        <tr>
+          <td><strong>Governança de Versão</strong></td>
+          <td>Arquivos de configuração rastreados no Git sob <code>Docker/solr/cores</code></td>
+          <td><code>Docker/solr/cores</code> removido do Git; diretório puramente transitório de staging (ignorado no <code>.gitignore</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Atualização de Configuração</strong></td>
+          <td>Bloqueada por <code>.lr_initialized</code>. Modificações em templates nunca chegam ao volume persistente.</td>
+          <td>Comando explícito <code>update-config</code>: gera backup em <code>conf.bak.*</code>, sincroniza novo <code>conf/</code> e <strong>preserva 100% dos dados de índice</strong>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. Fluxos de Execução do Entrypoint</h2>
+    <p>O comportamento do <code>Docker/solr/entrypoint.sh</code> agora distingue claramente uma instalação nova de uma atualização de volume existente:</p>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Inicialização Limpa vs. Atualização Explícita (update-config)</div>
+      <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Dev as Operador / Script
+    participant EP as entrypoint.sh
+    participant Template as /opt/lr-solr-cores
+    participant Vol as /var/solr/data
+    participant Solr as Processo Solr (8983)
+
+    alt Caso A: Fresh Install (Volume Vazio)
+        Dev->>EP: docker compose up -d solr
+        EP->>Vol: Verifica existência de .lr_initialized
+        Note over EP,Vol: Marcador ausente
+        EP->>Template: Copia cores oai e biblio
+        Template-->>Vol: Instalação inicial em /var/solr/data/{biblio,oai}
+        EP->>Vol: Grava .applied_config_info e toca .lr_initialized
+        EP->>Solr: Inicia Solr (exec gosu solr solr start)
+    else Caso B: Atualização Explícita (update-config)
+        Dev->>EP: ./Docker/docker.sh solr update-config
+        EP->>Vol: Localiza cores existentes
+        loop Para cada core (biblio, oai)
+            EP->>Vol: cp -a conf/ conf.bak.TIMESTAMP
+            EP->>Vol: Atualiza conf/ a partir de /opt/lr-solr-cores/{core}/conf/
+            Note over EP,Vol: Pasta data/ (Índice Lucene) NÃO É TOCADA!
+            EP->>Vol: Atualiza core.properties e metadata
+        end
+        EP->>Vol: Atualiza /var/solr/data/jars/ e /import/
+        alt Se Solr estiver ativo
+            EP->>Solr: curl RELOAD em /admin/cores?action=RELOAD&core={core}
+            Solr-->>Dev: Cores recarregados com novo schema sem downtime
+        else Se Solr estiver desligado
+            EP-->>Dev: Notifica pronto para próximo start
+        end
+    end
+      </pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Etapas Detalhadas de Execução</h2>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3>Fase 1: Limpeza do Repositório Git e Ajuste do .gitignore</h3>
+        <span class="phase-number">1</span>
+      </div>
+      <ul class="checklist">
+        <li>Executar <code>git rm -r Docker/solr/cores/biblio Docker/solr/cores/oai</code> para desvincular as cópias órfãs.</li>
+        <li>Atualizar <code>Docker/.gitignore</code> para ignorar os diretórios de staging de cores e JARs (preservando <code>.gitkeep</code>).</li>
+        <li>Garantir que <code>.dockerignore</code> continue ignorando a pasta <code>vufind</code> raiz, mas permita os arquivos estagiados em <code>Docker/solr/</code>.</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3>Fase 2: Mecanismo de Staging & Trazabilidade</h3>
+        <span class="phase-number">2</span>
+      </div>
+      <ul class="checklist">
+        <li>Implementar função compartilhada <code>prepare_solr_staging</code> no <code>docker.sh</code> e <code>docker-dev.sh</code>.</li>
+        <li>Garantir que os checkouts de <code>lareferencia-oai-pmh</code> e <code>vufind</code> estejam prontos antes do build/up do Solr (mesmo sem <code>vufind-web</code>).</li>
+        <li>Sincronizar <code>oai</code> de <code>lareferencia-oai-pmh/solr.core/oai</code> para <code>Docker/solr/cores/oai</code>.</li>
+        <li>Sincronizar <code>biblio</code> de <code>vufind/solr/vufind/biblio</code> para <code>Docker/solr/cores/biblio</code> (cópia 100% fiel, sem patches).</li>
+        <li>Sincronizar JARs de <code>vufind/solr/vufind/jars</code> e importadores de <code>vufind/import</code>.</li>
+        <li>Gerar arquivo <code>Docker/solr/cores/build-info.properties</code> registrando versão do Solr, repositórios de origem e commit hashes.</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3>Fase 3: Atualização do Dockerfile para Solr 9.11.0</h3>
+        <span class="phase-number">3</span>
+      </div>
+      <ul class="checklist">
+        <li>Alterar base para <code>FROM solr:9.11.0</code>.</li>
+        <li>Instalar o pacote <code>gosu</code> via <code>apt-get</code> no ambiente Ubuntu Jammy do Solr.</li>
+        <li>Remover os comandos <code>wget</code> da branch master do GitHub (usando diretamente os JARs do checkout local).</li>
+        <li>Manter a ativação do módulo oficial <code>analysis-extras</code> (já integrado no Solr 9.11.0).</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3>Fase 4: Procedimento de Inicialização e Atualização Segura</h3>
+        <span class="phase-number">4</span>
+      </div>
+      <ul class="checklist">
+        <li>Aprimorar <code>Docker/solr/entrypoint.sh</code> com suporte à rotina <code>update-config</code> e variável <code>SOLR_UPDATE_CONFIG=true</code>.</li>
+        <li>Criar backup automático das configurações antigas em <code>conf.bak.&lt;timestamp&gt;</code>.</li>
+        <li>Garantir preservação irrestrita do diretório <code>data/</code> dos cores.</li>
+        <li>Disparar recarga a quente dos cores via API CoreAdmin do Solr (<code>/solr/admin/cores?action=RELOAD</code>).</li>
+        <li>Adicionar comandos CLI de fácil uso:
+          <pre><code># Fluxo Normal
+./Docker/docker.sh solr update-config
+
+# Fluxo de Desenvolvimento
+./Docker/docker-dev.sh solr update-config</code></pre>
+        </li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3>Fase 5: Documentação Operacional & Diretrizes de Reindexação</h3>
+        <span class="phase-number">5</span>
+      </div>
+      <ul class="checklist">
+        <li>Documentar o procedimento de atualização em <code>Docker/README.md</code> e <code>docs/</code>.</li>
+        <li>Instruir sobre a migração de <code>Trie*Field</code> para <code>PointField</code> no core <code>oai</code>: após atualizar o schema, os registros persistidos no banco do Harvester podem ser reindexados pelo painel ("Index" / <code>run_task index</code>).</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3>Fase 6: Validação Completa & Critérios de Aceite</h3>
+        <span class="phase-number">6</span>
+      </div>
+      <ul class="checklist">
+        <li>Confirmar que o container Solr roda sob a versão 9.11.0 (<code>solr --version</code>).</li>
+        <li>Verificar que o core <code>oai</code> utiliza exclusivamente o schema e configurações do provider OAI-PMH.</li>
+        <li>Verificar que o core <code>biblio</code> corresponde exatamente ao VuFind sem injeções manuais no Docker.</li>
+        <li>Testar indexação com o Harvester, consultas na interface web do VuFind e fornecimento de registros via OAI-PMH.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="alert alert-info">
+    <strong>Nota de Preservação de Dados:</strong> O procedimento <code>update-config</code> foi projetado para garantir que a pasta <code>/var/solr/data/{core}/data</code> nunca seja removida ou sobrescrita, permitindo atualizar esquemas e configurações com segurança máxima.
+  </div>
+
+  <footer>
+    LA Referencia Platform &bull; Documento Técnico de Arquitetura &bull; Outubro 2026
+  </footer>
+</div>
+
+</body>
+</html>
