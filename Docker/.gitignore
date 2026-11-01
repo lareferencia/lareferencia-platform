@@ -24,3 +24,12 @@ solr/jars/**
 # Runtime logs and pid files
 *.log
 *.pid
+# ...except the expected call logs of the contract tests
+!tests/contract/snapshots/*.log
+
+# PostgreSQL upgrade/rollback lock
+.pg-upgrade.lock/
+
+# Test tools downloaded by Docker/tests/run.sh (bats, shellcheck)
+tests/.bin/
+/tests/contract/snapshots/
