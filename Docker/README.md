@@ -200,6 +200,21 @@ For the harvester, the build also verifies that the nested
 `lareferencia-dark-lib` JAR has the same SHA-256 as the reactor output; this
 prevents packaging a stale library from `target/`.
 
+### 🧹 Image & build cache cleanup
+
+Only La Referencia artifacts are touched — never other projects on the same Docker:
+
+- **After every build**: images of older builds of *this installation* are
+  removed, keeping the current one and the previous `LR_IMAGE_KEEP_PREVIOUS`
+  (default 1, read from `Docker/.image-tags`); dangling images of this compose
+  project are removed; the build cache, kept in a dedicated buildx builder
+  (`lareferencia`), is capped at `LR_BUILD_CACHE_MAX_SIZE` (default `5GB`,
+  `off` = no cap).
+- **`./Docker/docker.sh prune`** (wizard: 🧹 Prune La Referencia Images & Cache):
+  every previous build of this installation + the whole La Referencia build cache.
+- Images in use by a container and the Maven dependency volume (`lr-maven-cache`)
+  are always kept. `LR_DEDICATED_BUILDER=false` goes back to Docker's default builder.
+
 ### 🧪 Tests (`docker.sh` itself)
 
 ```bash

@@ -12,6 +12,15 @@ command -v docker >/dev/null 2>&1 || { echo 'Docker is required to build the rep
 [ -f "${DASHBOARD_DIR}/angular/package-lock.json" ] || { echo "Dashboard package-lock.json not found: ${DASHBOARD_DIR}/angular" >&2; exit 1; }
 [ -d "${HARVESTER_DIR}" ] || { echo "Harvester app not found: ${HARVESTER_DIR}" >&2; exit 1; }
 
+# Outputs left by a container that ran as root (e.g. docker-dev.sh, or a run
+# with sudo) cannot be replaced by this user: give them back first.
+"${ROOT_DIR}/Docker/scripts/reclaim-ownership.sh" "${HARVESTER_DIR}" dashboard-static
+[ -w "${HARVESTER_DIR}" ] || {
+  echo "Error: ${HARVESTER_DIR} is not writable by $(id -un) (uid $(id -u))." >&2
+  echo "Fix it with: sudo chown -R $(id -u):$(id -g) ${HARVESTER_DIR}" >&2
+  exit 1
+}
+
 # Keep Node inside the container: official host binaries require newer glibc.
 # Node 18 matches the Angular dashboard runtime configured in its Maven POM.
 echo 'Building the Angular Repository Dashboard with Node 18 in Docker...'

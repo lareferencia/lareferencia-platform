@@ -31,7 +31,8 @@ ko()      { printf '  %s✘%s %s\n' "${C_RED}" "${C_RESET}" "$1"; }
 # Every shell file of docker.sh (templates are standalone scripts).
 _shell_files() {
   cd "${DOCKER_DIR}"
-  printf '%s\n' docker.sh lib/*.sh lib/core/*.sh lib/wizard/*.sh lib/templates/*.sh
+  printf '%s\n' docker.sh lib/*.sh lib/core/*.sh lib/wizard/*.sh lib/templates/*.sh scripts/*.sh \
+    ../build-admin-web.sh ../build-dashboard.sh
 }
 
 # --- lint ------------------------------------------------------------------------------
@@ -56,7 +57,8 @@ lint::shellcheck() {
 lint::undefined_functions() {
   local files=() defined used missing
   while IFS= read -r f; do
-    [[ "${f}" == lib/templates/* ]] || files+=("${DOCKER_DIR}/${f}")
+    case "${f}" in lib/templates/*|scripts/*|../*) continue ;; esac   # standalone scripts
+    files+=("${DOCKER_DIR}/${f}")
   done < <(_shell_files)
 
   defined="$(grep -hoE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z0-9_]+)+[[:space:]]*\(\)' "${files[@]}" \

@@ -45,7 +45,7 @@ _wizard::build_menu() {
   _menu::add "⚡ Resource Profile: [$(settings::resource_profile)]" wizard::change_resource_profile
   _menu::add "📡 Configure External Solr"              wizard::configure_external_solr
   _menu::add "🛠️ Run Init-DB (migrations)"             _action::init_db
-  _menu::add "🧹 Prune Docker Build Cache & Images"    _action::prune
+  _menu::add "🧹 Prune La Referencia Images & Cache"   _action::prune
   _menu::add "🧹 Reset Data (CLEAN ALL)"               _action::reset_data
   _menu::add "🚪 Exit"                                 _action::exit
 }
@@ -100,7 +100,9 @@ wizard::run_command() {
   shift
   local status=0
   PROGRESS_HEADER_FN=_wizard::draw_overview   # keep the wizard banner on top
-  progress::run "\"${DOCKER_SH}\" $*" "${label}" || status=$?
+  local cmd
+  cmd="$(printf '%q ' "${DOCKER_SH}" "$@")"   # quoted: arguments may contain spaces
+  progress::run "${cmd}" "${label}" || status=$?
   PROGRESS_HEADER_FN=""
   trap _action::exit INT TERM   # progress::run replaces the wizard's trap
   if [ "${status}" -eq 130 ]; then
@@ -162,7 +164,7 @@ _action::logs() {
 }
 
 _action::prune() {
-  build::prune
+  images::prune_all
   ui::pause "Prune completed. Press Enter to continue..."
 }
 

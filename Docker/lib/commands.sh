@@ -28,8 +28,9 @@ Core Commands:
   init-db              Migrate database
   postgres <action>    PostgreSQL major version: status | upgrade | rollback | remove-legacy
   solr [update-config] Update Solr core configurations from modules with index preservation
-  prune                Reclaim disk space (prune dangling images and build cache)
+  prune                Reclaim disk space: old La Referencia images + its build cache
   reset-data           Clean Docker/data
+  backup-db [dir]      Dump the databases now (gzip) into <dir>/db_<date>/
   shell <service>      Start a bash shell in a running container
   lrshell-interactive  Start interactive session in the shell container
   dc <args>            Run docker compose with this instance's environment
@@ -226,7 +227,9 @@ command::build() {
     build::java
   fi
 
+  buildx::use_dedicated
   selection::run build
+  images::cleanup_after_build
 }
 
 # --- simple pass-through commands ------------------------------------------------------------
@@ -235,7 +238,7 @@ command::dc()   { dc "$@"; }
 command::ps()   { dc ps; }
 command::logs() { dc logs "$@"; }
 command::pull() { dc pull vufind-db postgres elasticsearch vufind-scss-watch; }
-command::prune() { build::prune; }
+command::prune() { images::prune_all; }
 
 command::health() {
   dc ps   # also exports LR_PORT_* for the checks below
@@ -390,6 +393,12 @@ command::postgres() {
   esac
 }
 
+# --- backup-db [destination] -------------------------------------------------------------------
+
+command::backup_db() {
+  backup::dump_databases "${1:-$(backup::default_destination)}"
+}
+
 # --- res <profile> ------------------------------------------------------------------------------
 
 command::resource_profile() {
@@ -438,6 +447,7 @@ COMMANDS=(
   "lrshell-interactive       → command::lrshell_interactive"
   "prune                     → command::prune"
   "reset-data                → command::reset_data"
+  "backup-db                 → command::backup_db"
   "shell                     → command::shell"
   "modules                   → command::modules"
   "resource-profile res      → command::resource_profile"

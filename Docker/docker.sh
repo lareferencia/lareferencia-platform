@@ -20,6 +20,8 @@
 #   lib/search.sh           VuFind / Solr  — checkout and core staging
 #   lib/workspace.sh        Workspace      — Java modules (githelper, workspace.ini)
 #   lib/build.sh            Builder        — Maven, frontends, docker images
+#   lib/images.sh           ImageStore     — dedicated build cache, cleanup of old
+#                           La Referencia images (never other projects')
 #   lib/database.sh         Database/PgUpgrade/LrShell — postgres, init-db,
 #                           major version upgrade/rollback, Spring Shell
 #   lib/users.sh            HarvesterUsers — admin accounts of the harvester
@@ -55,7 +57,7 @@ mkdir -p "${ROOT_DIR}/vufind"
 for lib in \
   core/utils.sh core/ui.sh core/progress.sh \
   config.sh system.sh modules.sh compose.sh selection.sh settings.sh \
-  search.sh workspace.sh build.sh database.sh users.sh data.sh backup.sh \
+  search.sh workspace.sh build.sh images.sh database.sh users.sh data.sh backup.sh \
   commands.sh \
   wizard/status.sh wizard/modules.sh wizard/shell.sh wizard/users.sh \
   wizard/settings.sh wizard/backup.sh wizard/postgres.sh wizard/main.sh

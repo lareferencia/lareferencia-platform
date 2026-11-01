@@ -250,6 +250,18 @@ dc() {
   "${args[@]}" "$@"
 }
 
+# The maven-builder container runs as root over the whole checkout: everything
+# it writes (target/, admin-static/, dashboard-static/) is given back to the
+# host user afterwards, otherwise the next build of docker.sh fails with
+# "rm: cannot remove ...: Permission denied".
+run_maven_builder() {
+  local status=0
+  dc --profile developer-builder run --rm --no-deps maven-builder "$@" || status=$?
+  "${SCRIPT_DIR}/scripts/reclaim-ownership.sh" "${ROOT_DIR}" '*/target' \
+    lareferencia-lrharvester-app/admin-static lareferencia-lrharvester-app/dashboard-static || true
+  return "${status}"
+}
+
 module_for() {
   case "$1" in
     harvester) printf '%s\n' lareferencia-lrharvester-app ;;
@@ -271,24 +283,24 @@ compile_service() {
   fi
   profile="$(env_get LR_BUILD_PROFILE lareferencia)"
   echo "Compiling ${module} and local dependencies..."
-  dc --profile developer-builder run --rm --no-deps maven-builder -pl "${module}" -am install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
+  run_maven_builder -pl "${module}" -am install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
 }
 
 compile_frontend() {
   echo "Compiling React admin web and publishing it to harvester/admin-static..."
-  dc --profile developer-builder run --rm --no-deps maven-builder -f lareferencia-lrharvester-admin-web/pom.xml package
+  run_maven_builder -f lareferencia-lrharvester-admin-web/pom.xml package
 }
 
 compile_dashboard() {
   echo "Compiling Angular dashboard and publishing it to harvester/dashboard-static..."
-  dc --profile developer-builder run --rm --no-deps maven-builder -f lareferencia-repository-dashboard/pom.xml package
+  run_maven_builder -f lareferencia-repository-dashboard/pom.xml package
 }
 
 compile_all() {
   local profile="$(env_get LR_BUILD_PROFILE lareferencia)"
   local java_modules='lareferencia-oclc-harvester,lareferencia-core-lib,lareferencia-entity-lib,lareferencia-indexing-filters-lib,lareferencia-shell-entity-plugin,lareferencia-shell,lareferencia-dark-lib,lareferencia-lrharvester-app,lareferencia-entity-rest,lareferencia-oai-pmh'
   echo "Compiling Java modules..."
-  dc --profile developer-builder run --rm --no-deps maven-builder -pl "${java_modules}" -am install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
+  run_maven_builder -pl "${java_modules}" -am install -DskipTests -Dmaven.javadoc.skip=true -Dspring-boot.repackage.executable=false "-P${profile}"
   compile_frontend
   compile_dashboard
 }

@@ -20,6 +20,8 @@
 #   assert_called <text>            some call contains <text>
 #   refute_called <text>            no call contains <text>
 #   env_get <KEY>                   value in the sandbox Docker/.env
+#   env_set <KEY> <value>           sets it (creates .env from .env.example if needed)
+#   sandbox_hash / current_image_tag   checkout hash and image tag of the sandbox
 #   with_pg_data <major>            pretends the postgres volume holds that version
 # =============================================================================
 
@@ -28,6 +30,7 @@ PROJECT_DIR="$(cd "${TESTS_DIR}/../.." && pwd)"
 FAKES_DIR="${TESTS_DIR}/fakes"
 SNAPSHOT_DIR="${TESTS_DIR}/contract/snapshots"
 REAL_GIT="${REAL_GIT:-$(command -v git)}"   # resolved before fakes/ enters PATH
+HOST_UID_GID="$(id -u):$(id -g)"            # real ids (tests may fake `id`)
 
 # Java modules expected by docker.sh (pom.xml) and the apps that ship a JAR.
 SANDBOX_JAVA_MODULES=(
@@ -49,7 +52,7 @@ sandbox::build_template() {
 
   # Project files docker.sh reads.
   cp -R "${PROJECT_DIR}/Docker/lib" "${PROJECT_DIR}/Docker/profiles" \
-        "${PROJECT_DIR}/Docker/config-overrides" "${t}/Docker/"
+        "${PROJECT_DIR}/Docker/config-overrides" "${PROJECT_DIR}/Docker/scripts" "${t}/Docker/"
   cp "${PROJECT_DIR}/Docker/docker.sh" "${PROJECT_DIR}/Docker/.env.example" \
      "${PROJECT_DIR}/Docker/.gitignore" "${t}/Docker/"
   cp "${PROJECT_DIR}/docker-compose.yml" "${PROJECT_DIR}/workspace.ini" \
@@ -144,7 +147,7 @@ calls() {
       -e "s#${SANDBOX_ROOT}#<ROOT>#g" \
       -e "s#${root_hash}#<HASH>#g" \
       -e "s#${commit}#<COMMIT>#g" \
-      -e "s#$(id -u):$(id -g)#<UID>:<GID>#g" \
+      -e "s#${HOST_UID_GID}#<UID>:<GID>#g" \
       "${FAKE_LOG}"
 }
 
@@ -199,4 +202,21 @@ with_pg_data() {
   local dir="${SANDBOX_ROOT}/Docker/volume/lareferencia/postgres/data/pgdata"
   mkdir -p "${dir}"
   echo "$1" > "${dir}/PG_VERSION"
+}
+
+env_set() {
+  local env="${SANDBOX_ROOT}/Docker/.env"
+  [ -f "${env}" ] || cp "${SANDBOX_ROOT}/Docker/.env.example" "${env}"
+  grep -v "^$1=" "${env}" > "${env}.tmp" || true
+  printf '%s=%s\n' "$1" "$2" >> "${env}.tmp"
+  mv "${env}.tmp" "${env}"
+}
+
+sandbox_hash() {
+  printf "%s" "${SANDBOX_ROOT}" | shasum -a 256 | cut -c1-7
+}
+
+# Tag of the images of the sandbox checkout (see compose::image_tag).
+current_image_tag() {
+  echo "lareferencia-$(sandbox_hash)-$("${REAL_GIT}" -C "${SANDBOX_ROOT}" rev-parse --short=7 HEAD)"
 }

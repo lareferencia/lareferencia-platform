@@ -86,12 +86,6 @@ setup()      { sandbox::create; }
 # The image tag is <profile>-<checkout hash>-<commit>. After a `git pull` the
 # commit changes, and `up` must look for images of the NEW commit (the tag
 # saved in .env by the previous run is stale).
-current_image_tag() {
-  local hash commit
-  hash="$(printf "%s" "${SANDBOX_ROOT}" | shasum -a 256 | cut -c1-7)"
-  commit="$("${REAL_GIT}" -C "${SANDBOX_ROOT}" rev-parse --short=7 HEAD)"
-  echo "lareferencia-${hash}-${commit}"
-}
 
 @test "up after a new commit: images of the previous commit are not enough → build" {
   docker_sh modules status                                  # creates .env

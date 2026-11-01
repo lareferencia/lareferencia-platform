@@ -5,14 +5,14 @@
 # Build pipeline (build::all):
 #   1. solr::stage                 Solr cores/jars staging
 #   2. build::components           React admin + Angular dashboard + Java (Maven)
-#   3. docker compose build        multi-stage Dockerfiles
+#   3. docker compose build        multi-stage Dockerfiles (dedicated buildx builder)
+#   4. images::cleanup_after_build old images of this installation, cache cap
 #
 # Public API:
 #   build::all [no-cache:true|false]
 #   build::components              sequential (default) or parallel (BUILD_PARALLEL=true)
 #   build::java                    Maven build inside a container
 #   build::images_exist            true when every locally-built image of the selection exists
-#   build::prune                   removes dangling images and builder cache
 # =============================================================================
 
 MAVEN_IMAGE="maven:3.9.11-eclipse-temurin-17"
@@ -231,9 +231,10 @@ build::all() {
   local build_args=(build)
   [ "${no_cache}" = true ] && build_args+=(--no-cache)
 
+  buildx::use_dedicated
   compose::run_with_profiles "${profiles[@]}" -- "${build_args[@]}"
   echo "--- Build completed successfully ---"
-  build::clean_dangling_images
+  images::cleanup_after_build
 }
 
 # True when every locally-built image needed by the current selection exists
@@ -250,26 +251,4 @@ build::images_exist() {
     docker image inspect "lareferencia/${s}:${expected_tag}" >/dev/null 2>&1 || return 1
   done
   return 0
-}
-
-# --- Housekeeping --------------------------------------------------------------------
-
-build::clean_dangling_images() {
-  if [ -n "$(docker images -f "dangling=true" -q 2>/dev/null || true)" ]; then
-    echo "Cleaning up dangling intermediate images to reclaim disk space..."
-    docker image prune -f >/dev/null 2>&1 || true
-  fi
-}
-
-build::prune() {
-  echo -e "\n${C_CYAN}--- Pruning Docker Build Artifacts & Cache ---${C_RESET}"
-  echo "1. Removing dangling images (<none>:<none>)..."
-  docker image prune -f || true
-
-  echo -e "\n2. Removing BuildKit builder cache..."
-  docker builder prune -f || true
-
-  echo -e "\n${C_GREEN}Current Docker Disk Usage:${C_RESET}"
-  docker system df || true
-  echo -e "${C_GREEN}Prune completed successfully.${C_RESET}"
 }

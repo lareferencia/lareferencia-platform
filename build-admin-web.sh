@@ -11,6 +11,15 @@ command -v docker >/dev/null 2>&1 || { echo 'Docker is required to build the adm
 [ -f "${ADMIN_DIR}/package-lock.json" ] || { echo "package-lock.json not found: ${ADMIN_DIR}" >&2; exit 1; }
 [ -d "${HARVESTER_DIR}" ] || { echo "Harvester app not found: ${HARVESTER_DIR}" >&2; exit 1; }
 
+# Outputs left by a container that ran as root (e.g. docker-dev.sh, or a run
+# with sudo) cannot be replaced by this user: give them back first.
+"${ROOT_DIR}/Docker/scripts/reclaim-ownership.sh" "${HARVESTER_DIR}" admin-static
+[ -w "${HARVESTER_DIR}" ] || {
+  echo "Error: ${HARVESTER_DIR} is not writable by $(id -un) (uid $(id -u))." >&2
+  echo "Fix it with: sudo chown -R $(id -u):$(id -g) ${HARVESTER_DIR}" >&2
+  exit 1
+}
+
 echo 'Building the admin web with Node 22 in Docker...'
 docker run --rm \
   --user "$(id -u):$(id -g)" \

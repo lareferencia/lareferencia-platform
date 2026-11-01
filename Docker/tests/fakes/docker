@@ -8,6 +8,11 @@
 #   FAKE_IMAGES=all|none|<text>  which `docker image inspect lareferencia/...` succeed:
 #                             every image (default), none, or those whose name contains <text>
 #   FAKE_FAIL="pattern"       any call whose command line contains the pattern exits 1
+#   FAKE_IMAGE_LIST=$'repo:tag\n...'  images listed by `docker images --filter reference=...`
+#   FAKE_IN_USE="repo:tag ..."  images `docker rmi` refuses to remove (used by a container)
+#   FAKE_DANGLING=1           `docker images -q --filter dangling=true ...` finds an image
+#   FAKE_BUILDER_EXISTS=1     `docker buildx inspect <name>` succeeds
+#   FAKE_BUILDX_OLD=1         buildx without --max-used-space (only --keep-storage)
 set -u
 line="docker"
 for arg in "$@"; do
@@ -16,6 +21,10 @@ for arg in "$@"; do
     *)                line="${line} ${arg}" ;;
   esac
 done
+# Compose builds also record which buildx builder they got (BUILDX_BUILDER).
+if [ "${1:-}" = "compose" ] && [[ " $* " == *" build "* || " $* " == *" --build "* ]]; then
+  line="${line}   [builder: ${BUILDX_BUILDER:-default}]"
+fi
 echo "${line}" >> "${FAKE_LOG:?FAKE_LOG not set}"
 
 if [ -n "${FAKE_FAIL:-}" ] && [[ "${line}" == *"${FAKE_FAIL}"* ]]; then
@@ -37,6 +46,8 @@ if [ "${args[0]:-}" = "compose" ]; then
     version*)                      echo "Docker Compose version v2.99.0-fake" ;;
     "ps --status running --services") for s in ${FAKE_RUNNING:-}; do echo "${s}"; done ;;
     "ps --status running "*)       for s in ${FAKE_RUNNING:-}; do [ "${s}" = "${args[3]:-}" ] && echo "${s}"; done ;;
+    *" pg_dump "*)                 echo "-- fake PostgreSQL dump" ;;
+    *" mysqldump "*)               echo "-- fake MySQL dump" ;;
   esac
   exit 0
 fi
@@ -45,8 +56,42 @@ case "${1:-}" in
   info)
     [ "${FAKE_DOCKER_DOWN:-0}" = 1 ] && exit 1
     echo "fake docker daemon" ;;
-  buildx)  echo "github.com/docker/buildx v0.99.0-fake" ;;
-  images)  : ;;   # no dangling images
+  buildx)
+    case "${2:-}" in
+      version) echo "github.com/docker/buildx v0.99.0-fake" ;;
+      inspect) [ "${FAKE_BUILDER_EXISTS:-0}" = 1 ] || exit 1 ;;
+      prune)
+        if [ "${3:-}" = "--help" ]; then
+          if [ "${FAKE_BUILDX_OLD:-0}" = 1 ]; then echo "      --keep-storage bytes"
+          else echo "      --max-used-space bytes"; fi
+        fi ;;
+    esac ;;
+  images)
+    # docker images [-q] [--filter X]... [--format F]
+    reference="" dangling=0
+    for ((i = 2; i <= $#; i++)); do
+      case "${!i}" in
+        reference=*)    reference="${!i#reference=}" ;;
+        dangling=true)  dangling=1 ;;
+      esac
+    done
+    if [ "${dangling}" = 1 ]; then
+      [ "${FAKE_DANGLING:-0}" = 1 ] && echo "sha256:fakedangling"
+    elif [ -n "${reference}" ]; then
+      while IFS= read -r entry; do
+        [ -n "${entry}" ] || continue
+        ref="${entry}"
+        # glob match, like Docker's reference filter
+        case "${reference}" in
+          *:*) [[ "${ref}" == ${reference} ]] && echo "${ref}" ;;
+          *)   [[ "${ref}" == ${reference}:* ]] && echo "${ref}" ;;
+        esac
+      done <<< "${FAKE_IMAGE_LIST:-}"
+    fi ;;
+  rmi)
+    for busy in ${FAKE_IN_USE:-}; do
+      [ "${busy}" = "${2:-}" ] && { echo "Error: image is being used by a container" >&2; exit 1; }
+    done ;;
   image)
     if [ "${2:-}" = "inspect" ]; then
       case "${3:-}" in

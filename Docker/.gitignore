@@ -33,3 +33,7 @@ solr/jars/**
 # Test tools downloaded by Docker/tests/run.sh (bats, shellcheck)
 tests/.bin/
 /tests/contract/snapshots/
+
+# Tags of the last image builds (used to keep the most recent ones)
+.image-tags
+/tests/contract/snapshots/

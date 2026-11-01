@@ -14,6 +14,9 @@
 #   backup::schedule_daily             prints "<method> 03:<MM>" (cron|systemd)
 #   backup::unschedule
 #   backup::run                        runs .system_backup.sh now
+#   backup::dump_databases <dir>       database dumps only (now, services keep
+#                                      running) into <dir>/db_<date>/
+#   backup::latest_db_dump <dir>       newest db_<date> folder in <dir>
 # =============================================================================
 
 BACKUP_SCRIPT="${ROOT_DIR}/.system_backup.sh"
@@ -180,4 +183,82 @@ backup::unschedule() {
 
 backup::run() {
   bash "${BACKUP_SCRIPT}"
+}
+
+# --- Database dumps only --------------------------------------------------------------
+#
+#   <dir>/db_<YYYYmmdd_HHMMSS>/
+#     postgres_lrharvester.sql.gz    harvester database (required)
+#     mysql_vufind.sql.gz            VuFind database (when vufind-db is running)
+#     RESTORE.txt                    how to restore each file
+#
+# Unlike the full backup, any failed dump fails the whole operation and the
+# incomplete folder is removed (an empty dump must never look like a backup).
+
+BACKUP_DB_PREFIX="db_"
+
+# _backup::dump_to <file.gz> <command...>   runs the command, gzips its stdout
+_backup::dump_to() {
+  local file="$1"
+  shift
+  "$@" | gzip > "${file}" || return 1
+  # gzip of nothing is still a valid (tiny) file: require real content.
+  [ -n "$(gzip -cd "${file}" 2>/dev/null | head -c 1)" ] || { echo "Error: empty dump: ${file}" >&2; return 1; }
+}
+
+_backup::write_db_restore_notes() {
+  cat > "$1/RESTORE.txt" << NOTES
+LA Referencia — database dump of $(date "+%Y-%m-%d %H:%M")
+Run from the project directory ($(basename "${ROOT_DIR}")) with the containers running.
+
+PostgreSQL (harvester) — replaces the current database objects:
+  gunzip -c postgres_lrharvester.sql.gz | ./Docker/docker.sh dc exec -T postgres psql -U ${DB_USER} -d ${DB_NAME}
+
+VuFind (MySQL), if mysql_vufind.sql.gz is present:
+  gunzip -c mysql_vufind.sql.gz | ./Docker/docker.sh dc exec -T vufind-db mysql -u vufind -pvufind vufind
+NOTES
+}
+
+backup::dump_databases() {
+  local root="$1" dir running
+  if ! backup::prepare_destination "${root}"; then
+    echo "Error: destination is not writable: ${root}" >&2
+    return 1
+  fi
+
+  running="$(compose::running_services)"
+  if ! printf '%s\n' "${running}" | grep -Fxq postgres; then
+    echo "Error: PostgreSQL is not running. Start the platform first." >&2
+    return 1
+  fi
+
+  dir="${root}/${BACKUP_DB_PREFIX}$(date +%Y%m%d_%H%M%S)"
+  mkdir -p "${dir}"
+
+  echo "Dumping PostgreSQL database '${DB_NAME}'..."
+  if ! _backup::dump_to "${dir}/postgres_lrharvester.sql.gz" \
+      dc exec -T postgres pg_dump --clean --if-exists -U "${DB_USER}" "${DB_NAME}"; then
+    rm -rf "${dir}"
+    echo "Error: PostgreSQL dump failed (nothing was kept)." >&2
+    return 1
+  fi
+
+  if printf '%s\n' "${running}" | grep -Fxq vufind-db; then
+    echo "Dumping VuFind database (MySQL)..."
+    if ! _backup::dump_to "${dir}/mysql_vufind.sql.gz" \
+        dc exec -T vufind-db mysqldump --single-transaction -u vufind -pvufind vufind; then
+      rm -rf "${dir}"
+      echo "Error: VuFind dump failed (nothing was kept)." >&2
+      return 1
+    fi
+  else
+    echo "Skipping VuFind database (vufind-db is not running)."
+  fi
+
+  _backup::write_db_restore_notes "${dir}"
+  echo "Database dump saved to: ${dir}"
+}
+
+backup::latest_db_dump() {
+  find "$1" -mindepth 1 -maxdepth 1 -type d -name "${BACKUP_DB_PREFIX}*" 2>/dev/null | sort | tail -n 1
 }
