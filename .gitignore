@@ -91,4 +91,3 @@ pom.xml.versionsBackup
 /testdir/
 /test_rsync/
 /test_rsync_dest/
-/Docker/tests/contract/snapshots/

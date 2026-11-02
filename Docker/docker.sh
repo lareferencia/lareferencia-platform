@@ -20,8 +20,8 @@
 #   lib/search.sh           VuFind / Solr  — checkout and core staging
 #   lib/workspace.sh        Workspace      — Java modules (githelper, workspace.ini)
 #   lib/build.sh            Builder        — Maven, frontends, docker images
-#   lib/images.sh           ImageStore     — dedicated build cache, cleanup of old
-#                           La Referencia images (never other projects')
+#   lib/images.sh           ImageStore     — cleanup of old La Referencia images
+#                           (never other projects')
 #   lib/database.sh         Database/PgUpgrade/LrShell — postgres, init-db,
 #                           major version upgrade/rollback, Spring Shell
 #   lib/users.sh            HarvesterUsers — admin accounts of the harvester

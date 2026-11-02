@@ -43,28 +43,77 @@ workspace::missing_java_modules() {
   return 0
 }
 
+# A checkout with .git but no commit is what an interrupted clone leaves
+# behind; githelper would report it as "already exists" forever.
+_workspace::remove_incomplete_clones() {
+  local module
+  for module in "$@"; do
+    [ -d "${ROOT_DIR}/${module}/.git" ] || continue
+    [ -f "${ROOT_DIR}/${module}/pom.xml" ] && continue
+    git --git-dir="${ROOT_DIR}/${module}/.git" rev-parse --verify --quiet HEAD >/dev/null 2>&1 && continue
+    echo "Removing incomplete clone: ${module}" >&2
+    rm -rf "${ROOT_DIR:?}/${module}"
+  done
+}
+
+# _workspace::clone <attempt> <module...>
+#   Retries run one clone at a time and over HTTP/1.1, which survives the
+#   "RPC failed; curl 56 ... Connection reset by peer" of unstable networks.
+_workspace::clone() {
+  local attempt="$1"
+  shift
+  local jobs depth
+  jobs="$(config::get GIT_CLONE_JOBS 4)"
+  depth="$(config::get GIT_CLONE_DEPTH 1)"
+  local modules
+  modules="$(echo "$@" | tr ' ' ',')"
+
+  if [ "${attempt}" -eq 1 ]; then
+    workspace::githelper init --jobs "${jobs}" --depth "${depth}" --modules "${modules}"
+  else
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.version GIT_CONFIG_VALUE_0=HTTP/1.1 \
+      workspace::githelper init --jobs 1 --depth "${depth}" --modules "${modules}"
+  fi
+}
+
 workspace::ensure_java_modules() {
   local pull_existing="${1:-false}"
-  local missing
+  local missing attempts delay attempt=1
   missing="$(workspace::missing_java_modules)"
+  attempts="$(config::get GIT_CLONE_ATTEMPTS 3)"
+  delay="$(config::get GIT_CLONE_RETRY_DELAY 5)"
+  [[ "${attempts}" =~ ^[1-9][0-9]*$ ]] || attempts=3
+  [[ "${delay}" =~ ^[0-9]+$ ]] || delay=5
 
   if [ -n "${missing}" ]; then
     echo "Missing initialized Java workspace modules (pom.xml absent):" >&2
     printf '  - %s\n' ${missing} >&2
     echo "Cloning missing modules using githelper..." >&2
-    workspace::githelper init \
-      --jobs "$(config::get GIT_CLONE_JOBS 4)" \
-      --depth "$(config::get GIT_CLONE_DEPTH 1)" \
-      --modules "$(echo ${missing} | tr ' ' ',')"
   fi
+
+  while [ -n "${missing}" ]; do
+    if [ "${attempt}" -gt 1 ]; then
+      echo "Retrying the clone of: $(echo ${missing}) (attempt ${attempt}/${attempts}, one at a time, HTTP/1.1)..." >&2
+      sleep $(( (attempt - 1) * delay ))
+      _workspace::remove_incomplete_clones ${missing}
+    fi
+    # githelper exits non-zero when any clone fails: decide by what is missing.
+    _workspace::clone "${attempt}" ${missing} || true
+    missing="$(workspace::missing_java_modules)"
+    [ "${attempt}" -ge "${attempts}" ] && break
+    attempt=$((attempt + 1))
+  done
 
   if [ "${pull_existing}" = "true" ]; then
     echo "Pulling updates for existing modules using githelper..." >&2
     workspace::githelper pull || true
   fi
 
-  if [ -n "$(workspace::missing_java_modules)" ]; then
-    echo "Error: Some modules are still missing after initialization." >&2
+  missing="$(workspace::missing_java_modules)"
+  if [ -n "${missing}" ]; then
+    echo "Error: could not clone after ${attempts} attempt(s): $(echo ${missing})" >&2
+    echo "  Usually a network problem (connection reset/timeout). Run the same action again:" >&2
+    echo "  only the missing modules are cloned. More attempts: GIT_CLONE_ATTEMPTS in Docker/.env" >&2
     return 1
   fi
 }

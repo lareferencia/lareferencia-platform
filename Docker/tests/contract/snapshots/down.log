@@ -1,0 +1,1 @@
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env --profile tools --profile elastic --profile watch --profile oai down --remove-orphans

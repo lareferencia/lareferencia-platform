@@ -5,8 +5,8 @@
 # Build pipeline (build::all):
 #   1. solr::stage                 Solr cores/jars staging
 #   2. build::components           React admin + Angular dashboard + Java (Maven)
-#   3. docker compose build        multi-stage Dockerfiles (dedicated buildx builder)
-#   4. images::cleanup_after_build old images of this installation, cache cap
+#   3. docker compose build        multi-stage Dockerfiles
+#   4. images::cleanup_after_build old images of this installation
 #
 # Public API:
 #   build::all [no-cache:true|false]
@@ -231,8 +231,7 @@ build::all() {
   local build_args=(build)
   [ "${no_cache}" = true ] && build_args+=(--no-cache)
 
-  buildx::use_dedicated
-  compose::run_with_profiles "${profiles[@]}" -- "${build_args[@]}"
+  system::retry_on_network_error compose::run_with_profiles "${profiles[@]}" -- "${build_args[@]}"
   echo "--- Build completed successfully ---"
   images::cleanup_after_build
 }

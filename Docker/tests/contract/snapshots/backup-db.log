@@ -1,0 +1,3 @@
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env ps --status running --services
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env exec -T vufind-db mysqldump --single-transaction -u vufind -pvufind vufind

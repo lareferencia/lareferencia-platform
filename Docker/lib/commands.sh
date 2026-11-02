@@ -28,7 +28,7 @@ Core Commands:
   init-db              Migrate database
   postgres <action>    PostgreSQL major version: status | upgrade | rollback | remove-legacy
   solr [update-config] Update Solr core configurations from modules with index preservation
-  prune                Reclaim disk space: old La Referencia images + its build cache
+  prune                Reclaim disk space: images of previous La Referencia builds
   reset-data           Clean Docker/data
   backup-db [dir]      Dump the databases now (gzip) into <dir>/db_<date>/
   shell <service>      Start a bash shell in a running container
@@ -149,7 +149,7 @@ command::up() {
     up_args+=(--force-recreate --build)
   fi
 
-  selection::run "${up_args[@]}"
+  system::retry_on_network_error selection::run "${up_args[@]}"
 }
 
 # --- down -------------------------------------------------------------------------------
@@ -227,8 +227,7 @@ command::build() {
     build::java
   fi
 
-  buildx::use_dedicated
-  selection::run build
+  system::retry_on_network_error selection::run build
   images::cleanup_after_build
 }
 
@@ -237,7 +236,7 @@ command::build() {
 command::dc()   { dc "$@"; }
 command::ps()   { dc ps; }
 command::logs() { dc logs "$@"; }
-command::pull() { dc pull vufind-db postgres elasticsearch vufind-scss-watch; }
+command::pull() { system::retry_on_network_error dc pull vufind-db postgres elasticsearch vufind-scss-watch; }
 command::prune() { images::prune_all; }
 
 command::health() {

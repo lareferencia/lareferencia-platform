@@ -1,85 +1,40 @@
 #!/usr/bin/env bash
 # =============================================================================
-# images.sh — "ImageStore": La Referencia images and their build cache.
+# images.sh — "ImageStore": cleanup of La Referencia images.
 #
 # Every cleanup here touches ONLY La Referencia artifacts, never other
 # projects sharing the same Docker:
 #   - images      lareferencia/* tagged for THIS installation (checkout hash)
 #   - dangling    untagged images labelled with this compose project
-#   - build cache kept in a dedicated buildx builder (LR_BUILDER_NAME), so it
-#                 can be limited/pruned without touching the default builder
+# Builds use Docker's default builder; its build cache is shared by every
+# project on the host, so it is never pruned here.
 #
 # Settings (Docker/.env):
-#   LR_BUILD_CACHE_MAX_SIZE   cap of the dedicated builder cache (default 5GB,
-#                             off = no cap); least recently used goes first
 #   LR_IMAGE_KEEP_PREVIOUS    previous builds kept besides the current one (default 1)
-#   LR_DEDICATED_BUILDER      true (default) | false = use Docker's default builder
 #
 # Docker/.image-tags (local, not versioned) records the tag of every successful
 # build: it tells which previous builds are the most recent ones.
 #
 # Public API:
-#   buildx::use_dedicated           creates/selects the builder (exports BUILDX_BUILDER)
-#   images::cleanup_after_build     superseded images + dangling + cache cap
-#   images::prune_all               manual prune: everything La Referencia can rebuild
+#   images::cleanup_after_build     superseded images + dangling (+ legacy builder)
+#   images::prune_all               manual prune: every previous build of this installation
 #   images::remove_superseded <n>   keeps the current tag + <n> previous builds
 #   images::prune_dangling
-#   buildx::limit_cache
 # =============================================================================
 
-LR_BUILDER_DEFAULT_NAME="lareferencia"
-LR_BUILD_CACHE_DEFAULT_MAX="5GB"
 LR_IMAGE_DEFAULT_KEEP_PREVIOUS=1
 
-# --- Dedicated builder (isolated build cache) ------------------------------------------
+# A previous version built in a dedicated buildx builder named "lareferencia"
+# (its own cache + a running buildkit container). Builds now use Docker's
+# default builder, so that builder is only dead weight: remove it.
+LEGACY_BUILDER_NAME="lareferencia"
 
-buildx::name() {
-  config::get LR_BUILDER_NAME "${LR_BUILDER_DEFAULT_NAME}"
-}
-
-# True when builds go to the dedicated builder in this process.
-buildx::dedicated_active() {
-  [ -n "${BUILDX_BUILDER:-}" ] && [ "${BUILDX_BUILDER}" = "$(buildx::name)" ]
-}
-
-buildx::use_dedicated() {
-  [ "$(config::get LR_DEDICATED_BUILDER true)" = "true" ] || return 0
-  if ! system::buildx_available; then
-    ui::warn "docker buildx not available: using Docker's default builder (no build cache cap)."
-    return 0
-  fi
-
-  local name
-  name="$(buildx::name)"
-  if ! docker buildx inspect "${name}" >/dev/null 2>&1; then
-    echo "Creating dedicated buildx builder '${name}' (isolated La Referencia build cache)..."
-    if ! docker buildx create --name "${name}" --driver docker-container >/dev/null; then
-      ui::warn "Could not create builder '${name}': using Docker's default builder."
-      return 0
-    fi
-  fi
-  export BUILDX_BUILDER="${name}"
-}
-
-# Buildx >= 0.17 calls it --max-used-space; older versions --keep-storage.
-_buildx::cap_flag() {
-  if docker buildx prune --help 2>/dev/null | grep -q -- '--max-used-space'; then
-    echo "--max-used-space"
-  else
-    echo "--keep-storage"
-  fi
-}
-
-# Shrinks the dedicated builder cache to LR_BUILD_CACHE_MAX_SIZE (LRU first).
-buildx::limit_cache() {
-  local max
-  max="$(config::get LR_BUILD_CACHE_MAX_SIZE "${LR_BUILD_CACHE_DEFAULT_MAX}")"
-  case "$(text::lower "${max}")" in off|none|0) return 0 ;; esac
-  buildx::dedicated_active || return 0
-
-  echo "Limiting La Referencia build cache to ${max}..."
-  docker buildx prune --builder "$(buildx::name)" -f "$(_buildx::cap_flag)" "${max}" >/dev/null 2>&1 \
-    || ui::warn "Could not limit the build cache (continuing)."
+_images::remove_legacy_builder() {
+  system::buildx_available || return 0
+  docker buildx inspect "${LEGACY_BUILDER_NAME}" >/dev/null 2>&1 || return 0
+  echo "Removing the unused '${LEGACY_BUILDER_NAME}' buildx builder of a previous version (and its cache)..."
+  docker buildx rm "${LEGACY_BUILDER_NAME}" >/dev/null 2>&1 \
+    || ui::warn "Could not remove it; run: docker buildx rm ${LEGACY_BUILDER_NAME}"
   return 0
 }
 
@@ -178,24 +133,18 @@ images::cleanup_after_build() {
     echo "Build history started (Docker/$(basename "${IMAGE_HISTORY_FILE}")): previous images are kept this time."
   fi
   images::prune_dangling
-  buildx::limit_cache
+  _images::remove_legacy_builder
 }
 
-# Manual prune: everything La Referencia can rebuild (current images are kept).
+# Manual prune: every previous build of this installation (current images are kept).
 images::prune_all() {
-  echo -e "\n${C_CYAN}--- Pruning La Referencia images & build cache (other projects are not touched) ---${C_RESET}"
+  echo -e "\n${C_CYAN}--- Pruning La Referencia images (other projects are not touched) ---${C_RESET}"
   echo "1. Removing images of previous builds of this installation..."
   images::remove_superseded 0
 
   echo -e "\n2. Removing dangling La Referencia images..."
   images::prune_dangling
-
-  echo -e "\n3. Clearing the La Referencia build cache (builder '$(buildx::name)')..."
-  if system::buildx_available && docker buildx inspect "$(buildx::name)" >/dev/null 2>&1; then
-    docker buildx prune --builder "$(buildx::name)" -af 2>&1 | tail -n 1 || true
-  else
-    echo "   No dedicated builder yet (it is created by the next build)."
-  fi
+  _images::remove_legacy_builder
 
   echo -e "\n${C_GREEN}Current Docker Disk Usage (whole Docker, all projects):${C_RESET}"
   docker system df || true

@@ -168,6 +168,12 @@ assert_output_contains() {
   [[ "${output}" == *"$1"* ]] || _fail "output does not contain: $1" "--- output ---" "${output}"
 }
 
+refute_output_contains() {
+  if [[ "${output}" == *"$1"* ]]; then
+    _fail "output unexpectedly contains: $1" "--- output ---" "${output}"
+  fi
+}
+
 assert_called() {
   calls | grep -qF -- "$1" || _fail "no call contains: $1" "--- calls ---" "$(calls)"
 }

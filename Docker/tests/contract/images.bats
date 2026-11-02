@@ -26,13 +26,14 @@ lareferencia/harvester:my-manual-tag"
 
 removed_images() { calls | sed -n 's/^docker rmi //p' | sort; }
 
-# Nothing global, ever: every prune is filtered or bound to the dedicated builder.
+# Nothing global, ever: image prunes are filtered by project, and the build
+# cache (shared by every project on the host) is never pruned.
 refute_global_prune() {
-  if calls | grep -E 'docker (image|system|volume|container|builder) prune' | grep -v -- '--filter label=com.docker.compose.project=' ; then
+  if calls | grep -E 'docker (image|system|volume|container) prune' | grep -v -- '--filter label=com.docker.compose.project=' ; then
     echo "global prune found"; return 1
   fi
-  if calls | grep 'docker buildx prune' | grep -v -- '--help' | grep -v -- '--builder lareferencia'; then
-    echo "buildx prune without the dedicated builder"; return 1
+  if calls | grep -E 'docker (builder|buildx) prune'; then
+    echo "build cache prune found"; return 1
   fi
   return 0
 }
@@ -79,55 +80,7 @@ lareferencia/solr:lareferencia-<HASH>-bbbbbbb" ] || { echo "${output}"; false; }
   refute_global_prune
 }
 
-@test "build cache: dedicated builder capped at 5GB by default" {
-  docker_sh build solr
-  assert_success
-  assert_called "docker buildx create --name lareferencia --driver docker-container"
-  assert_called "build solr   [builder: lareferencia]"
-  assert_called "docker buildx prune --builder lareferencia -f --max-used-space 5GB"
-}
-
-@test "build cache: existing builder is reused" {
-  export FAKE_BUILDER_EXISTS=1
-  docker_sh build solr
-  assert_success
-  refute_called "buildx create"
-  assert_called "build solr   [builder: lareferencia]"
-}
-
-@test "build cache: older buildx uses --keep-storage" {
-  export FAKE_BUILDX_OLD=1
-  docker_sh build solr
-  assert_success
-  assert_called "docker buildx prune --builder lareferencia -f --keep-storage 5GB"
-}
-
-@test "build cache: LR_BUILD_CACHE_MAX_SIZE=off → no cap" {
-  env_set LR_BUILD_CACHE_MAX_SIZE off
-  docker_sh build solr
-  assert_success
-  refute_called "buildx prune --builder"
-}
-
-@test "LR_DEDICATED_BUILDER=false: default builder, cache untouched" {
-  env_set LR_DEDICATED_BUILDER false
-  docker_sh build solr
-  assert_success
-  refute_called "buildx create"
-  assert_called "build solr   [builder: default]"
-  refute_called "buildx prune"
-}
-
-@test "builder cannot be created: falls back to the default builder and still builds" {
-  export FAKE_FAIL="buildx create"
-  docker_sh build solr
-  assert_success
-  assert_output_contains "using Docker's default builder"
-  assert_called "build solr   [builder: default]"
-  refute_called "buildx prune --builder"
-}
-
-@test "prune: every previous build of this installation + La Referencia cache only" {
+@test "prune: every previous build of this installation, nothing else" {
   export FAKE_BUILDER_EXISTS=1 FAKE_DANGLING=1
   docker_sh prune
   assert_success
@@ -135,16 +88,8 @@ lareferencia/solr:lareferencia-<HASH>-bbbbbbb" ] || { echo "${output}"; false; }
   [ "$(printf '%s\n' "${output}" | wc -l | tr -d ' ')" = 4 ] || { echo "${output}"; false; }
   refute_called "0ther00"
   refute_called "docker rmi lareferencia/solr:$(current_image_tag)"
-  assert_called "docker buildx prune --builder lareferencia -af"
   refute_global_prune
   assert_snapshot prune
-}
-
-@test "build cache: custom cap from .env" {
-  env_set LR_BUILD_CACHE_MAX_SIZE 12GB
-  docker_sh build solr
-  assert_success
-  assert_called "docker buildx prune --builder lareferencia -f --max-used-space 12GB"
 }
 
 @test "history decides, not the tag name: newest previous build is kept" {
@@ -182,4 +127,33 @@ lareferencia/solr:lareferencia-<HASH>-aaaaaaa" ] || { echo "${output}"; false; }
   assert_failure
   refute_called "docker rmi"
   [ "$(wc -l < "${SANDBOX_ROOT}/Docker/.image-tags" | tr -d ' ')" = 2 ]
+}
+
+@test "builds use Docker's default builder (no dedicated builder is created)" {
+  docker_sh build solr
+  assert_success
+  refute_called "buildx create"
+  [ -z "$(calls | grep -E '^docker compose .* build' | grep -v '\[builder: default\]')" ]
+  refute_global_prune
+}
+
+@test "builder 'lareferencia' left by a previous version is removed after the build" {
+  export FAKE_BUILDER_EXISTS=1
+  docker_sh build solr
+  assert_success
+  assert_output_contains "Removing the unused 'lareferencia' buildx builder"
+  assert_called "docker buildx rm lareferencia"
+}
+
+@test "no legacy builder → nothing to remove" {
+  docker_sh build solr
+  assert_success
+  refute_called "buildx rm"
+}
+
+@test "prune also removes the legacy builder" {
+  export FAKE_BUILDER_EXISTS=1
+  docker_sh prune
+  assert_success
+  assert_called "docker buildx rm lareferencia"
 }

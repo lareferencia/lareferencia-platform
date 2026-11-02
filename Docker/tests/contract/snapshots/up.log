@@ -1,0 +1,5 @@
+docker image inspect lareferencia/solr:lareferencia-<HASH>-<COMMIT>
+docker image inspect lareferencia/harvester:lareferencia-<HASH>-<COMMIT>
+docker image inspect lareferencia/vufind-web:lareferencia-<HASH>-<COMMIT>
+docker image inspect lareferencia/oai-pmh:lareferencia-<HASH>-<COMMIT>
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env up -d --remove-orphans postgres solr harvester vufind-db vufind-web oai-pmh

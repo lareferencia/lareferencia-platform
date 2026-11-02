@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Shadows a real docker-compose (v1) on the host: docker.sh falls back to it
+# when `docker compose version` fails, and a test must never reach the real one.
+echo "docker-compose $*" >> "${FAKE_LOG:?FAKE_LOG not set}"
+echo "fake docker-compose: compose v1 fallback reached (the fake 'docker compose version' failed)" >&2
+exit 1

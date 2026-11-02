@@ -1,0 +1,11 @@
+docker images --filter reference=lareferencia/* --format {{.Repository}}:{{.Tag}}
+docker rmi lareferencia/harvester:lareferencia-<HASH>-aaaaaaa
+docker rmi lareferencia/solr:lareferencia-<HASH>-aaaaaaa
+docker rmi lareferencia/harvester:lareferencia-<HASH>-bbbbbbb
+docker rmi lareferencia/solr:lareferencia-<HASH>-bbbbbbb
+docker images -q --filter dangling=true --filter label=com.docker.compose.project=lareferencia-<HASH>
+docker image prune -f --filter label=com.docker.compose.project=lareferencia-<HASH>
+docker buildx version
+docker buildx inspect lareferencia
+docker buildx rm lareferencia
+docker system df

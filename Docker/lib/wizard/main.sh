@@ -45,7 +45,7 @@ _wizard::build_menu() {
   _menu::add "⚡ Resource Profile: [$(settings::resource_profile)]" wizard::change_resource_profile
   _menu::add "📡 Configure External Solr"              wizard::configure_external_solr
   _menu::add "🛠️ Run Init-DB (migrations)"             _action::init_db
-  _menu::add "🧹 Prune La Referencia Images & Cache"   _action::prune
+  _menu::add "🧹 Prune Old La Referencia Images"       _action::prune
   _menu::add "🧹 Reset Data (CLEAN ALL)"               _action::reset_data
   _menu::add "🚪 Exit"                                 _action::exit
 }

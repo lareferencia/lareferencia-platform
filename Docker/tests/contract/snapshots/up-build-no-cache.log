@@ -1,0 +1,16 @@
+Docker/solr/stage-cores.sh 
+build-admin-web.sh 
+build-dashboard.sh 
+docker volume create lr-maven-cache
+docker image inspect maven:3.9.11-eclipse-temurin-17
+docker run --rm --cpus=2 --memory=2g -e 'MAVEN_OPTS=-Xmx1536m -XX:ActiveProcessorCount=2 -XX:ParallelGCThreads=2' -v lr-maven-cache:/root/.m2 -v <ROOT>:/workspace -w /workspace maven:3.9.11-eclipse-temurin-17 mvn clean package -DskipTests -Dmaven.javadoc.skip=true -Dno-frontends -Dspring-boot.repackage.executable=false -Plareferencia
+docker run --rm -v <ROOT>:/workspace -w /workspace alpine sh -c 'chown -R <UID>:<GID> */target 2>/dev/null; chmod -R ugo+rwX */target 2>/dev/null || true'
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env --profile tools build --no-cache   [builder: default]
+docker images -q --filter dangling=true --filter label=com.docker.compose.project=lareferencia-<HASH>
+docker buildx version
+docker buildx inspect lareferencia
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env --profile tools rm -f -s -v shell db-init
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env --profile tools up -d postgres solr
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env exec -T postgres pg_isready -U lrharvester -d lrharvester
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env --profile tools run --rm -T --no-deps shell /usr/local/bin/lr-app-entrypoint.sh script /tmp/lr-config/lareferencia-shell/db_init_script.txt
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env up -d --remove-orphans --force-recreate --build postgres solr harvester vufind-db vufind-web oai-pmh   [builder: default]

@@ -106,3 +106,13 @@ setup()      { sandbox::create; }
   refute_called "mvn clean package"
   assert_called "image inspect lareferencia/solr:lareferencia-<HASH>-<COMMIT>"
 }
+
+@test "up: image download timed out → compose up is repeated" {
+  docker_sh up --prefix=x            # creates .env
+  env_set DOCKER_NETWORK_RETRY_DELAY 0
+  : > "${FAKE_LOG}"
+  export FAKE_NET_FAIL=" up -d" FAKE_NET_FAILURES=1
+  docker_sh up
+  assert_success
+  [ "$(calls | grep -c ' up -d')" -eq 2 ]
+}

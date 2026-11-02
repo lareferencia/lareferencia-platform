@@ -1,0 +1,11 @@
+Docker/solr/stage-cores.sh 
+build-admin-web.sh 
+build-dashboard.sh 
+docker volume create lr-maven-cache
+docker image inspect maven:3.9.11-eclipse-temurin-17
+docker run --rm --cpus=2 --memory=2g -e 'MAVEN_OPTS=-Xmx1536m -XX:ActiveProcessorCount=2 -XX:ParallelGCThreads=2' -v lr-maven-cache:/root/.m2 -v <ROOT>:/workspace -w /workspace maven:3.9.11-eclipse-temurin-17 mvn clean package -DskipTests -Dmaven.javadoc.skip=true -Dno-frontends -Dspring-boot.repackage.executable=false -Plareferencia
+docker run --rm -v <ROOT>:/workspace -w /workspace alpine sh -c 'chown -R <UID>:<GID> */target 2>/dev/null; chmod -R ugo+rwX */target 2>/dev/null || true'
+docker compose -f <ROOT>/docker-compose.yml --env-file <ROOT>/Docker/.env build postgres solr harvester vufind-db vufind-web oai-pmh   [builder: default]
+docker images -q --filter dangling=true --filter label=com.docker.compose.project=lareferencia-<HASH>
+docker buildx version
+docker buildx inspect lareferencia

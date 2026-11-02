@@ -2,8 +2,32 @@
 # Stand-in for project scripts (githelper, build-admin-web.sh, stage-cores.sh...):
 # records "<name relative to the sandbox> <args>" and succeeds.
 # FAKE_FAIL works as in fakes/docker.
+#
+# githelper only:
+#   FAKE_CLONE_FAILURES=N   the first N `githelper init` calls fail (network reset);
+#                           later ones "clone" the --modules (pom.xml + .git).
+#                           Unset: init records only and creates nothing.
 name="${0#"${SANDBOX_ROOT:?}/"}"
 echo "${name} $*" >> "${FAKE_LOG:?FAKE_LOG not set}"
+
+if [ "${name}" = "githelper" ] && [ "${1:-}" = "init" ] && [ -n "${FAKE_CLONE_FAILURES:-}" ]; then
+  counter="${FAKE_LOG}.githelper-init"
+  calls=$(( $(cat "${counter}" 2>/dev/null || echo 0) + 1 ))
+  echo "${calls}" > "${counter}"
+  if [ "${calls}" -le "${FAKE_CLONE_FAILURES}" ]; then
+    echo "error: RPC failed; curl 56 Recv failure: Connection reset by peer" >&2
+    exit 1
+  fi
+  modules=""
+  while [ "$#" -gt 0 ]; do
+    [ "$1" = "--modules" ] && modules="${2:-}"
+    shift
+  done
+  for m in ${modules//,/ }; do
+    mkdir -p "${SANDBOX_ROOT}/${m}/.git" && echo "<project/>" > "${SANDBOX_ROOT}/${m}/pom.xml"
+  done
+  exit 0
+fi
 if [ -n "${FAKE_FAIL:-}" ] && [[ "${name} $*" == *"${FAKE_FAIL}"* ]]; then
   echo "${name}: forced failure" >&2
   exit 1
