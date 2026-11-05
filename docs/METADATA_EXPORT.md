@@ -32,12 +32,20 @@ se verificó contra los XML utilizados, incluidas repeticiones, textos y campos
 vacíos. Esta cobertura corresponde a los snapshots estudiados; una fuente puede
 añadir rutas XOAI que requieran actualizar su perfil.
 
+El perfil `licenses-v1.json` proyecta `dc.rights.*` a `data.licenses`. Aplica
+`maxLength: 300` después de `trim`: conserva la ocurrencia completa si tiene como
+máximo 300 puntos de código Unicode y omite la ocurrencia si supera el límite.
+No trunca valores, para no alterar identificadores ni textos de licencia. La
+deduplicación conserva la primera ocurrencia.
+
 ## Comandos
 
 Desde el shell interactivo o ejecutando el comando como argumento del JAR:
 
 ```text
 export-mapping-validate --mapping /config/exports/classification-embeddings-v1.json
+export-mapping-validate --mapping /config/exports/licenses-v1.json
+export-metadata-preview --network UY --variant processed --mapping /config/exports/licenses-v1.json --limit 3
 export-metadata-preview --network AREANDINA --variant processed --mapping /config/exports/classification-embeddings-v1.json --limit 3
 export-metadata --networks UY,AREANDINA --variant processed --format jsonl --mapping /config/exports/classification-embeddings-v1.json --partition-by network --max-records 10000 --max-bytes 128MiB --compression gzip --output /exports
 ```
