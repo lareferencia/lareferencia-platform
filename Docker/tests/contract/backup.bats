@@ -62,8 +62,8 @@ dump_dir() { find "${DEST}" -mindepth 1 -maxdepth 1 -type d -name 'db_*'; }
   [ -z "$(dump_dir)" ]
 }
 
-@test "backup-db: mysqldump fails → fails and removes the incomplete folder" {
-  export FAKE_RUNNING="postgres vufind-db" FAKE_FAIL="mysqldump"
+@test "backup-db: mariadb-dump fails → fails and removes the incomplete folder" {
+  export FAKE_RUNNING="postgres vufind-db" FAKE_FAIL="mariadb-dump"
   docker_sh backup-db "${DEST}"
   assert_failure
   assert_output_contains "VuFind dump failed"

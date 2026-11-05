@@ -59,9 +59,13 @@ _backup_view::database_dump() {
     local saved
     saved="$(backup::latest_db_dump "${dest_dir}")"
     echo
-    gum style --foreground 114 "✅ Database dump saved to: ${saved}"
-    ls -lh "${saved}" | tail -n +2
-    gum style --foreground 245 "How to restore: ${saved}/RESTORE.txt"
+    if [ -n "${saved}" ] && [ -d "${saved}" ]; then
+      gum style --foreground 114 "✅ Database dump saved to: ${saved}"
+      ls -lh "${saved}" | tail -n +2
+      gum style --foreground 245 "How to restore: ${saved}/RESTORE.txt"
+    else
+      gum style --foreground 114 "✅ Database dump saved in: ${dest_dir}"
+    fi
   fi
   echo
   ui::pause "Press Enter to return to main menu..."

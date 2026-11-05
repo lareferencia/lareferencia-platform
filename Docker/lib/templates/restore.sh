@@ -39,7 +39,7 @@ if [ -s postgres_dump.sql ]; then
   cat postgres_dump.sql | ./Docker/docker.sh dc exec -T postgres psql -U lrharvester -d lrharvester || true
 fi
 if [ -s mysql_vufind_dump.sql ]; then
-  cat mysql_vufind_dump.sql | ./Docker/docker.sh dc exec -T vufind-db mysql -u vufind -pvufind vufind || true
+  cat mysql_vufind_dump.sql | ./Docker/docker.sh dc exec -T vufind-db mariadb -u vufind -pvufind vufind || true
 fi
 
 echo "Booting remaining infrastructure..."

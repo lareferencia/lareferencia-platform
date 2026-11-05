@@ -61,7 +61,7 @@ if [ "${args[0]:-}" = "compose" ]; then
     "ps --status running --services") for s in ${FAKE_RUNNING:-}; do echo "${s}"; done ;;
     "ps --status running "*)       for s in ${FAKE_RUNNING:-}; do [ "${s}" = "${args[3]:-}" ] && echo "${s}"; done ;;
     *" pg_dump "*)                 echo "-- fake PostgreSQL dump" ;;
-    *" mysqldump "*)               echo "-- fake MySQL dump" ;;
+    *" mariadb-dump "*)            echo "-- fake MySQL dump" ;;
   esac
   exit 0
 fi
