@@ -117,7 +117,7 @@ sandbox::create() {
   : > "${FAKE_LOG}"
   export SANDBOX_ROOT FAKE_LOG REAL_GIT
   # Knobs of fakes/docker, reset for each test.
-  unset FAKE_DOCKER_DOWN FAKE_RUNNING FAKE_IMAGES FAKE_FAIL
+  unset FAKE_DOCKER_DOWN FAKE_RUNNING FAKE_IMAGES FAKE_FAIL FAKE_PS FAKE_LISTEN
 }
 
 _sandbox::run_env() {

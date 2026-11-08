@@ -175,7 +175,7 @@ _action::reset_data() {
   echo -e "${C_YELLOW}This will remove ALL Compose containers for project:${C_RESET} ${COMPOSE_PROJECT_NAME}"
   echo -e "${C_YELLOW}And permanently delete data ONLY in these specific directories:${C_RESET}"
   local p
-  for p in $(data::reset_paths); do echo -e "  - ${p}"; done
+  for p in $(data::reset_paths) "$(data::vufind_runtime_path)"; do echo -e "  - ${p}"; done
   echo -e "${C_YELLOW}And any generated/cloned workspace modules.${C_RESET}\n"
 
   if gum confirm "Are you sure you want to delete these containers and directories?"; then

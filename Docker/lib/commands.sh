@@ -83,7 +83,7 @@ _up::parse_args() {
       --no-cache)     UP_NO_CACHE=true ;;
       --pull-modules) UP_PULL_MODULES=true ;;
       --prefix=*)     config::set SERVICE_PREFIX "${1#*=}" ;;
-      --offset=*)     config::set SERVICES_PORT_OFFSET "${1#*=}" ;;
+      --offset=*)     settings::set_port_offset "${1#*=}" || exit 1 ;;
       --module)       shift; UP_MODULES+=("$1") ;;
       --vufind)       UP_MODULES+=(vufind) ;;
       --elastic)      UP_MODULES+=(elastic) ;;
@@ -131,6 +131,8 @@ command::up() {
   pg::ensure_compatible   # compose would start postgres (directly or as a dependency)
   _up::select_services
   selection::drop_vufind_if_not_cloned "${UP_EXPLICIT_VUFIND}"
+  # Before anything is built, stopped or recreated.
+  compose::check_host_conflicts ${SELECTED_SERVICES[@]+"${SELECTED_SERVICES[@]}"} || exit 1
 
   vufind::ensure_for_selection
   data::ensure_volume_directories
@@ -281,7 +283,7 @@ command::lrshell_interactive() {
 
 _reset::print_paths() {
   local p
-  for p in $(data::reset_paths); do
+  for p in $(data::reset_paths) "$(data::vufind_runtime_path)"; do
     echo -e "  - ${p}"
   done
 }

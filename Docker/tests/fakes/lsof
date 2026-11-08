@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake `lsof` (macOS): `lsof -nP -iTCP:<port> -sTCP:LISTEN` succeeds when <port>
+# is in FAKE_LISTEN="<port> <port>...". Never looks at the real host.
+set -u
+port=""
+for arg in "$@"; do
+  case "${arg}" in -iTCP:*) port="${arg#-iTCP:}" ;; esac
+done
+for p in ${FAKE_LISTEN:-}; do
+  [ "${p}" = "${port}" ] && exit 0
+done
+exit 1

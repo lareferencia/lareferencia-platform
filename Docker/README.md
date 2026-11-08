@@ -82,7 +82,7 @@ Choose business logic by editing `Docker/.env` or via Wizard:
 Use `Docker/config-overrides/` to inject beans/properties without modifying source code.
 
 **3. Running Multiple Instances**
-Run multiple isolated instances on the same server by configuring `SERVICE_PREFIX` and `SERVICES_PORT_OFFSET`.
+Run multiple isolated instances on the same server by configuring `SERVICE_PREFIX` and `SERVICES_PORT_OFFSET` (a multiple of 1000; offsets that land on another service's default port are rejected). Before building or recreating anything, `up` aborts if one of its host ports is already used by another project or host process, and warns when other installations are running (`LR_ALLOW_OTHER_INSTANCES=true` skips the confirmation).
 
 ---
 
@@ -116,7 +116,7 @@ Seleccione la lógica de negocio editando `Docker/.env` o mediante el Asistente:
 Use `Docker/config-overrides/` para inyectar beans o propiedades sin modificar el código fuente.
 
 **3. Ejecución de Múltiples Instancias**
-Ejecute múltiples instancias aisladas configurando `SERVICE_PREFIX` y `SERVICES_PORT_OFFSET`.
+Ejecute múltiples instancias aisladas configurando `SERVICE_PREFIX` y `SERVICES_PORT_OFFSET` (un múltiplo de 1000; se rechazan desplazamientos que caen en el puerto por defecto de otro servicio). Antes de construir o recrear nada, `up` aborta si alguno de sus puertos ya está en uso por otro proyecto o proceso del host, y avisa cuando hay otras instalaciones en ejecución (`LR_ALLOW_OTHER_INSTANCES=true` omite la confirmación).
 
 ---
 
@@ -150,7 +150,7 @@ Escolha a lógica de negócio editando o arquivo `Docker/.env` ou via Assistente
 Use o diretório `Docker/config-overrides/` para injetar beans ou propriedades sem modificar o código-fonte.
 
 **3. Execução de Múltiples Instâncias**
-Rode múltiplas instâncias isoladas configurando as variáveis `SERVICE_PREFIX` e `SERVICES_PORT_OFFSET`.
+Rode múltiplas instâncias isoladas configurando as variáveis `SERVICE_PREFIX` e `SERVICES_PORT_OFFSET` (um múltiplo de 1000; deslocamentos que caem na porta padrão de outro serviço são recusados). Antes de construir ou recriar qualquer coisa, o `up` aborta se alguma de suas portas já estiver em uso por outro projeto ou processo do host, e avisa quando há outras instalações rodando (`LR_ALLOW_OTHER_INSTANCES=true` pula a confirmação).
 
 **4. Suporte a Solr Externo**
 Conecte-se a uma instância existente do Solr configurando `SOLR_EXTERNAL_URL` no `Docker/.env` ou via Assistente. Quando configurado, o container local do Solr não será iniciado.
