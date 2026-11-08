@@ -45,7 +45,7 @@ services:
     <<: *java-dev
     environment:
       DEV_MODE: "true"
-      JAVA_OPTS: "-Dsecurity.api-v5.cookies-secure=false -Dserver.servlet.session.cookie.secure=false"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70 -Dsecurity.api-v5.cookies-secure=false -Dserver.servlet.session.cookie.secure=false"
     ports: !override
       - "${LR_IP_HARVESTER:-127.0.0.1}:${LR_PORT_HARVESTER:-8190}:8090"
     volumes:

@@ -89,7 +89,7 @@ services:
           - solr
     environment:
       SOLR_ULIMIT_CHECKS: "false"
-      SOLR_JAVA_MEM: "-Xms1g -Xmx2g"
+      SOLR_JAVA_MEM: "-Xms512m -Xmx${LR_SOLR_HEAP:-2g}"
     ports:
       - "${LR_PORT_SOLR:-8983}:8983"
     volumes:
@@ -165,6 +165,7 @@ services:
           - harvester
     environment:
       APP_MODULE: lareferencia-lrharvester-app
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70"
       APP_JAR: lareferencia-lrharvester-app-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-lrharvester-app/config
       EXTERNAL_CONFIG_DIR: /config
@@ -209,6 +210,7 @@ services:
           - entity-rest
     environment:
       APP_MODULE: lareferencia-entity-rest
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70"
       APP_JAR: lareferencia-entity-rest-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-entity-rest/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}
@@ -253,6 +255,7 @@ services:
           - oai-pmh
     environment:
       APP_MODULE: lareferencia-oai-pmh
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70"
       APP_JAR: lareferencia-oai-pmh-5.0.0-rc.jar
       APP_CONFIG_DIR: /workspace/lareferencia-oai-pmh/config
       LR_BUILD_PROFILE: ${LR_BUILD_PROFILE:-lareferencia}

@@ -980,7 +980,7 @@ El watcher usa `node:20.18.3-alpine`, trabaja en `/usr/local/vufind`, instala np
 
 La aplicación efectiva de `deploy.resources` debe comprobarse en el Docker/Compose utilizado mediante inspect. El script no verifica versiones mínimas ni confirma que los límites estén aplicados.
 
-Solr fija `-Xms1g -Xmx2g` y Elasticsearch `-Xms1g -Xmx1g`, independientemente de los presets. La memoria máxima de contenedor incluye heap y otros usos. Un límite Solr de 1G con heap hasta 2G, o Elasticsearch 1G con heap 1G más overhead, puede provocar terminaciones por memoria. Los presets no ajustan esos heaps.
+Solr usa `-Xms512m -Xmx${LR_SOLR_HEAP:-2g}`; cada preset define `LR_SOLR_HEAP` para que el heap quepa en el límite del contenedor. Elasticsearch fija `-Xms1g -Xmx1g`; el preset low le da 1536M. Harvester, Entity REST y OAI reciben `JAVA_OPTS=-XX:MaxRAMPercentage=70` (también en `docker-compose.dev.yml` para Harvester); sin él, la JVM usaría solo 25 % del límite como heap. La memoria máxima de contenedor incluye heap y otros usos. Los servicios Java usan CPU enteras (o 0.5) porque la JVM redondea el límite hacia arriba para dimensionar GC y pools; un límite fraccionario como 1.4 provoca throttling y presión de memoria.
 
 Solr declara nofile 65000. Elasticsearch declara nofile 65536, memlock ilimitado, `IPC_LOCK`, discovery single-node y seguridad xpack desactivada. El wrapper no ajusta otros parámetros de kernel o host que una instalación pueda requerir.
 
@@ -990,14 +990,15 @@ Cada celda representa memoria y CPU:
 
 | Componente | low | medium | high | custom versionado observado |
 | --- | --- | --- | --- | --- |
-| HARVESTER | 1G / 0.8 | 2G / 1.0 | 4G / 1.2 | 1G / 0.5 |
-| SOLR | 1G / 0.6 | 2G / 0.8 | 6G / 1.0 | 1G / 0.5 |
-| POSTGRES | 256M / 0.4 | 512M / 0.5 | 1G / 0.6 | 256M / 0.2 |
-| ENTITY | 512M / 0.2 | 1G / 0.3 | 2G / 0.4 | 512M / 0.2 |
-| VUFIND | 256M / 0.2 | 512M / 0.3 | 1G / 0.4 | 256M / 0.2 |
-| ELASTIC | 1G / 0.4 | 2G / 0.6 | 4G / 0.8 | 1G / 0.5 |
-| OAI | default (1G) / 0.2 | default (1G) / 0.3 | default (1G) / 0.4 | default |
-| **Total CPU** | **2.8** | **3.8** | **4.8** | 2.6 (sin OAI) |
+| HARVESTER | 1G / 1.0 | 2G / 3.0 | 4G / 4.0 | 1G / 0.5 |
+| SOLR | 1G / 1.0 | 3G / 2.0 | 6G / 3.0 | 1G / 0.5 |
+| POSTGRES | 256M / 0.6 | 512M / 2.0 | 1G / 3.0 | 256M / 0.2 |
+| ENTITY | 512M / 0.5 | 1G / 0.5 | 2G / 1.0 | 512M / 0.2 |
+| VUFIND | 256M / 0.3 | 512M / 1.0 | 1G / 1.5 | 256M / 0.2 |
+| ELASTIC | 1536M / 0.5 | 2G / 0.5 | 4G / 1.0 | 1G / 0.5 |
+| OAI | default (1G) / 0.5 | default (1G) / 0.5 | default (1G) / 1.0 | default |
+| `LR_SOLR_HEAP` (Xmx Solr) | 512m | 2g | 4g | default (2g) |
+| **Total CPU** | **4.4** | **9.5** | **14.5** | 2.6 (sin OAI) |
 
 `apply_resource_profile` copia todas las líneas `clave=valor` que no sean vacías o comentarios iniciales y después guarda la etiqueta `LR_RESOURCE_PROFILE`. No limpia claves que no existan en el preset siguiente.
 
@@ -1207,7 +1208,7 @@ Esta tabla reúne problemas concretos observados para facilitar una revisión po
 | H22 | Verificación DARK con salidas exitosas sin comprobar | Un build puede continuar sin validación real | return 0 cuando falta unzip o artefacto/entrada |
 | H23 | Estado de imágenes desde dc images | Puede forzar builds innecesarios o no comprobar db-init | Lista de servicios y checked_any |
 | H24 | BUILD_ON_START y maven-repo sin uso efectivo | Operador puede confiar en variables que no hacen nada | Ausencia de consumidor activo |
-| H25 | Presets inferiores al heap configurado | Posibles OOM y reinicios | Solr low 1G frente a Xmx2g; Elastic 1G frente a Xmx1g |
+| H25 | Presets inferiores al heap configurado | Mitigado: `LR_SOLR_HEAP` por preset y Elastic low 1536M | Un `custom.env` sin `LR_SOLR_HEAP` hereda el valor del preset anterior |
 | H26 | No bloqueo de operaciones concurrentes | Conflictos de .env.tmp, targets, logs y backups | Paths compartidos y ausencia de lock |
 | H27 | Manifiesto solo registra commit padre | No permite reconstruir todas las revisiones exactas | Campos generados por write_java_build_manifests |
 | H28 | Dependencias VuFind no actualizadas por autoload existente | Vendor puede quedar desfasado respecto de lock | Condición del Composer install |
