@@ -991,12 +991,14 @@ Each cell represents memory and CPU:
 
 |Component|low|medium|high|Versioned custom observed|
 | --- | --- | --- | --- | --- |
-|HARVESTER|1G / 0.5|2G / 1.0|4G / 2.0|1G / 0.5|
-|SOLR|1G / 0.5|2G / 1.0|6G / 2.0|1G / 0.5|
-|POSTGRES|256M / 0.2|512M / 0.5|1G / 1.0|256M / 0.2|
-|ENTITY|512M / 0.2|1G / 0.5|2G / 1.0|512M / 0.2|
-|VUFIND|256M / 0.2|512M / 0.5|1G / 1.0|256M / 0.2|
-|ELASTIC|1G / 0.5|2G / 1.0|4G / 2.0|1G / 0.5|
+|HARVESTER|1G / 0.8|2G / 1.0|4G / 1.2|1G / 0.5|
+|SOLR|1G / 0.6|2G / 0.8|6G / 1.0|1G / 0.5|
+|POSTGRES|256M / 0.4|512M / 0.5|1G / 0.6|256M / 0.2|
+|ENTITY|512M / 0.2|1G / 0.3|2G / 0.4|512M / 0.2|
+|VUFIND|256M / 0.2|512M / 0.3|1G / 0.4|256M / 0.2|
+|ELASTIC|1G / 0.4|2G / 0.6|4G / 0.8|1G / 0.5|
+|OAI|default (1G) / 0.2|default (1G) / 0.3|default (1G) / 0.4|default|
+|**Total CPU**|**2.8**|**3.8**|**4.8**|2.6 (without OAI)|
 
 `apply_resource_profile` copy all lines `clave=valor` other than empty or initial comments and then save the label `LR_RESOURCE_PROFILE`. It does not clean keys that do not exist in the next preset.
 
