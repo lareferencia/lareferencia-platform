@@ -26,7 +26,8 @@ Every document carries a status line: `current` = verified against the code on t
 | [`DOCKER_DEV.md`](DOCKER_DEV.md) | Isolated developer Docker workflow (`docker-dev.sh`) |
 | [`../Docker/README.md`](../Docker/README.md) | Normal Docker wizard, endpoints, destructive commands |
 | [`ENTITY_DELETED_INDEXING.md`](ENTITY_DELETED_INDEXING.md) | Entity `deleted` flag workflow + shell commands |
-| [`METADATA_EXPORT.md`](METADATA_EXPORT.md) | Export LGK metadata for classification and external enrichment; profiles, provenance, packages and limitations |
+| [`METADATA_EXPORT.md`](METADATA_EXPORT.md) | Export LGK metadata for classification and external enrichment; profiles and commands |
+| [`METADATA_EXCHANGE_FORMAT.md`](METADATA_EXCHANGE_FORMAT.md) | Detailed package, record, mapping, provenance, SQLite index and enrichment return contracts |
 | [`ENTITY_INDEXING_ARCHITECTURE.md`](ENTITY_INDEXING_ARCHITECTURE.md) | Current Elasticsearch/OpenSearch indexer model + real properties |
 | [`FLOWABLE_REFACTORING_STRATEGY.md`](FLOWABLE_REFACTORING_STRATEGY.md) | Workflow engines state (`legacy` / `flowable`) |
 | [`HARVESTER_ADMIN_WEB_V5_BACKLOG.md`](HARVESTER_ADMIN_WEB_V5_BACKLOG.md) | Admin Web + API v5 backlog (what is not done yet) |

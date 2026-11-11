@@ -315,6 +315,7 @@ mvn -pl lareferencia-oai-pmh test          # provider protocol tests (Testcontai
 ## 📚 Documentation Map
 
 - [Metadata export for enrichment](docs/METADATA_EXPORT.md)
+- [Metadata exchange format](docs/METADATA_EXCHANGE_FORMAT.md)
 
 | Document | Topic |
 |---|---|
