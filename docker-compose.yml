@@ -90,10 +90,16 @@ services:
     environment:
       SOLR_ULIMIT_CHECKS: "false"
       SOLR_JAVA_MEM: "-Xms512m -Xmx${LR_SOLR_HEAP:-2g}"
+      # Core configuration updates on start (see Docker/README.md, Solr cores)
+      SOLR_UPDATE_CONFIG: ${SOLR_UPDATE_CONFIG:-auto}
+      LR_SOLR_SCHEMA_MIGRATION: ${LR_SOLR_SCHEMA_MIGRATION:-keep}
     ports:
       - "${LR_PORT_SOLR:-8983}:8983"
     volumes:
+      # Staged from the owning modules by Docker/solr/stage-cores.sh
       - ./Docker/solr/cores:/opt/lr-solr-cores:ro
+      - ./Docker/solr/jars:/opt/lr-solr-jars:ro
+      - ./Docker/solr/import:/opt/lr-solr-import:ro
       - ./Docker/volume/solr/data:/var/solr/data
       - ./Docker/volume/solr/log:/var/solr/logs
       - ./Docker/volume/solr/cache:/var/solr/cache

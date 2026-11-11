@@ -7,7 +7,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends gosu && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy local assets from Docker context (staged from module checkouts)
+# Staged from the module checkouts by Docker/solr/stage-cores.sh (never edited
+# here). docker-compose also bind-mounts these directories read-only, so a
+# re-staging reaches the container without rebuilding the image.
 COPY Docker/solr/cores /opt/lr-solr-cores
 COPY Docker/solr/jars /opt/lr-solr-jars
 COPY Docker/solr/import /opt/lr-solr-import

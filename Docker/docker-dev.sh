@@ -322,82 +322,44 @@ compile_selected_java() {
   fi
 }
 
+# Solr core configurations are owned by their modules (lareferencia-oai-pmh,
+# VuFind): Docker/solr/stage-cores.sh copies them unchanged into Docker/solr,
+# which the solr container bind-mounts. Same script as docker.sh.
+SOLR_STAGE_SCRIPT="${ROOT_DIR}/Docker/solr/stage-cores.sh"
+
 prepare_solr_staging() {
-  if [ -x "${ROOT_DIR}/Docker/solr/stage-cores.sh" ]; then
-    "${ROOT_DIR}/Docker/solr/stage-cores.sh"
-    return $?
+  [ -f "${SOLR_STAGE_SCRIPT}" ] || die "Solr staging script not found: ${SOLR_STAGE_SCRIPT}"
+  bash "${SOLR_STAGE_SCRIPT}" "$@"
+}
+
+solr_is_staged() {
+  local core
+  for core in oai biblio; do
+    [ -f "${ROOT_DIR}/Docker/solr/cores/${core}/core.properties" ] || return 1
+  done
+}
+
+# Before services start: always restage when solr itself is started (picks up
+# module changes); otherwise only make sure a staging exists, because compose
+# also starts solr as a dependency of harvester, shell and vufind-web.
+stage_solr_for_services() {
+  if contains solr "$@"; then
+    prepare_solr_staging
+  elif ! solr_is_staged; then
+    echo "Solr cores are not staged yet; staging them from the modules..."
+    prepare_solr_staging
   fi
-  if [ -f "${ROOT_DIR}/Docker/solr/stage-cores.sh" ]; then
-    bash "${ROOT_DIR}/Docker/solr/stage-cores.sh"
-    return $?
-  fi
+}
 
-  echo "=== Staging Solr 9.11.0 assets and core configurations ==="
-  local src_oai="${ROOT_DIR}/lareferencia-oai-pmh/solr.core/oai"
-  local src_vufind="${ROOT_DIR}/vufind"
-  local src_biblio="${src_vufind}/solr/vufind/biblio"
-  local src_jars="${src_vufind}/solr/vufind/jars"
-  local src_import="${src_vufind}/import"
-  local src_vendor="${src_vufind}/solr/vendor/modules/analysis-extras/lib"
-
-  local dst_cores="${ROOT_DIR}/Docker/solr/cores"
-  local dst_jars="${ROOT_DIR}/Docker/solr/jars"
-  local dst_import="${ROOT_DIR}/Docker/solr/import"
-  local dst_vendor="${ROOT_DIR}/Docker/solr/vendor"
-
-  ensure_vufind_for_services vufind-web
-
-  mkdir -p "${dst_cores}/oai" "${dst_cores}/biblio" "${dst_jars}" "${dst_import}" "${dst_vendor}"
-
-  if [ -d "${src_oai}" ]; then
-    rm -rf "${dst_cores}/oai"
-    mkdir -p "${dst_cores}/oai"
-    cp -a "${src_oai}/." "${dst_cores}/oai/"
-    [ -f "${dst_cores}/oai/core.properties" ] || echo "name=oai" > "${dst_cores}/oai/core.properties"
-  fi
-
-  if [ -d "${src_biblio}" ]; then
-    rm -rf "${dst_cores}/biblio"
-    mkdir -p "${dst_cores}/biblio"
-    cp -a "${src_biblio}/." "${dst_cores}/biblio/"
-    [ -f "${dst_cores}/biblio/core.properties" ] || echo "name=biblio" > "${dst_cores}/biblio/core.properties"
-  fi
-
-  if [ -d "${src_jars}" ]; then
-    rm -rf "${dst_jars}"
-    mkdir -p "${dst_jars}"
-    cp -a "${src_jars}/." "${dst_jars}/"
-  fi
-
-  if [ -d "${src_import}" ]; then
-    rm -rf "${dst_import}"
-    mkdir -p "${dst_import}"
-    cp -a "${src_import}/." "${dst_import}/"
-  fi
-
-  if [ -d "${src_vendor}" ]; then
-    cp "${src_vendor}"/icu4j-*.jar "${dst_vendor}/" 2>/dev/null || true
-    cp "${src_vendor}"/lucene-analysis-icu-*.jar "${dst_vendor}/" 2>/dev/null || true
-  fi
-
-  cat <<EOF > "${dst_cores}/build-info.properties"
-solr.version=9.11.0
-core.oai.source=lareferencia-oai-pmh
-core.biblio.source=vufind
-staged_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-EOF
-
-  touch "${dst_cores}/.gitkeep" "${dst_jars}/.gitkeep" "${dst_import}/.gitkeep"
-  echo "=== Staging complete. ==="
+solr_is_running() {
+  dc ps --status running solr 2>/dev/null | grep -q solr
 }
 
 rebuild_platform() {
   selected_services
   [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
   ensure_vufind_for_services "${DEV_SELECTED_SERVICES[@]}"
-  if contains solr "${DEV_SELECTED_SERVICES[@]}"; then
-    prepare_solr_staging
-  fi
+  stage_solr_for_services "${DEV_SELECTED_SERVICES[@]}"
   echo "Rebuilding Java applications, Admin Web, and Repository Dashboard..."
   compile_all
   echo "Starting local developer services with the rebuilt platform..."
@@ -481,16 +443,44 @@ watch_service() {
   done
 }
 
+# Stages the cores and applies them to the Solr home, keeping the index:
+# inside the running container (then RELOAD) or with a one-off container.
 reload_solr() {
   echo "Updating Solr core configurations from modules..."
   prepare_solr_staging
-  if dc ps --status running solr 2>/dev/null | grep -q solr; then
+  if solr_is_running; then
     echo "Applying core configuration updates inside running Solr container..."
     dc exec -T solr /usr/local/bin/lr-solr-entrypoint.sh update-config
   else
-    echo "Restarting Solr container..."
-    restart_service solr
+    echo "Solr is not running; applying the configuration with a one-off container..."
+    dc run --rm --no-deps -T solr update-config
   fi
+}
+
+# Installs pending incompatible schemas with an empty index (see docker.sh solr migrate).
+migrate_solr() {
+  prepare_solr_staging
+  local was_running=false status=0
+  if solr_is_running; then
+    was_running=true
+    dc stop solr
+  fi
+  dc run --rm --no-deps -T solr migrate || status=$?
+  [ "${was_running}" = true ] && dc start solr
+  return "${status}"
+}
+
+verify_solr() {
+  local status=0
+  echo "--- Staging vs module checkouts ---"
+  prepare_solr_staging --check || status=1
+  echo "--- Installed configuration vs staging ---"
+  if solr_is_running; then
+    dc exec -T solr /usr/local/bin/lr-solr-entrypoint.sh verify-config || status=1
+  else
+    dc run --rm --no-deps -T solr verify-config || status=1
+  fi
+  return "${status}"
 }
 
 clean_developer_instance() {
@@ -526,6 +516,7 @@ start_selected() {
   selected_services
   [ "${#DEV_SELECTED_SERVICES[@]}" -gt 0 ] || die 'No developer modules selected'
   ensure_vufind_for_services "${DEV_SELECTED_SERVICES[@]}"
+  stage_solr_for_services "${DEV_SELECTED_SERVICES[@]}"
   echo "Compiling selected Java services before startup..."
   compile_selected_java
   echo "Starting local developer services with the newly compiled local artifacts."
@@ -692,8 +683,11 @@ Commands:
   rebuild <service>      Compile/rebuild and recreate one service
   watch <service>        Watch Java sources and rebuild on change
   frontend-dev            Start or restart the live Vite admin web server
-  reload solr            Update and reload Solr after core changes
-  solr [update-config]   Stage and apply Solr core configuration changes
+  reload solr            Same as solr update-config
+  solr stage             Copy the Solr cores from their modules into Docker/solr
+  solr update-config     Stage + apply the core configuration to Solr, keeping the index
+  solr verify            Check modules == staging == configuration installed in Solr
+  solr migrate           Install pending incompatible schemas with an empty index (then reindex)
   logs [service]         Follow logs
   shell [service]        Open a shell (default: harvester)
   lrshell [command...]   Open an interactive Spring Shell or run shell commands with a TTY
@@ -712,6 +706,7 @@ case "${command}" in
       start_selected
     else
       ensure_vufind_for_services "$@"
+      stage_solr_for_services "$@"
       for service in "$@"; do
         is_java_service "${service}" && compile_service "${service}"
       done
@@ -743,7 +738,9 @@ case "${command}" in
     case "${sub}" in
       update-config|reload) reload_solr ;;
       stage) prepare_solr_staging ;;
-      *) die 'Usage: ./Docker/docker-dev.sh solr [update-config|stage]' ;;
+      verify) verify_solr ;;
+      migrate) migrate_solr ;;
+      *) die 'Usage: ./Docker/docker-dev.sh solr [update-config|stage|verify|migrate]' ;;
     esac
     ;;
   help|-h|--help) usage ;;

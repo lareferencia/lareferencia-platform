@@ -90,6 +90,8 @@ services:
       - "127.0.0.1:${LR_PORT_SOLR:-8983}:8983"
     volumes:
       - ./Docker/solr/cores:/opt/lr-solr-cores:ro
+      - ./Docker/solr/jars:/opt/lr-solr-jars:ro
+      - ./Docker/solr/import:/opt/lr-solr-import:ro
       - ${DEV_DATA_ROOT}/solr/data:/var/solr/data
       - ${DEV_DATA_ROOT}/solr/log:/var/solr/logs
       - ${DEV_DATA_ROOT}/solr/cache:/var/solr/cache

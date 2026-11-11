@@ -177,7 +177,7 @@ VuFind uses the existing local `./vufind` mount. Use these actions when needed:
 ./Docker/docker-dev.sh reload solr
 ```
 
-Solr cores are mounted from `Docker/solr/cores`; its persistent data is redirected to the isolated developer data root.
+Solr cores are staged from their modules (`lareferencia-oai-pmh/solr.core/oai`, `vufind/solr/vufind/biblio`) into `Docker/solr/cores` by the same `Docker/solr/stage-cores.sh` used by `docker.sh` — `up` restages them whenever Solr is started. Solr updates the existing cores at start when safe for their index (incompatible schemas stay pending until `solr migrate`); `reload solr` (= `solr update-config`) does it on a running Solr; `solr verify` checks modules == staging == installed. Its persistent data is redirected to the isolated developer data root. See [Docker/README.md → Solr cores](../Docker/README.md) for reindexing.
 
 ## Command reference
 
@@ -194,7 +194,8 @@ build <service|all|frontend|dashboard> Compile Java JARs or a frontend
 rebuild <service>            Compile/rebuild and recreate one service
 restart <service>            Recreate one service without dependencies
 watch <service>              Watch Java sources and rebuild on change
-reload solr                  Restart Solr after local core changes
+reload solr                  Stage + apply Solr core changes (index kept)
+solr stage|update-config|migrate|verify  Stage cores / apply them / rebuild incompatible ones / check
 frontend-dev                 Start or restart Vite behind the admin gateway (HMR)
 clean [--yes]                Remove all isolated developer artifacts
 ```

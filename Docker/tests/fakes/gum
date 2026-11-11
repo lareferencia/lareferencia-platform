@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Fake `gum` for wizard tests: answers come from a script, one per line, in
+# the order the wizard asks ($FAKE_GUM_ANSWERS):
+#   choose  → the first option starting with the line (e.g. "🚀", "📌")
+#   confirm → "yes" | "no"
+# When the script is exhausted `choose` fails (Esc), which ends the wizard.
+# Every question is recorded in $FAKE_GUM_ANSWERS.log ("choose: <picked>").
+set -u
+answers="${FAKE_GUM_ANSWERS:?FAKE_GUM_ANSWERS not set}"
+log="${answers}.log"
+
+next_answer() {
+  local first
+  first="$(head -n 1 "${answers}" 2>/dev/null || true)"
+  [ -s "${answers}" ] || return 1
+  tail -n +2 "${answers}" > "${answers}.tmp" && mv "${answers}.tmp" "${answers}"
+  printf '%s' "${first}"
+}
+
+sub="${1:-}"
+shift || true
+case "${sub}" in
+  choose)
+    options=()
+    for a in "$@"; do case "${a}" in --*) ;; *) options+=("${a}") ;; esac; done
+    want="$(next_answer)" || { echo "choose: <esc>" >> "${log}"; exit 1; }
+    for o in "${options[@]}"; do
+      if [[ "${o}" == "${want}"* ]]; then echo "choose: ${o}" >> "${log}"; echo "${o}"; exit 0; fi
+    done
+    echo "choose: no option starts with '${want}' (options: ${options[*]})" >> "${log}"
+    exit 1 ;;
+  confirm)
+    want="$(next_answer)" || want=no
+    echo "confirm: ${*: -1} → ${want}" >> "${log}"
+    [ "${want}" = yes ] ;;
+  input) exit 0 ;;
+  style|join|format)
+    for a in "$@"; do case "${a}" in --*|[0-9]*) ;; *) printf '%s\n' "${a}" ;; esac; done ;;
+  *) exit 0 ;;
+esac

@@ -13,6 +13,7 @@
 #   setup       → sandbox::create           (fresh copy per test)
 #
 #   docker_sh <args...>             runs docker.sh (bats `run`: $status, $output)
+#   dev_sh <args...>                runs docker-dev.sh the same way
 #   docker_sh_input <stdin> <args>  same, feeding stdin (e.g. "RESET")
 #   calls                           normalized call log (paths/hashes replaced)
 #   assert_snapshot <name>          calls == snapshots/<name>.log (fails if missing;
@@ -53,10 +54,10 @@ sandbox::build_template() {
   # Project files docker.sh reads.
   cp -R "${PROJECT_DIR}/Docker/lib" "${PROJECT_DIR}/Docker/profiles" \
         "${PROJECT_DIR}/Docker/config-overrides" "${PROJECT_DIR}/Docker/scripts" "${t}/Docker/"
-  cp "${PROJECT_DIR}/Docker/docker.sh" "${PROJECT_DIR}/Docker/.env.example" \
-     "${PROJECT_DIR}/Docker/.gitignore" "${t}/Docker/"
-  cp "${PROJECT_DIR}/docker-compose.yml" "${PROJECT_DIR}/workspace.ini" \
-     "${PROJECT_DIR}/.gitignore" "${t}/"
+  cp "${PROJECT_DIR}/Docker/docker.sh" "${PROJECT_DIR}/Docker/docker-dev.sh" \
+     "${PROJECT_DIR}/Docker/.env.example" "${PROJECT_DIR}/Docker/.gitignore" "${t}/Docker/"
+  cp "${PROJECT_DIR}/docker-compose.yml" "${PROJECT_DIR}/docker-compose.dev.yml" \
+     "${PROJECT_DIR}/workspace.ini" "${PROJECT_DIR}/.gitignore" "${t}/"
   # gum is only needed by the wizard; reuse the downloaded binary if any.
   [ -d "${PROJECT_DIR}/Docker/.bin" ] && ln -s "${PROJECT_DIR}/Docker/.bin" "${t}/Docker/.bin"
 
@@ -65,6 +66,13 @@ sandbox::build_template() {
   local s
   for s in githelper build-admin-web.sh build-dashboard.sh Docker/solr/stage-cores.sh; do
     cp "${FAKES_DIR}/recorder" "${t}/${s}"
+  done
+  # The real Solr entrypoint: docker.sh runs its read-only checks on the host.
+  cp "${PROJECT_DIR}/Docker/solr/entrypoint.sh" "${t}/Docker/solr/entrypoint.sh"
+  # Solr cores already staged (tests remove them to exercise the staging).
+  for s in oai biblio; do
+    mkdir -p "${t}/Docker/solr/cores/${s}/conf"
+    echo "name=${s}" > "${t}/Docker/solr/cores/${s}/core.properties"
   done
 
   # Bind-mounted data with placeholders (.gitkeep must survive a reset).
@@ -129,6 +137,34 @@ docker_sh() {
   run _sandbox::run_env "${SANDBOX_ROOT}/Docker/docker.sh" "$@"
 }
 
+dev_sh() {
+  run _sandbox::run_env "${SANDBOX_ROOT}/Docker/docker-dev.sh" "$@"
+}
+
+# wizard <answers...>: runs `docker.sh wizard` with the fake gum answering
+# (see fakes/gum); the questions asked end up in $GUM_LOG.
+wizard() {
+  rm -rf "${SANDBOX_ROOT}/Docker/.bin"
+  mkdir -p "${SANDBOX_ROOT}/Docker/.bin"
+  cp "${FAKES_DIR}/gum" "${SANDBOX_ROOT}/Docker/.bin/gum"
+  export FAKE_GUM_ANSWERS="${BATS_TEST_TMPDIR}/gum-answers"
+  GUM_LOG="${FAKE_GUM_ANSWERS}.log"
+  printf '%s\n' "$@" > "${FAKE_GUM_ANSWERS}"
+  : > "${GUM_LOG}"
+  run _sandbox::run_env "${SANDBOX_ROOT}/Docker/docker.sh" wizard
+}
+
+# Solr volume of an installation from before the core migration: the oai core
+# has Trie fields and documents; the staging brings the *PointField schema.
+with_solr_trie_index() {
+  local data="${SANDBOX_ROOT}/Docker/volume/solr/data/oai" staged="${SANDBOX_ROOT}/Docker/solr/cores/oai"
+  mkdir -p "${data}/conf" "${data}/data/index" "${staged}/conf"
+  echo "name=oai" > "${data}/core.properties"
+  printf '<schema><fieldType name="long" class="solr.TrieLongField"/></schema>\n' > "${data}/conf/schema.xml"
+  printf '<schema><fieldType name="long" class="solr.LongPointField"/></schema>\n' > "${staged}/conf/schema.xml"
+  touch "${data}/data/index/segments_3" "${data}/data/index/_0.cfs"
+}
+
 docker_sh_input() {
   local input="$1"
   shift
@@ -182,6 +218,17 @@ refute_called() {
   if calls | grep -qF -- "$1"; then
     _fail "unexpected call containing: $1" "--- calls ---" "$(calls)"
   fi
+}
+
+# Line of the first call containing <text> (0 when absent): ordering checks.
+call_line() {
+  local n
+  n="$(calls | grep -nF -- "$1" | head -n 1 | cut -d: -f1)"
+  echo "${n:-0}"
+}
+
+unstage_solr() {
+  rm -rf "${SANDBOX_ROOT}/Docker/solr/cores/oai" "${SANDBOX_ROOT}/Docker/solr/cores/biblio"
 }
 
 assert_snapshot() {

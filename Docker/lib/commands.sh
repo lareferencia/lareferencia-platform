@@ -27,7 +27,11 @@ Core Commands:
   res <profile>        Apply resource profile (low, medium, high, custom)
   init-db              Migrate database
   postgres <action>    PostgreSQL major version: status | upgrade | rollback | remove-legacy
-  solr [update-config] Update Solr core configurations from modules with index preservation
+  solr stage           Copy the Solr cores from their modules into Docker/solr (no container change)
+  solr update-config   Stage + apply the core configuration to Solr, keeping the index
+  solr verify          Check modules == staging == configuration installed in Solr
+  solr migrate         Install pending incompatible schemas with an empty index (then reindex)
+  solr status          Staged sources, pending schema migrations and reindexes
   prune                Reclaim disk space: images of previous La Referencia builds
   reset-data           Clean Docker/data
   backup-db [dir]      Dump the databases now (gzip) into <dir>/db_<date>/
@@ -149,6 +153,8 @@ command::up() {
     build::all "${UP_NO_CACHE}"
     db::init
     up_args+=(--force-recreate --build)
+  elif selection::has solr; then
+    solr::ensure_staged
   fi
 
   system::retry_on_network_error selection::run "${up_args[@]}"
@@ -191,10 +197,19 @@ _lifecycle::guard_postgres() {
   return 0
 }
 
+# Solr bind-mounts its core templates: never (re)start it without them.
+_lifecycle::ensure_solr_staged() {
+  if selection::has solr; then
+    solr::ensure_staged
+  fi
+  return 0
+}
+
 command::start() {
   _lifecycle::select "$@"
   _lifecycle::guard_postgres
   data::ensure_volume_directories
+  _lifecycle::ensure_solr_staged
   selection::run start
 }
 
@@ -207,6 +222,7 @@ command::restart() {
   _lifecycle::select "$@"
   _lifecycle::guard_postgres
   data::ensure_volume_directories
+  _lifecycle::ensure_solr_staged
   selection::run restart
 }
 
@@ -411,7 +427,7 @@ command::resource_profile() {
   config::apply_resource_profile "${profile}"
 }
 
-# --- solr [update-config | stage] ---------------------------------------------------------------
+# --- solr [update-config | stage | verify | migrate | status] ---------------------------------------------------
 
 command::solr() {
   local action="${1:-update-config}"
@@ -419,8 +435,11 @@ command::solr() {
   case "${action}" in
     update-config) solr::update_config ;;
     stage)         solr::stage ;;
+    verify)        solr::verify ;;
+    migrate)       solr::migrate ;;
+    status)        solr::status ;;
     *)
-      echo "Usage: ./Docker/docker.sh solr [update-config|stage]" >&2
+      echo "Usage: ./Docker/docker.sh solr [update-config|stage|verify|migrate|status]" >&2
       exit 1
       ;;
   esac
