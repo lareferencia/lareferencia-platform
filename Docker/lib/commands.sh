@@ -35,6 +35,9 @@ Core Commands:
   prune                Reclaim disk space: images of previous La Referencia builds
   reset-data           Clean Docker/data
   backup-db [dir]      Dump the databases now (gzip) into <dir>/db_<date>/
+  backup-db --schedule [dir]   Daily database-only dump at 03:xx (keeps 7 days)
+  backup-db --unschedule       Disable the daily database-only dump
+  backup-db --status           Show the daily database-only dump schedule
   shell <service>      Start a bash shell in a running container
   lrshell-interactive  Start interactive session in the shell container
   dc <args>            Run docker compose with this instance's environment
@@ -410,10 +413,48 @@ command::postgres() {
   esac
 }
 
-# --- backup-db [destination] -------------------------------------------------------------------
+# --- backup-db [destination] | --schedule [destination] | --unschedule | --status ----------------
+#
+# The schedule is independent of the full backup plan (wizard → 💾 System Backup).
+
+_backup_db::schedule() {
+  local dest="${1:-$(backup::default_destination)}" missing method time
+  missing="$(backup::db_schedule_missing_requirements)"
+  if [ -n "${missing}" ]; then
+    sed 's/^/Error: /' <<< "${missing}" >&2
+    return 1
+  fi
+  if ! backup::prepare_destination "${dest}"; then
+    echo "Error: destination is not writable: ${dest}" >&2
+    return 1
+  fi
+  backup::write_db_script "${dest}"
+  read -r method time <<< "$(backup::schedule_db_daily)"
+  echo "Daily database dump scheduled (${method}) at ${time} into: ${dest}"
+  echo "Old dumps (db_<date>) are removed after ${BACKUP_DB_KEEP_DAYS} days. Log: ${BACKUP_DB_LOG}"
+}
+
+_backup_db::status() {
+  local schedule
+  schedule="$(backup::db_schedule_status)"
+  if [ -n "${schedule}" ]; then
+    echo "Daily database dump: enabled (${schedule%% *} ${schedule##* }) into: $(backup::db_schedule_destination)"
+  else
+    echo "Daily database dump: disabled"
+  fi
+}
 
 command::backup_db() {
-  backup::dump_databases "${1:-$(backup::default_destination)}"
+  case "${1:-}" in
+    --schedule)   shift; _backup_db::schedule "$@" ;;
+    --unschedule) backup::unschedule_db; echo "Daily database dump disabled." ;;
+    --status)     _backup_db::status ;;
+    -*)
+      echo "Usage: ./Docker/docker.sh backup-db [dir] | --schedule [dir] | --unschedule | --status" >&2
+      exit 1
+      ;;
+    *) backup::dump_databases "${1:-$(backup::default_destination)}" ;;
+  esac
 }
 
 # --- res <profile> ------------------------------------------------------------------------------

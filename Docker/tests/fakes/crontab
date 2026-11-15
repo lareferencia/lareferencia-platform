@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Fake `crontab`: the user's crontab is a file of the test ($FAKE_CRONTAB,
+# default <test tmp>/crontab), never the real one.
+#   crontab -l   prints it (fails like the real one when there is none)
+#   crontab -    replaces it with stdin
+file="${FAKE_CRONTAB:-${BATS_TEST_TMPDIR:?}/crontab}"
+case "${1:-}" in
+  -l)
+    [ -f "${file}" ] || { echo "crontab: no crontab for $(whoami)" >&2; exit 1; }
+    cat "${file}" ;;
+  # Like the real one: read everything first (the same pipeline may still be
+  # running `crontab -l`), then replace the file.
+  -) cat > "${file}.new" && mv "${file}.new" "${file}" ;;
+  *) echo "fake crontab: unsupported: $*" >&2; exit 1 ;;
+esac

@@ -3,7 +3,11 @@
 # wizard/backup.sh — View: "System Backup" screen (logic in lib/backup.sh).
 #
 #   🗄️  Database dump only      dumps now, services keep running, no schedule
+#   🗓️  Daily database dumps    schedules only the database dumps (03:xx)
 #   📦 Full backup plan         sources + configs + volumes + dumps, daily schedule
+#
+# The two daily plans are independent: enabling or disabling one never
+# changes the other.
 # =============================================================================
 
 _backup_view::error() {
@@ -42,7 +46,7 @@ _backup_view::database_dump() {
     "  • PostgreSQL (harvester)" \
     "  • VuFind MySQL (when vufind-db is running)" \
     "Files are gzip-compressed into <destination>/db_<date>/ with a RESTORE.txt." \
-    "The daily backup schedule is not changed."
+    "The daily schedules are not changed."
   echo
 
   if ! compose::is_running postgres; then
@@ -67,6 +71,71 @@ _backup_view::database_dump() {
       gum style --foreground 114 "✅ Database dump saved in: ${dest_dir}"
     fi
   fi
+  echo
+  ui::pause "Press Enter to return to main menu..."
+}
+
+# --- Daily database dumps (schedule) ---------------------------------------------------
+
+_backup_view::show_db_schedule() {
+  local schedule
+  schedule="$(backup::db_schedule_status)"
+  if [ -n "${schedule}" ]; then
+    gum style --foreground 114 "Current status: enabled (${schedule%% *}, daily at ${schedule##* } AM) → $(backup::db_schedule_destination)"
+  else
+    gum style --foreground 222 "Current status: disabled"
+  fi
+}
+
+_backup_view::database_schedule() {
+  echo
+  gum style --foreground 245 \
+    "Schedules ONLY the database dumps, once a day at a random time (03:xx AM):" \
+    "  • PostgreSQL (harvester)" \
+    "  • VuFind MySQL (when vufind-db is running)" \
+    "Services keep running. Dumps older than ${BACKUP_DB_KEEP_DAYS} days are removed." \
+    "The full backup plan (📦) is not changed."
+  echo
+  _backup_view::show_db_schedule
+  echo
+
+  if ! gum confirm "Enable the daily database dump?"; then
+    backup::unschedule_db
+    gum style --foreground 222 "⚠️ Daily database dump is disabled."
+    echo
+    ui::pause "Press Enter to return to main menu..."
+    return 0
+  fi
+
+  local missing line
+  missing="$(backup::db_schedule_missing_requirements)"
+  if [ -n "${missing}" ]; then
+    while IFS= read -r line; do _backup_view::error "${line}"; done <<< "${missing}"
+    ui::pause "Press Enter to return..."
+    return 0
+  fi
+
+  _backup_view::ask_destination || return 0
+  local dest_dir="${BACKUP_VIEW_DEST}"
+
+  echo
+  ui::info "Generating database backup script (.db_backup.sh)..."
+  backup::write_db_script "${dest_dir}"
+
+  local method time
+  read -r method time <<< "$(backup::schedule_db_daily)"
+  case "${method}" in
+    cron)    gum style --foreground 114 "✅ Cron job successfully configured for: ${time} AM" ;;
+    systemd) gum style --foreground 114 "✅ Systemd timer successfully configured for: ${time} AM" ;;
+  esac
+  gum style --foreground 245 "Destination: ${dest_dir}" "Log: ${BACKUP_DB_LOG}"
+
+  echo
+  if compose::is_running postgres && gum confirm "Execute the first database dump right now?"; then
+    echo
+    wizard::run_command "Database Dump" backup-db "${dest_dir}" || true
+  fi
+
   echo
   ui::pause "Press Enter to return to main menu..."
 }
@@ -127,6 +196,7 @@ _backup_view::full_plan() {
 # --- Screen ------------------------------------------------------------------------------
 
 WIZARD_BACKUP_DB_OPTION="🗄️  Database dump only (PostgreSQL + VuFind, now)"
+WIZARD_BACKUP_DB_SCHEDULE_OPTION="🗓️  Daily database dumps only (schedule PostgreSQL + VuFind)"
 WIZARD_BACKUP_FULL_OPTION="📦 Full backup plan (sources, configs, volumes, dumps + daily schedule)"
 
 wizard::backup_screen() {
@@ -135,9 +205,11 @@ wizard::backup_screen() {
   echo
 
   local choice
-  choice=$(gum choose "${WIZARD_BACKUP_DB_OPTION}" "${WIZARD_BACKUP_FULL_OPTION}" "🔙 Back") || return 0
+  choice=$(gum choose "${WIZARD_BACKUP_DB_OPTION}" "${WIZARD_BACKUP_DB_SCHEDULE_OPTION}" \
+    "${WIZARD_BACKUP_FULL_OPTION}" "🔙 Back") || return 0
   case "${choice}" in
     "${WIZARD_BACKUP_DB_OPTION}")   _backup_view::database_dump ;;
+    "${WIZARD_BACKUP_DB_SCHEDULE_OPTION}") _backup_view::database_schedule ;;
     "${WIZARD_BACKUP_FULL_OPTION}") _backup_view::full_plan ;;
     *) return 0 ;;
   esac

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake `systemctl`: records "systemctl <args>" and succeeds (never touches the
+# host's user units).
+echo "systemctl $*" >> "${FAKE_LOG:?FAKE_LOG not set}"
+exit 0
