@@ -11,19 +11,19 @@
       "name": "lareferencia-oclc-harvester",
       "path": "lareferencia-oclc-harvester",
       "url": "https://github.com/lareferencia/lareferencia-oclc-harvester",
-      "commit": "e624d63229c306eefd80df640d49fc8b2d93276d"
+      "commit": "5065abe030d758f1f6ffbe05c024097721ebd9c6"
     },
     {
       "name": "lareferencia-core-lib",
       "path": "lareferencia-core-lib",
       "url": "https://github.com/lareferencia/lareferencia-core-lib",
-      "commit": "2aaab0df1ea14007bc344ba6ec3bf8863bd71db9"
+      "commit": "115e59d2017640243842cf4df64a9661d376a882"
     },
     {
       "name": "lareferencia-entity-lib",
       "path": "lareferencia-entity-lib",
       "url": "https://github.com/lareferencia/lareferencia-entity-lib",
-      "commit": "24eb6be2f85784e682582f141fc216ae035bf3ef"
+      "commit": "2cc32349d107000020cf304751569b4956855f2c"
     },
     {
       "name": "lareferencia-contrib-rcaap",
@@ -41,55 +41,55 @@
       "name": "lareferencia-indexing-filters-lib",
       "path": "lareferencia-indexing-filters-lib",
       "url": "https://github.com/lareferencia/lareferencia-indexing-filters-lib",
-      "commit": "9f47c77d7c8d3dc908316d3f8efa9f4dfbc49f3c"
+      "commit": "8645fdcdeeef64c3cfcc3f4118837289461bf051"
     },
     {
       "name": "lareferencia-shell-entity-plugin",
       "path": "lareferencia-shell-entity-plugin",
       "url": "https://github.com/lareferencia/lareferencia-shell-entity-plugin",
-      "commit": "1c385bae6ed8d07b31308b984a2b77e95e7d404c"
+      "commit": "73dd741bf7909de4445173ef1f59d8763bd75aaf"
     },
     {
       "name": "lareferencia-shell",
       "path": "lareferencia-shell",
       "url": "https://github.com/lareferencia/lareferencia-shell",
-      "commit": "a63ec1c1672cb8d3418982effa2b9cce59d0f111"
+      "commit": "6ff33bebf210dd866f3a83265bbe41c9c830e17e"
     },
     {
       "name": "lareferencia-lrharvester-app",
       "path": "lareferencia-lrharvester-app",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-app",
-      "commit": "f68d1edb691424e4873037ec30c510e6be189cab"
+      "commit": "97f8d3797ff8a63621f6b593caba3d8247289a0c"
     },
     {
       "name": "lareferencia-lrharvester-admin-web",
       "path": "lareferencia-lrharvester-admin-web",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-admin-web",
-      "commit": "6f6d6b5e9592a80cf9f7c14ab9dd41409c8b293c"
+      "commit": "a43dbc8187d34fbfc856e3479d62807082acef71"
     },
     {
       "name": "lareferencia-entity-rest",
       "path": "lareferencia-entity-rest",
       "url": "https://github.com/lareferencia/lareferencia-entity-rest",
-      "commit": "6854817eae9e0defddd98dd9b2351ab60ec34bee"
+      "commit": "b801055b2fec9941872ada80ecb19284f930bb25"
     },
     {
       "name": "lareferencia-repository-dashboard",
       "path": "lareferencia-repository-dashboard",
       "url": "https://github.com/lareferencia/lareferencia-repository-dashboard.git",
-      "commit": "8391605e9f5663c4980fabcdd7e7e67dcbab85fa"
+      "commit": "1332f7f7a3866aac182287f43dfb1b1fa2aab50d"
     },
     {
       "name": "lareferencia-oai-pmh",
       "path": "lareferencia-oai-pmh",
       "url": "https://github.com/lareferencia/lareferencia-oai-pmh",
-      "commit": "5a635a9338bbd2a9b7acb3ddf622285f261152bd"
+      "commit": "2ee1af38cd5b15b6a3f0a1fdb19092a80c126722"
     },
     {
       "name": "lareferencia-dark-lib",
       "path": "lareferencia-dark-lib",
       "url": "https://github.com/lareferencia/lareferencia-dark-lib",
-      "commit": "72d0dcf2d40dc3abd24221de032f30dcc8174557"
+      "commit": "6ea2887777063ae802f52f7ef3e009c925a2f231"
     }
   ]
 }

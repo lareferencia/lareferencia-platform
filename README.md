@@ -284,7 +284,7 @@ See [githelper.md](githelper.md) for the complete workflow and recovery.
 
 ### Download a Published Version
 
-Once 5.0.0-rc4 is published (it is currently being prepared):
+For the published 5.0.0-rc4 release:
 
 ```bash
 git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git

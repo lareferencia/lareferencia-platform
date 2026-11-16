@@ -7,7 +7,7 @@ versión independiente y no reciben cambios de numeración.
 
 ## Descargar una versión y compilar
 
-Una vez publicada la versión:
+Para descargar una versión publicada:
 
 ```bash
 git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
@@ -44,7 +44,6 @@ Se comprueban los cambios locales antes de cambiar el padre. Un tag deja los
 repositorios en detached HEAD; es normal para una instalación congelada. Si una
 descarga falla, corrige la conexión y repite `init`; no se borran cambios locales.
 Las versiones históricas sin lock conservan su mecanismo de instalación anterior.
-**5.0.0-rc4 sigue en preparación hasta que se publique su tag.**
 
 ## Desarrollar una feature
 
