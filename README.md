@@ -4,7 +4,7 @@ LA Referencia is a platform for harvesting, processing, and indexing scholarly m
 
 ## 🚀 Current Status
 
-**Current development version: 5.0.0-rc3** (branch `main`).
+**Current development version: 5.0.0-rc4** (branch `main`).
 
 - Full OAI-PMH harvesting and a modernized standalone OAI-PMH data provider
 - Entity-based metadata processing with filesystem + SQLite storage
@@ -70,7 +70,6 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | `lareferencia-shell` | CLI | Spring Shell console: harvesting, database, maintenance, entity and dark commands |
 | `lareferencia-shell-entity-plugin` | CLI plugin | Entity loading/indexing/cleanup commands for the shell |
 | `lareferencia-contrib-ibict` / `-rcaap` | Library (legacy) | Deprecated, not compiled |
-| `vufind/` | Upstream checkout | VuFind® 11.0.1 discovery layer (PHP) |
 
 ### Services and Ports
 
@@ -81,7 +80,7 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | Harvester Management API v5 | `http://localhost:8190/api/v5` in isolated Docker Dev | Direct loopback access; v5 authentication/authorization remains enforced. Gateway admin host exposes the full API; dashboard host is allowlisted to read endpoints |
 | Entity REST | `http://localhost:8094/api/v2/…` | Swagger UI `http://localhost:8094/swagger` |
 | OAI-PMH provider | `http://localhost:8096/` | OAI endpoint at `/request`; container port 8092 |
-| VuFind | `http://localhost:8080` | Discovery front-end |
+| External VuFind | `http://localhost:8080` | Separately managed discovery front-end |
 | Solr | `http://localhost:8983` | `biblio`, `oai` and other cores |
 | Elasticsearch | `http://localhost:9200` | Entity indexing |
 
@@ -210,7 +209,7 @@ Note: dependent projects migrate `org.lareferencia.backend.*` → `org.lareferen
 git clone https://github.com/lareferencia/lareferencia-platform.git
 cd lareferencia-platform
 
-# Clone workspace modules declared in workspace.ini
+# Prepare the exact module commits frozen in workspace.lock
 ./githelper init
 
 # Build the standard implementation (Java modules + both web UIs)
@@ -250,11 +249,13 @@ See [DOCKER_DEV.md](docs/DOCKER_DEV.md) for the developer workflow and [BACKUP_R
 
 ## 📦 Multi-Repo Workspace
 
+VuFind is an external application and is managed separately. Its local checkout is excluded from the platform workspace manifest, module lock and release archives.
+
 Each module is an independent Git repository cloned in the workspace root and declared in `workspace.ini`; `./githelper` coordinates them.
 
 ```bash
 ./githelper status                          # Parent + module status
-./githelper init                            # Clone missing modules
+./githelper init                            # Prepare frozen modules, or registered feature branches
 ./githelper pull                            # Pull parent branch and modules
 ./githelper switch <parent-branch>          # Switch parent branch (applies matching branch-set if present)
 ./githelper branch-set capture <name>       # Snapshot current module branches (reproducible with: ./githelper sync --set <name>)
@@ -262,14 +263,47 @@ Each module is an independent Git repository cloned in the workspace root and de
 ./githelper url rewrite --to https
 ```
 
-Development modules normally use `branch = main`; release modules can pin `tag = <version>` (optionally plus an exact `commit` SHA). Maven build profiles (`lareferencia`, `lite`, `rcaap`, `ibict`) are independent of branch-sets. See [githelper.md](githelper.md).
-
-### Checkout a Tagged Version
+For coordinated development and releases:
 
 ```bash
-git checkout 4.2.6
-./githelper init
+./githelper feature start mejora-cosecha --modules lareferencia-core-lib,lareferencia-lrharvester-app
+./githelper feature add lareferencia-oai-pmh
+# Commit functional changes in each affected repository, then:
+./githelper pr
+# Prepare common versions and PRs; repeat after merging module PRs:
+./githelper release prepare --bump rc
+./githelper pr
 ```
+
+Active modules inherit the parent version; internal dependency versions are
+centralized and npm metadata follows the same version. Preparation commits these
+versions before publication. Legacy contributions retain their independent versions.
+Apply exactly one matching `release:*` label once all module PRs are merged and the
+coordinator lock is refreshed. Its merge publishes the prepared version after CI.
+See [githelper.md](githelper.md) for the complete workflow and recovery.
+
+### Download a Published Version
+
+For the published 5.0.0-rc4 release:
+
+```bash
+git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
+cd lareferencia-platform
+./githelper init
+./build.sh lareferencia
+# Or compile directly with Maven; no version-stamping command is needed:
+# mvn clean install -Plareferencia
+```
+
+To align an existing clean workspace with another release:
+
+```bash
+./githelper switch 5.0.0-rc5
+```
+
+Historical versions without workspace.lock retain their original installation
+instructions. GitHub's automatic source ZIP contains only the parent repository;
+use a Git clone or the complete platform ZIP attached to the release.
 
 ## 🔧 Configuration
 

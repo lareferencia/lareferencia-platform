@@ -1,202 +1,206 @@
-# githelper
+# githelper: instalación, desarrollo y releases
 
-CLI unificado para gestionar el repositorio padre y los clones del workspace declarados en `workspace.ini`.
+La plataforma reúne repositorios independientes. `workspace.ini` declara cuáles
+son y sus ramas de desarrollo; `workspace.lock` fija los commits exactos que se
+compilan juntos. VuFind es externo. Los dos módulos contrib legacy conservan su
+versión independiente y no reciben cambios de numeración.
 
-El proyecto ya no usa Git submodules como forma de trabajo diaria. Cada modulo vive en la raiz como un clone Git independiente, con el mismo nombre de directorio que antes.
+## Descargar una versión y compilar
 
-## Ejecucion
-
-Desde la raiz del repo:
+Para descargar una versión publicada:
 
 ```bash
-./githelper --help
+git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
+cd lareferencia-platform
+./githelper init
+./build.sh lareferencia
 ```
 
-Opcionalmente puedes agregarlo al `PATH`.
+`init` descarga exactamente los commits del lock de esa versión. Los POM y los
+archivos npm ya tienen la versión correcta en Git: no hay que ejecutar un stamp,
+ni editar versiones ni usar obligatoriamente nuestros scripts de build.
 
-## Manifest
-
-`workspace.ini` es la fuente de verdad para los repos del workspace:
-
-```ini
-[workspace]
-default_branch = main
-
-[module.lareferencia-core-lib]
-url = https://github.com/lareferencia/lareferencia-core-lib
-branch = main
-
-[module.lareferencia-entity-lib]
-url = https://github.com/lareferencia/lareferencia-entity-lib
-tag = 4.2.7
-commit = 0123456789abcdef0123456789abcdef01234567
-
-[branch-set.v5-semantic-indexing]
-lareferencia-core-lib = v5-semantic-indexing
+```bash
+mvn clean install -Plareferencia       # alternativa directa; ejecuta tests
+./build-java.sh lareferencia           # solo Java, omite tests
+mvn clean verify -Plareferencia        # suite completa; requiere Docker
 ```
 
-- `default_branch` se usa cuando un modulo no declara `branch`.
-- Cada `[module.<name>]` declara `url` y uno de estos destinos:
-  - `branch`: rama de desarrollo actualizable.
-  - `tag`: tag de release, que se mantiene en detached HEAD.
-  - `ref = refs/tags/<tag>`: forma equivalente y explicita de declarar una tag.
-- Un modulo fijado por tag puede declarar `commit` con el SHA Git completo de 40 caracteres. `githelper` verifica que la tag resuelva exactamente a ese commit.
-- `branch` y `tag`/`ref` son mutuamente excluyentes.
-- Cada `[branch-set.<branch>]` articula ramas por modulo para una rama del repo padre.
-- Si no existe un branch-set para la rama del padre, los modulos usan su `branch` o `main`.
-- Los modulos fijados por tag no son modificados por los branch sets.
-- Los profiles Maven (`lareferencia`, `ibict`, `rcaap`) son independientes de los branch sets de `githelper`.
+Requisitos: Python 3.9+, Git, JDK 17+ y Maven 3.9. Maven descarga las versiones de
+Node necesarias para los frontends. Las integraciones usan Docker; la prueba
+opcional contra PostgreSQL se activa con `-Dindexing.test.jdbc-url=...`. El script
+`build.sh` usa Maven y omite tests. Los ZIP de release incluyen fuentes preparadas,
+JAR y frontends compilados; se pueden compilar sin ejecutar githelper porque los
+módulos ya están incluidos. El ZIP automático de GitHub «Source code» contiene
+solo el repositorio padre: para preparar módulos hay que usar un clon Git.
 
-## Comandos
+Para cambiar un workspace existente a otra versión:
 
-### 1) Estado general
+```bash
+./githelper switch 5.0.0-rc5
+```
+
+Se comprueban los cambios locales antes de cambiar el padre. Un tag deja los
+repositorios en detached HEAD; es normal para una instalación congelada. Si una
+descarga falla, corrige la conexión y repite `init`; no se borran cambios locales.
+Las versiones históricas sin lock conservan su mecanismo de instalación anterior.
+
+## Desarrollar una feature
+
+Prepara primero el workspace con `init`, luego crea ramas desde los main remotos:
+
+```bash
+./githelper feature start mejora-cosecha \
+  --modules lareferencia-core-lib,lareferencia-lrharvester-app
+```
+
+El nombre se normaliza a `codex/mejora-cosecha`. Se crean las ramas del padre y
+los módulos seleccionados desde `origin/main`, después de hacer fetch y comprobar
+limpieza y ausencia de ramas con ese nombre. La relación se guarda como branch-set
+en `workspace.ini`. Los módulos no seleccionados conservan su checkout congelado;
+empieza desde un workspace alineado con `init`.
+
+Para incorporar otro módulo:
+
+```bash
+./githelper feature add lareferencia-oai-pmh
+```
+
+Crea la misma rama desde su main remoto y actualiza el branch-set. Los cambios
+funcionales se commitean normalmente en cada repositorio. No hay commits automáticos
+de código funcional.
+
+Para recuperar el desarrollo en otra máquina:
+
+```bash
+./githelper switch codex/mejora-cosecha
+```
+
+En una rama con branch-set, `init` prepara las ramas registradas y congela los demás
+módulos según el lock. `init --dev` permite la inicialización tradicional por ramas
+del manifest si no hay branch-set. `init --modules nombre,...` limita los módulos.
+`sync` y `pull` son operaciones explícitas de desarrollo por ramas, no operaciones
+para reproducir una release. `pull` puede avanzar las ramas; usa `init` para volver
+a una combinación congelada limpia.
+
+## Crear o actualizar los PR
+
+Requiere GitHub CLI (`gh`) autenticado con `gh auth login`. La instalación y la
+compilación no requieren gh.
+
+```bash
+./githelper pr
+```
+
+Antes de publicar nada comprueba que los módulos estén limpios y que las ramas
+sean las registradas. Rechaza modificaciones en módulos fuera de la feature.
+Compara las ramas registradas con main y solo abre PR para las que tienen cambios.
+Hace push sin force y reutiliza los PR abiertos. Actualiza el lock y commitea
+únicamente `workspace.ini` y `workspace.lock` si cambiaron; las demás modificaciones
+del padre deben estar commiteadas previamente. Crea o actualiza un PR coordinador
+en borrador con enlaces a los módulos. No mergea los PR.
+
+Si un push o GitHub falla a mitad, los PR ya creados se conservan; se puede repetir
+el comando para completar la operación.
+
+## Preparar y publicar una release
+
+Desde la rama coordinadora, con los repositorios limpios:
+
+```bash
+./githelper release prepare --bump rc
+./githelper pr
+```
+
+`prepare` consulta las tags remotas sin sobrescribir tags locales, calcula la
+siguiente versión y prepara cambios mecánicos en los módulos activos: versión
+del padre, referencias al padre y metadatos npm. Crea ramas para los módulos que
+necesiten esos cambios y no estén en la feature. Commitea solo los archivos de
+versión generados y el lock/manifest del coordinador. Requiere gh para consultar
+el estado de los PR existentes.
+
+Todos los módulos activos acompañan la versión de la plataforma. Esto puede
+producir PR de numeración incluso en módulos sin cambios funcionales.
+
+Después de mergear los PR de módulos, repite los mismos comandos:
+
+```bash
+./githelper release prepare --bump rc
+./githelper pr
+```
+
+Detecta los PR mergeados, incluidos squash/rebase, reemplaza sus entradas por los
+commits finales de main y quita esas ramas del branch-set. Conserva los PR aún
+pendientes. Las ejecuciones repetidas no generan nuevos commits si nada cambió.
+Ante una rama de numeración antigua que colisione, informa el error para revisarla;
+no la resetea. Los fallos de Git no se revierten automáticamente: inspecciona
+`githelper status` antes de reintentar si hubo una operación interrumpida.
+
+Cuando todos estén mergeados, añade la etiqueta correspondiente al coordinador,
+verifica CI, marca el PR listo y mergea:
+
+| Preparación | Etiqueta | Ejemplo |
+|---|---|---|
+| `--bump rc` | `release:rc` | 5.0.0-rc3 → 5.0.0-rc4 |
+| `--bump stable` | `release:stable` | 5.0.0-rc4 → 5.0.0 |
+| `--bump patch` | `release:patch` | 5.0.0 → 5.0.1 |
+| `--bump minor` | `release:minor` | 5.0.1 → 5.1.0 |
+| `--bump major` | `release:major` | 5.1.0 → 6.0.0 |
+
+Solo una etiqueta `release:*`. Mientras la última versión sea candidata se usa
+`rc` o `stable`. Si otra publicación ocupa el número preparado, CI falla y hay
+que volver a ejecutar prepare. El merge publica la versión escrita en `VERSION`
+y en los POM; el workflow no cambia versiones ni crea commits de numeración.
+
+CI prueba herramientas, lock y versiones, descarga otra copia limpia, ejecuta
+`githelper init` y compila con Maven. El job de publicación exige que los commits
+del lock estén integrados en main, vuelve a comprobar la versión y publica tag,
+ZIP, checksum, lock y `release.json`. El tag identifica el merge del coordinador.
+Las dependencias externas y timestamps no están congelados: no se promete un ZIP
+idéntico byte a byte.
+
+## Comandos de diagnóstico y mantenimiento
 
 ```bash
 ./githelper status
-./githelper status --modules lareferencia-core-lib,lareferencia-shell
 ./githelper status --dirty
+./githelper lock verify
+./githelper lock verify --merged
+./githelper version sync --check
 ```
 
-Muestra `parent|branch|sha|state` y para cada modulo `module|branch|sha|state`.
-
-Estados de cambios:
-- `clean`: sin cambios locales.
-- `dirty:N`: hay `N` entradas en `git status --porcelain`.
-- `status?`: no se pudo leer el estado.
-
-Estados posibles:
-- `MISSING`: no existe el path del modulo en disco.
-- `UNINITIALIZED`: existe el path pero no es repo Git inicializado.
-- `DETACHED`: repo inicializado en detached HEAD.
-
-Con `--dirty`, muestra solo el padre y/o modulos con cambios locales.
-
-### 2) Inicializar clones faltantes
+El lock debe incluir todos los repos del manifest exactamente una vez. Se comprueban
+URLs, rutas, SHA completos y limpieza. Los comandos de bajo nivel siguen disponibles:
 
 ```bash
-./githelper init
-./githelper init --modules lareferencia-core-lib,lareferencia-shell
-./githelper init --modules lareferencia-oai-pmh
-./githelper init --set v5-semantic-indexing
-```
-
-Clona los repos declarados en `workspace.ini` que no existan localmente. Por defecto usa la rama o tag del modulo; con `--set` usa el branch-set correspondiente para los modulos basados en ramas. Las tags quedan en detached HEAD y se verifica `commit` cuando esta declarado.
-
-### 3) Cambiar branch en el padre y aplicar branch-set
-
-```bash
-./githelper switch <branch>
-./githelper switch <branch> --modules lareferencia-core-lib,lareferencia-shell
-```
-
-Flujo:
-1. Cambia el repo padre a `<branch>`.
-2. Busca `[branch-set.<branch>]` en `workspace.ini`.
-3. Cada modulo listado en el branch-set cambia a la rama indicada.
-4. Los modulos no listados usan su branch por defecto, normalmente `main`.
-
-Si una rama requerida por el manifest/branch-set no existe localmente ni en `origin`, el comando reporta error.
-
-### 4) Sincronizar modulos
-
-```bash
-./githelper sync
-./githelper sync --set <branch-set>
-./githelper sync --modules lareferencia-core-lib,lareferencia-shell
-```
-
-Sin `--set`, usa la branch actual del padre como nombre de branch-set. Si no existe branch-set, aplica defaults. Los modulos fijados por tag se cambian a esa tag y se verifica su commit. Si todos los modulos seleccionados usan tags, tambien funciona cuando el repositorio padre esta en detached HEAD.
-
-### 5) Guardar un mapa de ramas del workspace
-
-```bash
-./githelper branch-set capture semantic-demo
-./githelper branch-set capture semantic-demo --modules lareferencia-core-lib,lareferencia-shell
-./githelper branch-set capture semantic-demo --force
-```
-
-Lee la branch actual de cada modulo seleccionado y escribe un `[branch-set.semantic-demo]` en `workspace.ini`.
-Ese branch-set se puede reproducir despues con:
-
-```bash
-./githelper sync --set semantic-demo
-```
-
-Si el branch-set ya existe, el comando falla salvo que uses `--force`. Los modulos con cambios locales se pueden capturar igual; los modulos `MISSING`, `UNINITIALIZED` o `DETACHED` hacen fallar la captura porque no hay una branch reproducible.
-
-### 6) Pull integrado
-
-```bash
-./githelper pull
-./githelper pull --branch <branch>
-./githelper pull --modules lareferencia-core-lib,lareferencia-shell
-```
-
-Hace `pull` del padre y luego de cada modulo en su rama objetivo segun `workspace.ini`. Para modulos fijados por tag no ejecuta `pull`: descarga tags, verifica el commit y restaura el detached HEAD esperado.
-
-### 7) Crear branch en modulos especificos
-
-```bash
-./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
-./githelper branch create --modules lareferencia-core-lib --branch feature/x
-```
-
-Sin `--branch`, usa el nombre de la branch actual del padre. Este comando no modifica `workspace.ini`; los branch sets se pueden editar manualmente o generar con `branch-set capture`.
-
-### 8) Convertir URLs SSH/HTTPS
-
-```bash
-./githelper url rewrite --to https --dry-run
+./githelper lock capture             # capturar los HEAD limpios actuales
+./githelper lock capture --from-main # actualizar desde main sin cambiar checkouts
+./githelper lock checkout            # ignorar branch-set y restaurar el lock exacto
+./githelper version set 5.0.0-rc4     # editar metadatos, sin commits automáticos
+./change-version.sh 5.0.0-rc4        # equivalente compatible
 ./githelper url rewrite --to https
-./githelper url rewrite --to ssh --modules lareferencia-core-lib,lareferencia-shell
 ```
 
-Este comando actualiza:
-- `origin` del repo padre.
-- URLs de modulos en `workspace.ini`.
-- `origin` en clones existentes en disco.
+Las dependencias internas están centralizadas en el padre con `${project.version}`.
+Los hijos heredan versión, con referencia explícita al padre por compatibilidad
+con Maven 3. Las operaciones de versión validan todo el reactor activo antes de
+escribir, incluidos frontends; excluyen legacy y VuFind. `release stamp` queda como
+herramienta de bajo nivel compatible, fuera del flujo de instalación/publicación.
 
-## Manejo de cambios locales al crear branch
+Para compilar OAI por separado, instala antes el POM padre correspondiente. Su
+Dockerfile recibe el contexto `platform-parent`. Su CI busca el padre ya commiteado
+en el tag de la versión, main o un único PR coordinador compatible; nunca inventa
+una versión del padre. Si el coordinador aún no se subió, se reintenta el CI del
+módulo después de subirlo.
 
-Cuando ejecutas `branch create`, si un modulo tiene cambios sin commit, `githelper` pregunta para ese modulo:
+## Configuración y recuperación de GitHub
 
-- `[l]` llevar cambios a la nueva branch.
-- `[d]` dejar cambios en la branch actual.
+Protege main con el check `Locked platform integration`, actualizado con la base.
+Los workflows crean las etiquetas de release que falten en PR del mismo repositorio
+y en pushes a main. Usan `GITHUB_TOKEN`; los módulos actuales son públicos.
 
-Si eliges `[d]`, se crea la branch objetivo si hace falta, pero no se cambia de branch en ese modulo.
-
-## Seleccion de modulos
-
-`--modules` acepta lista separada por comas:
-
-```bash
---modules lareferencia-core-lib,lareferencia-shell,lareferencia-entity-lib
-```
-
-Si no se indica `--modules`, se usan todos los modulos de `workspace.ini`.
-
-## Recomendaciones de uso diario
-
-1. Inicializar workspace:
-
-```bash
-./githelper init
-```
-
-2. Cambiar branch de trabajo y aplicar branch-set:
-
-```bash
-./githelper switch feature/x
-```
-
-3. Traer cambios de todo el workspace:
-
-```bash
-./githelper pull
-```
-
-4. Crear la misma branch del padre en modulos puntuales:
-
-```bash
-./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
-```
+La publicación está serializada. No se sobrescriben tags, releases ni assets.
+Para reintentar una publicación fallida, usa Re-run jobs o workflow_dispatch con
+el número del coordinador mergeado. Un tag ya creado sobre ese commit conserva
+su versión. Una release ya publicada se conserva; una draft parcial exige revisión
+manual antes de reintentar.
