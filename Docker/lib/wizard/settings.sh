@@ -35,7 +35,7 @@ wizard::change_port_offset() {
   local value
   value=$(gum input --placeholder "New PORT_OFFSET (number)" --value "$(settings::port_offset)") || true
   [ -z "${value}" ] && return 0
-  settings::set_port_offset "${value}" || { gum style --foreground 204 "❌ The offset must be a number."; sleep 2; }
+  settings::set_port_offset "${value}" || sleep 4
   return 0
 }
 

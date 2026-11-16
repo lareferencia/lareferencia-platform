@@ -74,8 +74,29 @@ settings::port_offset() {
   config::get SERVICES_PORT_OFFSET 0
 }
 
+# Rejects offsets that move a port onto the base port of another service: two
+# installations (one with offset 0) would then fight over that port.
 settings::set_port_offset() {
-  [[ "$1" =~ ^[0-9]+$ ]] || return 1
+  if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+    ui::error "❌ The port offset must be a number (got '$1')."
+    return 1
+  fi
+
+  local conflicts port suffix other
+  conflicts="$(ports::offset_conflicts "$1")"
+  if [ -n "${conflicts}" ]; then
+    ui::error "❌ Port offset $1 is not allowed:"
+    while read -r port suffix other; do
+      if [ "${other}" = "-" ]; then
+        ui::error "   - ${suffix} would use port ${port} (above 65535)"
+      else
+        ui::error "   - ${suffix} would use port ${port}, the default port of ${other}"
+      fi
+    done <<< "${conflicts}"
+    ui::error "   Use a multiple of 1000 (1000, 2000, ...)."
+    return 1
+  fi
+
   config::set SERVICES_PORT_OFFSET "$1"
 }
 

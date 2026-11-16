@@ -12,6 +12,8 @@ data_files() {
 
 @test "reset-data --yes: wipes data, keeps .gitkeep, removes cloned modules" {
   touch "${SANDBOX_ROOT}/keep-me.txt"
+  mkdir -p "${SANDBOX_ROOT}/vufind/local/docker/config" "${SANDBOX_ROOT}/vufind/local/docker/cache"
+  touch "${SANDBOX_ROOT}/vufind/local/docker/.installed" "${SANDBOX_ROOT}/vufind/local/docker/httpd-vufind.conf"
   docker_sh reset-data --yes
   assert_success
 
@@ -25,6 +27,8 @@ data_files() {
   [ -f "${SANDBOX_ROOT}/keep-me.txt" ]
   [ -f "${SANDBOX_ROOT}/Docker/docker.sh" ]
   [ -f "${SANDBOX_ROOT}/vufind/composer.json" ]
+  # VuFind runtime dir (root-owned mountpoints / install marker) is gone
+  [ ! -e "${SANDBOX_ROOT}/vufind/local/docker" ]
 
   assert_snapshot reset-data
 }
@@ -48,7 +52,8 @@ data_files() {
   docker_sh_input "nope" reset-data
   local dir
   for dir in Docker/data Docker/volume/postgres Docker/volume/solr Docker/volume/elasticsearch \
-             Docker/volume/lareferencia Docker/volume/vufind Docker/volume/vufind-db; do
+             Docker/volume/lareferencia Docker/volume/vufind Docker/volume/vufind-db \
+             vufind/local/docker; do
     assert_output_contains "- ${dir}"
   done
 }

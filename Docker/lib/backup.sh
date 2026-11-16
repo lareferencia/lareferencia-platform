@@ -80,7 +80,7 @@ chmod +x "\$BACKUP_PATH/restore.sh"
 
 echo "2. Exporting Database Dumps..."
 ./Docker/docker.sh dc exec -T postgres pg_dump --clean --if-exists -U lrharvester lrharvester > "\$BACKUP_PATH/postgres_dump.sql" 2>/dev/null || true
-./Docker/docker.sh dc exec -T vufind-db mysqldump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" 2>/dev/null || true
+./Docker/docker.sh dc exec -T vufind-db mariadb-dump -u vufind -pvufind vufind > "\$BACKUP_PATH/mysql_vufind_dump.sql" 2>/dev/null || true
 
 echo "3. Pausing indexers safely..."
 ./Docker/docker.sh stop solr elasticsearch vufind-web 2>/dev/null || true
@@ -215,8 +215,32 @@ PostgreSQL (harvester) — replaces the current database objects:
   gunzip -c postgres_lrharvester.sql.gz | ./Docker/docker.sh dc exec -T postgres psql -U ${DB_USER} -d ${DB_NAME}
 
 VuFind (MySQL), if mysql_vufind.sql.gz is present:
-  gunzip -c mysql_vufind.sql.gz | ./Docker/docker.sh dc exec -T vufind-db mysql -u vufind -pvufind vufind
+  gunzip -c mysql_vufind.sql.gz | ./Docker/docker.sh dc exec -T vufind-db mariadb -u vufind -pvufind vufind
 NOTES
+}
+
+_backup::dump_harvester() {
+  local dir="$1"
+  echo "Dumping PostgreSQL database '${DB_NAME}'..."
+  if ! _backup::dump_to "${dir}/postgres_lrharvester.sql.gz" \
+      dc exec -T postgres pg_dump --clean --if-exists -U "${DB_USER}" "${DB_NAME}"; then
+    echo "Error: PostgreSQL dump failed (nothing was kept)." >&2
+    return 1
+  fi
+}
+
+_backup::dump_vufind() {
+  local dir="$1" running="$2"
+  if printf '%s\n' "${running}" | grep -Fxq vufind-db; then
+    echo "Dumping VuFind database (MySQL)..."
+    if ! _backup::dump_to "${dir}/mysql_vufind.sql.gz" \
+        dc exec -T vufind-db mariadb-dump --single-transaction -u vufind -pvufind vufind; then
+      echo "Error: VuFind dump failed (nothing was kept)." >&2
+      return 1
+    fi
+  else
+    echo "Skipping VuFind database (vufind-db is not running)."
+  fi
 }
 
 backup::dump_databases() {
@@ -235,30 +259,14 @@ backup::dump_databases() {
   dir="${root}/${BACKUP_DB_PREFIX}$(date +%Y%m%d_%H%M%S)"
   mkdir -p "${dir}"
 
-  echo "Dumping PostgreSQL database '${DB_NAME}'..."
-  if ! _backup::dump_to "${dir}/postgres_lrharvester.sql.gz" \
-      dc exec -T postgres pg_dump --clean --if-exists -U "${DB_USER}" "${DB_NAME}"; then
-    rm -rf "${dir}"
-    echo "Error: PostgreSQL dump failed (nothing was kept)." >&2
-    return 1
-  fi
-
-  if printf '%s\n' "${running}" | grep -Fxq vufind-db; then
-    echo "Dumping VuFind database (MySQL)..."
-    if ! _backup::dump_to "${dir}/mysql_vufind.sql.gz" \
-        dc exec -T vufind-db mysqldump --single-transaction -u vufind -pvufind vufind; then
-      rm -rf "${dir}"
-      echo "Error: VuFind dump failed (nothing was kept)." >&2
-      return 1
-    fi
-  else
-    echo "Skipping VuFind database (vufind-db is not running)."
-  fi
+  _backup::dump_harvester "${dir}" || { rm -rf "${dir}"; return 1; }
+  _backup::dump_vufind "${dir}" "${running}" || { rm -rf "${dir}"; return 1; }
 
   _backup::write_db_restore_notes "${dir}"
   echo "Database dump saved to: ${dir}"
 }
 
 backup::latest_db_dump() {
-  find "$1" -mindepth 1 -maxdepth 1 -type d -name "${BACKUP_DB_PREFIX}*" 2>/dev/null | sort | tail -n 1
+  find -H "$1" -mindepth 1 -maxdepth 1 -type d -name "${BACKUP_DB_PREFIX}*" 2>/dev/null | sort | tail -n 1
 }
+

@@ -41,10 +41,10 @@ setup()      { sandbox::create; }
 }
 
 @test "up --prefix/--offset: saved in .env and used for the project name and ports" {
-  docker_sh up --prefix=mylr --offset=100
+  docker_sh up --prefix=mylr --offset=1000
   assert_success
   [ "$(env_get SERVICE_PREFIX)" = "mylr" ]
-  [ "$(env_get SERVICES_PORT_OFFSET)" = "100" ]
+  [ "$(env_get SERVICES_PORT_OFFSET)" = "1000" ]
   [ "$(env_get COMPOSE_PROJECT_NAME)" = "mylr" ]
 }
 

@@ -14,6 +14,8 @@
 #   FAKE_BUILDER_EXISTS=1     `docker buildx inspect <name>` succeeds (with network="host",
 #                             unless FAKE_BUILDER_NO_HOSTNET=1: builder of an older version)
 #   FAKE_BUILDX_OLD=1         buildx without --max-used-space (only --keep-storage)
+#   FAKE_PS=$'name|project|working dir|image|ports\n...'
+#                             running containers listed by `docker ps --format ...`
 #   FAKE_NET_FAIL="pattern" FAKE_NET_FAILURES=N
 #                             the first N calls containing the pattern fail with a
 #                             network timeout (image pull), the next ones succeed
@@ -61,12 +63,14 @@ if [ "${args[0]:-}" = "compose" ]; then
     "ps --status running --services") for s in ${FAKE_RUNNING:-}; do echo "${s}"; done ;;
     "ps --status running "*)       for s in ${FAKE_RUNNING:-}; do [ "${s}" = "${args[3]:-}" ] && echo "${s}"; done ;;
     *" pg_dump "*)                 echo "-- fake PostgreSQL dump" ;;
-    *" mysqldump "*)               echo "-- fake MySQL dump" ;;
+    *" mariadb-dump "*)            echo "-- fake MySQL dump" ;;
   esac
   exit 0
 fi
 
 case "${1:-}" in
+  ps)
+    [ -n "${FAKE_PS:-}" ] && printf '%s\n' "${FAKE_PS}" ;;
   info)
     [ "${FAKE_DOCKER_DOWN:-0}" = 1 ] && exit 1
     echo "fake docker daemon" ;;

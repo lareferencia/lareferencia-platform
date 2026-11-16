@@ -82,7 +82,7 @@ Choose business logic by editing `Docker/.env` or via Wizard:
 Use `Docker/config-overrides/` to inject beans/properties without modifying source code.
 
 **3. Running Multiple Instances**
-Run multiple isolated instances on the same server by configuring `SERVICE_PREFIX` and `SERVICES_PORT_OFFSET`.
+Run multiple isolated instances on the same server by configuring `SERVICE_PREFIX` and `SERVICES_PORT_OFFSET` (a multiple of 1000; offsets that land on another service's default port are rejected). Before building or recreating anything, `up` aborts if one of its host ports is already used by another project or host process, and warns when other installations are running (`LR_ALLOW_OTHER_INSTANCES=true` skips the confirmation).
 
 ---
 
@@ -116,7 +116,7 @@ Seleccione la lógica de negocio editando `Docker/.env` o mediante el Asistente:
 Use `Docker/config-overrides/` para inyectar beans o propiedades sin modificar el código fuente.
 
 **3. Ejecución de Múltiples Instancias**
-Ejecute múltiples instancias aisladas configurando `SERVICE_PREFIX` y `SERVICES_PORT_OFFSET`.
+Ejecute múltiples instancias aisladas configurando `SERVICE_PREFIX` y `SERVICES_PORT_OFFSET` (un múltiplo de 1000; se rechazan desplazamientos que caen en el puerto por defecto de otro servicio). Antes de construir o recrear nada, `up` aborta si alguno de sus puertos ya está en uso por otro proyecto o proceso del host, y avisa cuando hay otras instalaciones en ejecución (`LR_ALLOW_OTHER_INSTANCES=true` omite la confirmación).
 
 ---
 
@@ -150,7 +150,7 @@ Escolha a lógica de negócio editando o arquivo `Docker/.env` ou via Assistente
 Use o diretório `Docker/config-overrides/` para injetar beans ou propriedades sem modificar o código-fonte.
 
 **3. Execução de Múltiples Instâncias**
-Rode múltiplas instâncias isoladas configurando as variáveis `SERVICE_PREFIX` e `SERVICES_PORT_OFFSET`.
+Rode múltiplas instâncias isoladas configurando as variáveis `SERVICE_PREFIX` e `SERVICES_PORT_OFFSET` (um múltiplo de 1000; deslocamentos que caem na porta padrão de outro serviço são recusados). Antes de construir ou recriar qualquer coisa, o `up` aborta se alguma de suas portas já estiver em uso por outro projeto ou processo do host, e avisa quando há outras instalações rodando (`LR_ALLOW_OTHER_INSTANCES=true` pula a confirmação).
 
 **4. Suporte a Solr Externo**
 Conecte-se a uma instância existente do Solr configurando `SOLR_EXTERNAL_URL` no `Docker/.env` ou via Assistente. Quando configurado, o container local do Solr não será iniciado.
@@ -200,6 +200,77 @@ For the harvester, the build also verifies that the nested
 `lareferencia-dark-lib` JAR has the same SHA-256 as the reactor output; this
 prevents packaging a stale library from `target/`.
 
+### 🔎 Solr cores (Solr 9.11.0)
+
+Each module owns its core; Docker only copies, installs and persists it:
+
+| Core | Source (never edited by Docker) |
+|---|---|
+| `oai` | `lareferencia-oai-pmh/solr.core/oai/` |
+| `biblio` | `vufind/solr/vufind/biblio/` — the same `./vufind` checkout VuFind web runs from (vector fields come from VuFind itself) |
+| jars, import | `vufind/solr/vufind/jars/`, `vufind/import/` (same checkout) |
+
+`Docker/solr/stage-cores.sh` copies them byte for byte into `Docker/solr/{cores,jars,import}`
+(generated, git-ignored, bind-mounted read-only into the container) and records repository,
+revision and local-change state of each source in `Docker/solr/cores/build-info.properties`.
+Missing checkouts are cloned first (VuFind from `VUFIND_REPO_URL`/`VUFIND_REF`, even when the
+VuFind web module is disabled). A `./vufind` that differs from the `VUFIND_REPO_URL`/`VUFIND_REF`
+configured in `Docker/.env` is reported as a warning; `LR_SOLR_VUFIND_CHECK=strict` makes it stop.
+
+#### Upgrading: stop, pull, start
+
+```bash
+./Docker/docker.sh down     # or stop
+git pull                    # (githelper pull for the modules)
+./Docker/docker.sh up
+```
+
+On every start Solr brings each core up to date by itself, when that is safe for its index
+(previous `conf/` always kept in `<core>/conf.bak.<timestamp>/`):
+
+| Situation | What happens at start |
+|---|---|
+| core missing | installed |
+| `solrconfig.xml`/other files changed, schema unchanged | applied, index kept |
+| schema changed compatibly (fields/types added or removed), or the core is empty | applied, index kept; `REINDEX REQUIRED` + `<core>/.lr_reindex_required` when it already had documents |
+| schema **incompatible** with the documents already indexed (an existing field/type redefined, e.g. the old `Trie*` → `*PointField` of `oai`) | **kept**: the core keeps its current configuration and data and keeps working; `SCHEMA MIGRATION PENDING` + `<core>/.lr_migration_pending` |
+
+Lucene cannot index a field with another type than the one already in the index, so an
+incompatible schema can only be installed on an empty index followed by a reindex. Do it when
+convenient (the core is empty until reindexed):
+
+```bash
+./Docker/docker.sh solr migrate   # stops Solr, new schema + empty index, starts Solr
+```
+
+or set `LR_SOLR_SCHEMA_MIGRATION=rebuild` in `Docker/.env` to have the next start do it.
+The **wizard** asks before 🚀 Start / 🔄 Rebuild & Start, like the PostgreSQL upgrade:
+*📌 Keep the current Solr schema for now* (default, no downtime) or *⬆️ Migrate after starting*
+(explained and confirmed first); the **🔎 Solr** menu entry shows
+`[schema migration available: <cores>]` and migrates on request.
+`./Docker/docker.sh solr status` lists pending migrations and reindexes. The old
+index is kept in `<core>/previous-index-<timestamp>/`. Then run the networks' indexing actions in
+full (not incremental) — xOAI indexing for `oai`, frontend/VuFind indexing for `biblio` — from the
+Admin Web or `POST /api/v5/networks/{id}/commands` with `{"actionName": "...", "incremental": false}`,
+and delete `<core>/.lr_reindex_required`.
+
+`SOLR_UPDATE_CONFIG=false` disables the automatic update (start only warns).
+
+#### Commands
+
+```bash
+./Docker/docker.sh solr stage          # modules → Docker/solr (no container change)
+./Docker/docker.sh solr update-config  # stage + update now (as at start), reload; exit 3 if a migration is pending
+./Docker/docker.sh solr migrate        # install pending incompatible schemas with an empty index
+./Docker/docker.sh solr verify         # modules == staging == installed? pending migration/reindex
+./Docker/docker.sh solr status         # staged sources, pending migrations and reindexes (read-only)
+```
+
+**Rollback**: stop Solr; in `Docker/volume/solr/data/<core>/` put `conf.bak.<timestamp>` back as
+`conf` and, after a migration, move the contents of `previous-index-<timestamp>/` back
+(`oai`: `data/index`, `data/tlog`; `biblio`: `index`, `tlog` — its dataDir is the core directory);
+start Solr with `SOLR_UPDATE_CONFIG=false` until the module versions are reverted too.
+
 ### 🧹 Image cleanup
 
 Only La Referencia images are touched — never other projects on the same Docker:
@@ -218,8 +289,9 @@ Only La Referencia images are touched — never other projects on the same Docke
 ### 🧪 Tests (`docker.sh` itself)
 
 ```bash
-./Docker/tests/run.sh              # lint + contract tests (~45 s)
+./Docker/tests/run.sh              # lint + unit + contract tests (~1 min)
 ./Docker/tests/run.sh lint         # bash -n, shellcheck, undefined namespace::functions
+./Docker/tests/run.sh unit         # real stage-cores.sh / Solr entrypoint on fixture repos
 ./Docker/tests/run.sh contract -f reset   # only tests whose name matches
 UPDATE_SNAPSHOTS=1 ./Docker/tests/run.sh contract   # accept intended changes
 ```

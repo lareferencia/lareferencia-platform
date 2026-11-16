@@ -1,0 +1,117 @@
+name: Coordinator release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Merged coordinator PR number to retry (existing releases are never overwritten)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+# Serialize publication and queue pending coordinators without replacing them.
+concurrency:
+  group: platform-release
+  # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
+  queue: max
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && contains(toJSON(github.event.pull_request.labels.*.name), 'release:'))
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: indexing-test
+          POSTGRES_DB: indexing_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d indexing_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve merged coordinator
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+          gh api "repos/$GH_REPO/pulls/$PR_NUMBER" > "$RUNNER_TEMP/coordinator.json"
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          pr = json.loads((Path(os.environ['RUNNER_TEMP']) / 'coordinator.json').read_text())
+          assert pr['merged'] and pr['base']['ref'] == 'main', 'PR must be merged into main'
+          sha = pr['merge_commit_sha']
+          assert re.fullmatch(r'[0-9a-f]{40}', sha)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'COORDINATOR_SHA={sha}\nCOORDINATOR_PR={pr["number"]}\n')
+          PY
+          # GITHUB_ENV is available only to subsequent steps. Resolve it locally too.
+          COORDINATOR_SHA="$(python3 -c 'import json, os; from pathlib import Path; print(json.loads((Path(os.environ["RUNNER_TEMP"]) / "coordinator.json").read_text())["merge_commit_sha"])')"
+          git merge-base --is-ancestor "$COORDINATOR_SHA" origin/main
+          git checkout --detach "$COORDINATOR_SHA"
+      - name: Validate prepared version or resume unpublished tag
+        id: plan
+        run: |
+          python3 scripts/coordinator_release.py plan "$RUNNER_TEMP/coordinator.json" >> "$GITHUB_OUTPUT"
+      - name: Test tooling
+        run: python3 -m unittest discover -p 'test_*.py' -v
+      - name: Restore exact merged module commits
+        run: |
+          ./githelper init
+          ./githelper lock verify --merged
+          ./githelper version sync --check
+      - name: Record release metadata without changing source versions
+        env:
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          ./githelper version sync --check
+          python3 scripts/coordinator_release.py metadata "$RUNNER_TEMP/coordinator.json" "$RELEASE_VERSION"
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      - name: Build and test release
+        run: |
+          mvn --batch-mode --no-transfer-progress clean verify -Plareferencia \
+            -Dindexing.test.jdbc-url=jdbc:postgresql://127.0.0.1:5432/indexing_test
+      - name: Test administration frontend
+        working-directory: lareferencia-lrharvester-admin-web
+        run: ./node/node node_modules/vitest/vitest.mjs run
+      - name: Package release
+        env:
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: python3 scripts/coordinator_release.py package "$RELEASE_VERSION"
+      - name: Publish immutable version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: python3 scripts/coordinator_release.py publish "$RELEASE_VERSION"
+      - name: Preserve test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+          if-no-files-found: ignore

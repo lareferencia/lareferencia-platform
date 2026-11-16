@@ -60,7 +60,7 @@ for lib in \
   search.sh workspace.sh build.sh images.sh database.sh users.sh data.sh backup.sh \
   commands.sh \
   wizard/status.sh wizard/modules.sh wizard/shell.sh wizard/users.sh \
-  wizard/settings.sh wizard/backup.sh wizard/postgres.sh wizard/main.sh
+  wizard/settings.sh wizard/backup.sh wizard/postgres.sh wizard/solr.sh wizard/main.sh
 do
   source "${LIB_DIR}/${lib}"
 done

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fake `ss` (Linux): `ss -Hltn "sport = :<port>"` prints a listener when <port>
+# is in FAKE_LISTEN="<port> <port>...". Never looks at the real host.
+set -u
+filter="${*: -1}"          # "sport = :<port>"
+port="${filter##*:}"
+for p in ${FAKE_LISTEN:-}; do
+  [ "${p}" = "${port}" ] && echo "LISTEN 0 4096 0.0.0.0:${port} 0.0.0.0:*"
+done
+exit 0

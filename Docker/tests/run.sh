@@ -2,9 +2,10 @@
 # =============================================================================
 # run.sh — test runner for Docker/docker.sh.
 #
-#   ./Docker/tests/run.sh              lint + contract (default, ~1 min)
+#   ./Docker/tests/run.sh              lint + unit + contract (default, ~1 min)
 #   ./Docker/tests/run.sh lint         syntax, shellcheck, undefined functions
-#   ./Docker/tests/run.sh contract     docker.sh commands against fake docker/git
+#   ./Docker/tests/run.sh unit         Solr scripts (stage-cores.sh, entrypoint.sh) on fixtures
+#   ./Docker/tests/run.sh contract     docker.sh / docker-dev.sh commands against fake docker/git
 #   ./Docker/tests/run.sh contract -f "reset"    only tests whose name matches
 #
 #   UPDATE_SNAPSHOTS=1 ./Docker/tests/run.sh contract
@@ -32,7 +33,7 @@ ko()      { printf '  %s✘%s %s\n' "${C_RED}" "${C_RESET}" "$1"; }
 _shell_files() {
   cd "${DOCKER_DIR}"
   printf '%s\n' docker.sh lib/*.sh lib/core/*.sh lib/wizard/*.sh lib/templates/*.sh scripts/*.sh \
-    ../build-admin-web.sh ../build-dashboard.sh
+    solr/*.sh ../build-admin-web.sh ../build-dashboard.sh
 }
 
 # --- lint ------------------------------------------------------------------------------
@@ -57,7 +58,7 @@ lint::shellcheck() {
 lint::undefined_functions() {
   local files=() defined used missing
   while IFS= read -r f; do
-    case "${f}" in lib/templates/*|scripts/*|../*) continue ;; esac   # standalone scripts
+    case "${f}" in lib/templates/*|scripts/*|solr/*|../*) continue ;; esac   # standalone scripts
     files+=("${DOCKER_DIR}/${f}")
   done < <(_shell_files)
 
@@ -85,6 +86,15 @@ run_lint() {
   return "${failed}"
 }
 
+# --- unit --------------------------------------------------------------------------------
+
+run_unit() {
+  section "unit (Solr staging and entrypoint on fixtures)"
+  local bats
+  bats="$(tools::bats)" || return 1
+  "${bats}" --print-output-on-failure "$@" "${TESTS_DIR}/unit"
+}
+
 # --- contract ----------------------------------------------------------------------------
 
 run_contract() {
@@ -102,18 +112,20 @@ main() {
 
   case "${suite}" in
     lint)     run_lint ;;
+    unit)     run_unit "$@" ;;
     contract) run_contract "$@" ;;
     all)
       local failed=0
       run_lint || failed=1
+      run_unit "$@" || failed=1
       run_contract "$@" || failed=1
       return "${failed}"
       ;;
     -h|--help|help)
-      sed -n '3,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '3,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       ;;
     *)
-      echo "Unknown suite: ${suite} (use: lint | contract | all)" >&2
+      echo "Unknown suite: ${suite} (use: lint | unit | contract | all)" >&2
       return 1
       ;;
   esac

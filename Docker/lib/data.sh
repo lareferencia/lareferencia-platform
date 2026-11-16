@@ -5,7 +5,9 @@
 # Public API:
 #   data::ensure_volume_directories    creates elasticsearch dirs with permissions
 #   data::reset_paths                  lists dirs (relative to ROOT_DIR) wiped by reset
+#   data::vufind_runtime_path          VuFind runtime dir inside the VuFind checkout
 #   data::clean                        wipes data::reset_paths (keeps tracked files)
+#                                      and data::vufind_runtime_path
 #   data::reset_all                    containers + data + cloned modules
 # =============================================================================
 
@@ -34,16 +36,27 @@ data::reset_paths() {
     "${rel_volume}/vufind-db"
 }
 
+# vufind-web mounts the VuFind checkout and, inside it, local/docker/{config,cache,...}.
+# On Linux the Docker daemon creates those mountpoints as root and the entrypoint
+# (root) writes .installed and httpd-vufind.conf there: nothing in it is part of
+# the VuFind checkout, and the host user cannot delete it without fixing
+# permissions first. A stale .installed would also skip the VuFind setup after
+# Docker/volume/vufind was wiped.
+data::vufind_runtime_path() {
+  echo "${VUFIND_DIR#${ROOT_DIR}/}/local/docker"
+}
+
 data::clean() {
-  local paths=() p
+  local paths=() p vufind_runtime
   for p in $(data::reset_paths); do paths+=("${p}"); done
+  vufind_runtime="$(data::vufind_runtime_path)"
 
   echo "--- Surgically cleaning data in explicitly mapped directories ---"
 
   if cmd::exists docker; then
     echo "Fixing permissions for data directories using Docker..."
     local targets=""
-    for p in "${paths[@]}"; do targets="${targets} /workspace/${p}"; done
+    for p in "${paths[@]}" "${vufind_runtime}"; do targets="${targets} /workspace/${p}"; done
     # Parents get non-recursive write permission so the host user can unlink
     # the folders themselves.
     docker run --rm -v "${ROOT_DIR}:/workspace" alpine sh -c \
@@ -58,6 +71,10 @@ data::clean() {
       [ -d "${ROOT_DIR}/${p}" ] && find "${ROOT_DIR}/${p}" -mindepth 1 ! -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
     done
   fi
+
+  # Not covered by git clean: it lives in the VuFind checkout (a separate repository).
+  rm -rf "${ROOT_DIR:?}/${vufind_runtime}" 2>/dev/null \
+    || ui::warn "Could not remove ${vufind_runtime} (owned by root?): sudo rm -rf ${ROOT_DIR}/${vufind_runtime}"
 }
 
 # Full surgical reset: containers/volumes, mapped data and cloned modules.

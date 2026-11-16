@@ -36,6 +36,7 @@ _wizard::build_menu() {
   _menu::add "💻 Enter Container Shell"                wizard::shell_screen
   _menu::add "💾 System Backup"                        wizard::backup_screen
   _menu::add "$(wizard::postgres_menu_label)"          wizard::postgres_screen
+  _menu::add "$(wizard::solr_menu_label)"              wizard::solr_screen
   if compose::is_running harvester; then
     _menu::add "👥 Manage Harvester Users"             wizard::users_screen
   fi
@@ -123,20 +124,36 @@ _wizard::run_and_pause() {
 
 # --- Actions ------------------------------------------------------------------------
 
+# Starts the platform, then runs the Solr migration chosen in the preflight.
+_wizard::start_and_pause() {
+  local status=0
+  wizard::run_command "$@" || status=$?
+  [ "${status}" -eq 130 ] && return 130
+  if [ "${status}" -eq 0 ]; then
+    wizard::solr_after_start || status=$?
+  else
+    WIZARD_SOLR_MIGRATE=false
+  fi
+  gum input --placeholder "Press Enter to continue..." > /dev/null 2>&1 || true
+  return "${status}"
+}
+
 _action::start() {
   wizard::postgres_preflight || return 0
+  wizard::solr_preflight || return 0
   echo -e "\n${C_GREEN}🚀 Starting the platform...${C_RESET}"
   users::remove_default_admin
-  _wizard::run_and_pause "Platform Start" up
+  _wizard::start_and_pause "Platform Start" up
 }
 
 _action::rebuild() {
   wizard::postgres_preflight || return 0
+  wizard::solr_preflight || return 0
   echo -e "\n${C_GREEN}🔄 Rebuilding and starting the platform...${C_RESET}"
   users::remove_default_admin
   local args=(up --build --pull-modules)
   settings::build_cache_enabled || args+=(--no-cache)
-  _wizard::run_and_pause "Platform Rebuild & Start" "${args[@]}"
+  _wizard::start_and_pause "Platform Rebuild & Start" "${args[@]}"
 }
 
 _action::stop() {
@@ -175,7 +192,7 @@ _action::reset_data() {
   echo -e "${C_YELLOW}This will remove ALL Compose containers for project:${C_RESET} ${COMPOSE_PROJECT_NAME}"
   echo -e "${C_YELLOW}And permanently delete data ONLY in these specific directories:${C_RESET}"
   local p
-  for p in $(data::reset_paths); do echo -e "  - ${p}"; done
+  for p in $(data::reset_paths) "$(data::vufind_runtime_path)"; do echo -e "  - ${p}"; done
   echo -e "${C_YELLOW}And any generated/cloned workspace modules.${C_RESET}\n"
 
   if gum confirm "Are you sure you want to delete these containers and directories?"; then
