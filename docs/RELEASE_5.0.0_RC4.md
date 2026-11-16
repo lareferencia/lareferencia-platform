@@ -47,6 +47,7 @@ publica esa versión. Consulte [githelper](../githelper.md).
 
 ## Comportamiento documentado en esta revisión
 
+- Dashboard ejecuta CI en PR/main con su lockfile y delega la publicación de versión a la plataforma.
 - Admin React en `/admin/` y Dashboard Angular en `/dashboard/{en,es,pt}/`, con
   `admin-static/` y `dashboard-static/` separados.
 - PostgreSQL 17 y Solr 9.11 como bases del Compose actual; PostgreSQL 15 para las
