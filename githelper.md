@@ -214,9 +214,10 @@ Si no se indica `--modules`, se usan todos los modulos de `workspace.ini`.
 ## Lock de módulos
 
 `workspace.lock` es JSON versionado con esquema 1 y, para cada módulo del manifest,
-nombre, path, URL y SHA completo. Incluye componentes externos distribuidos, como
-VuFind, fijado en el manifest a su tag upstream. Los módulos con tag deben coincidir
-con esa tag; los demás deben pertenecer a `origin/main` al publicar.
+nombre, path, URL y SHA completo de los 15 módulos LA Referencia. VuFind es una
+aplicación externa: su checkout local se administra por separado y no forma parte
+del manifest, el lock, los metadatos ni el ZIP de la release. Los módulos con tag
+deben coincidir con esa tag; los demás deben pertenecer a `origin/main` al publicar.
 
 ```bash
 # Capturar los HEAD actuales: exige todos los módulos limpios.

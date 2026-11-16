@@ -205,7 +205,9 @@ class ReleaseArtifactTests(unittest.TestCase):
         git(['commit', '-m', 'source'], module)
         entry = dict(name='module', path='module', url='/test/module', commit=git(['rev-parse', 'HEAD'], module).stdout.strip())
         (self.root / 'workspace.lock').write_text(json.dumps(dict(schema=1, modules=[entry])))
-        (self.root / '.gitignore').write_text('/module/\n/secret.env\n')
+        (self.root / '.gitignore').write_text('/module/\n/vufind/\n/secret.env\n')
+        (self.root / 'vufind').mkdir()
+        (self.root / 'vufind/external-application.txt').write_text('external checkout')
         (self.root / 'secret.env').write_text('private')
         (self.root / 'VERSION').write_text('5.0.0-rc4\n')
         (self.root / 'release.json').write_text('{}')
@@ -222,6 +224,7 @@ class ReleaseArtifactTests(unittest.TestCase):
         with zipfile.ZipFile(self.root / 'lareferencia-platform-5.0.0-rc4.zip') as archive:
             names = archive.namelist()
         self.assertNotIn('secret.env', names)
+        self.assertFalse(any(n.startswith('vufind/') for n in names))
         self.assertFalse(any('.git/' in n for n in names))
         self.assertIn('module/pom.xml', names)
         self.assertIn('lareferencia-lrharvester-app/harvester.jar', names)

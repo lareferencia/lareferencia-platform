@@ -59,7 +59,7 @@
       "name": "lareferencia-lrharvester-app",
       "path": "lareferencia-lrharvester-app",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-app",
-      "commit": "caaf09347301659584c786f05e2f263322443d46"
+      "commit": "703415f2ae0cede3a5b80ec676bb391495f90cf7"
     },
     {
       "name": "lareferencia-lrharvester-admin-web",
@@ -90,12 +90,6 @@
       "path": "lareferencia-dark-lib",
       "url": "https://github.com/lareferencia/lareferencia-dark-lib",
       "commit": "6e6ccf368068f96e06048b40a6cc1dc1a9413fb4"
-    },
-    {
-      "name": "vufind",
-      "path": "vufind",
-      "url": "https://github.com/vufind-org/vufind",
-      "commit": "acde2b922de221d855c1ca1883c9c648b1e427f2"
     }
   ]
 }

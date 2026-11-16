@@ -70,7 +70,6 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | `lareferencia-shell` | CLI | Spring Shell console: harvesting, database, maintenance, entity and dark commands |
 | `lareferencia-shell-entity-plugin` | CLI plugin | Entity loading/indexing/cleanup commands for the shell |
 | `lareferencia-contrib-ibict` / `-rcaap` | Library (legacy) | Deprecated, not compiled |
-| `vufind/` | Upstream checkout | VuFind® 11.0.1 discovery layer (PHP) |
 
 ### Services and Ports
 
@@ -81,7 +80,7 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | Harvester Management API v5 | `http://localhost:8190/api/v5` in isolated Docker Dev | Direct loopback access; v5 authentication/authorization remains enforced. Gateway admin host exposes the full API; dashboard host is allowlisted to read endpoints |
 | Entity REST | `http://localhost:8094/api/v2/…` | Swagger UI `http://localhost:8094/swagger` |
 | OAI-PMH provider | `http://localhost:8096/` | OAI endpoint at `/request`; container port 8092 |
-| VuFind | `http://localhost:8080` | Discovery front-end |
+| External VuFind | `http://localhost:8080` | Separately managed discovery front-end |
 | Solr | `http://localhost:8983` | `biblio`, `oai` and other cores |
 | Elasticsearch | `http://localhost:9200` | Entity indexing |
 
@@ -249,6 +248,8 @@ mvn -pl lareferencia-oai-pmh test
 See [DOCKER_DEV.md](docs/DOCKER_DEV.md) for the developer workflow and [BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) (new) for backup/restore.
 
 ## 📦 Multi-Repo Workspace
+
+VuFind is an external application and is managed separately. Its local checkout is excluded from the platform workspace manifest, module lock and release archives.
 
 Each module is an independent Git repository cloned in the workspace root and declared in `workspace.ini`; `./githelper` coordinates them.
 
