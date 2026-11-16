@@ -6,9 +6,9 @@ LA Referencia is a platform for harvesting, processing, and indexing scholarly m
 
 **Current development version: 5.0.0-rc4** (branch `main`).
 
-The exact source combination is recorded in `workspace.lock`. The current local
-integration also contains metadata-export changes not included in the existing
-public rc4 tag; see [rc4 integration and publication status](docs/RELEASE_5.0.0_RC4.md).
+The exact source combination is recorded in `workspace.lock`. This consolidated
+rc4 includes the metadata-export and documentation improvements described in
+[the rc4 release notes](docs/RELEASE_5.0.0_RC4.md).
 
 - Full OAI-PMH harvesting and a modernized standalone OAI-PMH data provider
 - Entity-based metadata processing with filesystem + SQLite storage

@@ -22,8 +22,8 @@ Each component is a nested independent Git repository. `workspace.ini` identifie
 The current source version is **5.0.0-rc4**, Java 17 and Spring Boot 3.5.0.
 Including the parent, the full Maven reactor has 13 projects. Internal dependency
 versions are managed by the parent, and frontend npm metadata follows that version.
-The pending local export integration and the existing public rc4 tag are different
-source combinations; see [rc4 integration status](RELEASE_5.0.0_RC4.md).
+The consolidated metadata-export changes and verification scope are described in
+[the rc4 release notes](RELEASE_5.0.0_RC4.md).
 
 ## Prerequisites
 

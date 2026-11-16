@@ -26,6 +26,15 @@ def run(*args):
 
 def plan(pr_path):
     pr = json.loads(Path(pr_path).read_text())
+    replacement = os.environ.get('REPLACE_VERSION', '')
+    if replacement:
+        from scripts.replace_prerelease import validate
+        expected_sha = os.environ.get('EXPECTED_TAG_SHA', '')
+        validate(replacement, expected_sha)
+        if run('git', 'rev-parse', f'refs/tags/{replacement}^{{commit}}') != expected_sha:
+            raise RuntimeError('Replacement tag does not match the explicitly expected old SHA.')
+        print(f'version={replacement}')
+        return
     labels = [e['name'][8:] for e in pr['labels'] if e['name'].startswith('release:')]
     if len(labels) != 1 or labels[0] not in ('patch', 'minor', 'major', 'rc', 'stable'):
         raise RuntimeError('Exactly one release label is required.')
@@ -47,6 +56,8 @@ def metadata(pr_path, version):
                 coordinator_commit=run('git', 'rev-parse', 'HEAD'),
                 modules=read_lock(h, ROOT),
                 source_version=version)
+    if os.environ.get('REPLACE_VERSION'):
+        data['replaces_tag_commit'] = os.environ['EXPECTED_TAG_SHA']
     (ROOT / 'release.json').write_text(json.dumps(data, indent=2) + '\n')
 
 

@@ -2,28 +2,27 @@
 
 **Status:** current · **Last verified:** 2026-11-16
 
-## Estado de publicación
+## Contenido consolidado
 
-La rc4 publicada en GitHub apunta al coordinador `32b4719` e incluye el flujo de
-instalación congelada, la herencia de versión de los módulos, la sincronización npm
-y las correcciones de integración ya mergeadas.
+Esta revisión de rc4 incluye el flujo de instalación congelada, la herencia de
+versión, la sincronización npm y las correcciones de integración, junto con los
+aportes de exportación que estaban conservados localmente:
 
-El `main` local de esta revisión contiene además los aportes locales que se
-integraron después de esa publicación:
-
-| Repositorio | Commit conservado | Aporte |
+| Repositorio | Commit original conservado | Aporte |
 |---|---|---|
-| Plataforma | `0553d5c` | Guía detallada del formato de intercambio y documentación de exportación |
-| core-lib | `791b2b3` | Lecturas SQLite inmutables, rechazo de WAL no vacío y progreso de exportación |
-| shell | `1ac52a4` | Listado de perfiles y diferenciación de exportaciones parciales en modo batch |
+| Plataforma | `0553d5c` | Formato de intercambio y documentación de exportación |
+| core-lib | `791b2b3` | Lecturas SQLite inmutables, rechazo de WAL no vacío y progreso |
+| shell | `1ac52a4` | Listado de perfiles y códigos batch de exportaciones parciales |
 
-Las correcciones de documentación de esta revisión también son locales.
-**La publicación existente no se ha sustituido.** Clonar su tag recupera la
-combinación publicada, no estos cambios adicionales. Para reproducir la integración
-se necesitan los commits del `workspace.lock` de este checkout; mientras alguno
-solo exista localmente, un clon remoto no podrá descargarlo con `githelper init`.
-El número de versión compartido por sí solo no sustituye al lock como identidad
-de las fuentes.
+También incorpora la revisión de documentación y la ruta corregida del helper de
+build del Admin. El tag de la publicación vigente y su `workspace.lock` identifican
+las fuentes exactas; el número de versión por sí solo no identifica los módulos.
+
+La primera publicación de rc4 apuntaba a `32b4719`. Su sustitución por esta revisión
+fue autorizada expresamente y conserva un respaldo verificado de los archivos
+anteriores. El workflow normal sigue conservando publicaciones existentes; la
+reedición de una candidata requiere los parámetros explícitos de sustitución y el
+SHA anterior esperado. Véase [el procedimiento](../githelper.md#reedición-explícita-de-una-candidata).
 
 ## Módulos y versiones
 
@@ -62,8 +61,8 @@ publica esa versión. Consulte [githelper](../githelper.md).
 
 La integración de documentación, core y shell pasó la suite completa el
 2026-11-16: 1.424 casos Maven sin fallos ni errores (uno deshabilitado), 74 pruebas
-de frontend y 43 de herramientas. Los cambios posteriores de esta revisión son
-documentación y la corrección de ruta del helper de build de Admin.
+de frontend y 48 de herramientas, incluidas las comprobaciones de sustitución controlada.
+El helper de build de Admin también se verificó con su destino `admin-static/`.
 
 La compilación no equivale a una validación de navegador del Dashboard. Sus
 pruebas end-to-end, traducciones y despliegue TLS que sigan pendientes se mantienen

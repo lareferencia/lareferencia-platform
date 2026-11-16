@@ -9,14 +9,14 @@ Every document carries a status line: `current` = verified against the code on t
 `archived` = moved to [`archive/`](archive/README.md) with a banner.
 
 Current references below were reviewed against the integrated rc4 sources. Historical
-records retain their original dates and implementation status. Publication differences
+records retain their original dates and implementation status. Release scope and verification
 are tracked in [RELEASE_5.0.0_RC4.md](RELEASE_5.0.0_RC4.md).
 
 ## Reference — current
 
 | Document | Topic |
 |---|---|
-| [`RELEASE_5.0.0_RC4.md`](RELEASE_5.0.0_RC4.md) | rc4 source scope, local integration versus published tag, verification and pending acceptance checks |
+| [`RELEASE_5.0.0_RC4.md`](RELEASE_5.0.0_RC4.md) | Consolidated rc4 scope, preserved export commits, controlled republication and verification |
 | [`../githelper.md`](../githelper.md) | Frozen installation, feature branches, PRs and prepared releases |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Component map, data flows, module table, ports (mermaid diagram) |
 | [`ONBOARDING.md`](ONBOARDING.md) | Developer setup: githelper, build scripts, profiles, run modes, testing |
