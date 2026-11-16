@@ -6,6 +6,10 @@ LA Referencia is a platform for harvesting, processing, and indexing scholarly m
 
 **Current development version: 5.0.0-rc4** (branch `main`).
 
+The exact source combination is recorded in `workspace.lock`. This consolidated
+rc4 includes the metadata-export and documentation improvements described in
+[the rc4 release notes](docs/RELEASE_5.0.0_RC4.md).
+
 - Full OAI-PMH harvesting and a modernized standalone OAI-PMH data provider
 - Entity-based metadata processing with filesystem + SQLite storage
 - Incremental validation and indexing (record-level deltas)
@@ -35,15 +39,17 @@ LA Referencia is a platform for harvesting, processing, and indexing scholarly m
 - **Entity `deleted` flag workflow**: soft-delete entities and remove them (and their relations) from indexes
 - **dARK**: ARK persistent identifier minting, staging/reconciliation workers and legacy ARK CSV import
 - **Dynamic validation/transformation forms** generated from Java annotations, localized in English, Spanish and Portuguese
+- **Metadata export for enrichment**: immutable LGK reads, XOAI → JSON profiles, traceable packages, and batch outcome codes; see [the export guide](docs/METADATA_EXPORT.md)
 - **Backup/restore wizard** and an isolated developer Docker workflow
 
 ## 📋 System Requirements
 
 - **Java**: OpenJDK 17 (Docker images use `eclipse-temurin:17-jre`)
 - **Maven**: 3.9.x
-- **PostgreSQL**: 14 (bundled in `docker-compose.yml`; 12+ supported)
+- **Workspace tooling**: Git and Python 3.9+
+- **PostgreSQL**: Compose defaults to `postgres:17-alpine3.23`; configurable with `LR_POSTGRES_IMAGE`. Existing PostgreSQL 14 data needs the [documented migration](Docker/README.md#-postgresql-14--17).
 - **Elasticsearch**: 7.x (compose bundles 7.12.0; accessed through an OpenSearch-compatible REST client)
-- **Solr**: 9.x (compose bundles 9.8.0; SolrJ client 9.5)
+- **Solr**: Compose builds from `solr:9.11.0`; SolrJ client 9.5. OAI integration tests use Solr 9.8.
 - **Memory**: 4GB minimum (8GB+ recommended)
 
 ## 🏗️ Architecture
@@ -181,7 +187,7 @@ Reference: [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md)
 
 ### Core Library Package Structure
 
-`lareferencia-core-lib` uses `org.lareferencia.core.*` (10 packages):
+`lareferencia-core-lib` uses `org.lareferencia.core.*` (11 top-level packages):
 
 ```text
 org.lareferencia.core.*
@@ -191,6 +197,7 @@ org.lareferencia.core.*
 ├── metadata/     Metadata storage abstraction
 ├── worker/       Asynchronous processors
 ├── task/         Task scheduling and coordination
+├── export/       LGK metadata export, mapping, provenance and package indexes
 ├── embedding/    Semantic chunking/embedding
 ├── flowable/     Flowable workflow delegates (optional engine)
 ├── oabroker/     OpenAIRE broker integration
@@ -339,8 +346,10 @@ Reference: [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) · per-file, per-prop
 ## 🧪 Testing
 
 ```bash
-mvn test                                   # all reactor modules
-mvn -pl lareferencia-oai-pmh test          # provider protocol tests (Testcontainers, Solr 9.8)
+mvn clean verify -Plareferencia             # full Maven suite, including OAI integration tests; Docker required
+mvn test -Plareferencia                     # tests bound to the test phase
+mvn -pl lareferencia-oai-pmh verify         # provider unit + Solr 9.8 integration tests
+python3 -m unittest discover -p 'test_*.py' # workspace/release tooling
 ```
 
 - OAI-PMH regression suite: protocol verbs over HTTP validated against the official XSD ([oai-compatibility-contract](lareferencia-oai-pmh/docs/testing/oai-compatibility-contract.md))
@@ -349,6 +358,7 @@ mvn -pl lareferencia-oai-pmh test          # provider protocol tests (Testcontai
 ## 📚 Documentation Map
 
 - [Metadata export for enrichment](docs/METADATA_EXPORT.md)
+- [Metadata exchange format](docs/METADATA_EXCHANGE_FORMAT.md)
 
 | Document | Topic |
 |---|---|
@@ -379,7 +389,7 @@ mvn -pl lareferencia-oai-pmh test          # provider protocol tests (Testcontai
 
 \* Created or updated during the 2026-09-23 documentation work (see `docs/PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md`). Historical decision records live in `docs/archive/`.
 
-## 📝 Migration Guide: v4.x → 5.0.0-rc3
+## 📝 Migration Guide: v4.x → 5.0.0-rc4
 
 ### Required Actions
 
@@ -412,7 +422,7 @@ Licensed under the **GNU Affero General Public License v3.0** — see [LICENSE.t
 
 **Email**: [soporte@lareferencia.redclara.net](mailto:soporte@lareferencia.redclara.net)
 
-When requesting support, please include: platform version (e.g. `5.0.0-rc3`), affected module, relevant log excerpts, configuration snippets (without sensitive data) and steps to reproduce.
+When requesting support, please include: platform version (e.g. `5.0.0-rc4`), affected module, relevant log excerpts, configuration snippets (without sensitive data) and steps to reproduce.
 
 - **Website**: [https://www.lareferencia.info](https://www.lareferencia.info)
 - **Issues**: [GitHub Issues](https://github.com/lareferencia/lareferencia-platform/issues)

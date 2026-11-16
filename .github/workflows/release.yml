@@ -7,8 +7,18 @@ on:
   workflow_dispatch:
     inputs:
       pr:
-        description: 'Merged coordinator PR number to retry (existing releases are never overwritten)'
+        description: 'Merged coordinator PR number to publish or retry'
         required: true
+        type: string
+      replace_version:
+        description: 'Explicit RC replacement only, e.g. 5.0.0-rc4; blank preserves existing releases'
+        required: false
+        default: ''
+        type: string
+      expected_tag_sha:
+        description: 'Full old tag SHA; required for an explicitly authorized replacement after backing up old assets'
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -25,6 +35,9 @@ jobs:
   release:
     if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && contains(toJSON(github.event.pull_request.labels.*.name), 'release:'))
     runs-on: ubuntu-latest
+    env:
+      REPLACE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.replace_version || '' }}
+      EXPECTED_TAG_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_tag_sha || '' }}
     services:
       postgres:
         image: postgres:15-alpine
@@ -101,11 +114,19 @@ jobs:
           RELEASE_VERSION: ${{ steps.plan.outputs.version }}
         run: python3 scripts/coordinator_release.py package "$RELEASE_VERSION"
       - name: Publish immutable version
+        if: env.REPLACE_VERSION == ''
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_VERSION: ${{ steps.plan.outputs.version }}
         run: python3 scripts/coordinator_release.py publish "$RELEASE_VERSION"
+      - name: Replace explicitly selected release candidate
+        if: env.REPLACE_VERSION != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: python3 scripts/replace_prerelease.py "$RELEASE_VERSION" "$EXPECTED_TAG_SHA"
       - name: Preserve test diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

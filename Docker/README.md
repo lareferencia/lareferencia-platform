@@ -221,9 +221,14 @@ configured in `Docker/.env` is reported as a warning; `LR_SOLR_VUFIND_CHECK=stri
 
 ```bash
 ./Docker/docker.sh down     # or stop
-git pull                    # (githelper pull for the modules)
+./githelper switch 5.0.0-rc4 # choose the published version; aligns platform module commits
 ./Docker/docker.sh up
 ```
+
+For a development branch, use the explicit githelper development commands instead
+of advancing a frozen release with git pull. VuFind is managed separately from the
+platform lock; its configured source is still checked during Solr staging. See
+[the workspace guide](../githelper.md).
 
 On every start Solr brings each core up to date by itself, when that is safe for its index
 (previous `conf/` always kept in `<core>/conf.bak.<timestamp>/`):

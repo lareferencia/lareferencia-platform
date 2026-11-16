@@ -2,122 +2,158 @@
 
 **Status:** current · **Last verified:** 2026-11-16
 
-How to get from an empty machine to a running development environment, verified against
-the scripts on 2026-09-23. Start with [`ARCHITECTURE.md`](ARCHITECTURE.md) for the big
-picture and [`GLOSSARY.md`](GLOSSARY.md) for the vocabulary.
+Prepare a consistent workspace before building with Maven, the helper scripts or
+an IDE. Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the component map and
+[githelper.md](../githelper.md) for branch, lock and release operations.
 
-## The workspace shape
+## Workspace and version
 
-This repository is a **workspace of nested independent git repositories**:
+The outer repository holds the parent Maven POM, documentation and orchestration.
+Each component is a nested independent Git repository. `workspace.ini` identifies
+15 platform repositories; `workspace.lock` freezes their exact commits:
 
-- The outer repo holds the root `pom.xml` (aggregator), the documentation (`docs/`),
-  Docker orchestration, `testing/` and the helper scripts.
-- Each `lareferencia-*` directory is an **independent git repository** with its own
-  history, cloned by [`githelper`](../githelper) according to `workspace.ini` (module →
-  URL/branch manifest). Docker's `reset-data` also reads this manifest to find cloned
-  modules to remove.
-- The root `pom.xml` aggregates 11 Java modules (plus `lareferencia-lrharvester-admin-web`);
-  `contrib-ibict`/`contrib-rcaap` are not part of the default reactor.
-- Platform version: `5.0.0-rc3` (Java 17, Spring Boot 3.5.0; CI also builds Java 21).
+- 10 active Java modules and two frontend modules inherit `lareferencia-parent`.
+- `lareferencia-solr-cores` supplies configuration and has no Maven artifact.
+- `lareferencia-contrib-ibict` and `lareferencia-contrib-rcaap` are legacy modules,
+  excluded from the reactor and retained at 4.2.6.
+- VuFind is external and excluded from the manifest, lock and platform release.
+  Docker can prepare its checkout separately for the discovery/Solr integration.
 
-```bash
-git clone <this-repo>
-cd lareferencia-platform
-./githelper init     # frozen module commits or registered feature branches
-./githelper --help   # other workspace commands
-```
+The current source version is **5.0.0-rc4**, Java 17 and Spring Boot 3.5.0.
+Including the parent, the full Maven reactor has 13 projects. Internal dependency
+versions are managed by the parent, and frontend npm metadata follows that version.
+The consolidated metadata-export changes and verification scope are described in
+[the rc4 release notes](RELEASE_5.0.0_RC4.md).
 
 ## Prerequisites
 
-- JDK 17+ and Maven (the reactor builds with Java 17; CI also runs 21)
-- Docker (required to build the Admin Web and Dashboard and to run the wizards)
-- Node.js is only needed inside the build containers (Node 22 for Admin, Node 18 for Dashboard) — no local install needed
-- Python 3 is used by `githelper` (already in the scripts' shebang) and by some Docker
-  tooling
+- Git, Python 3.9+, JDK 17+ and Maven 3.9.x. Platform CI uses Java 21; OAI CI also
+  verifies Java 17.
+- Maven downloads pinned Node/npm versions for frontend builds (Node 22 for Admin,
+  Node 18 for Dashboard); a separate global Node installation is not required.
+- Docker is needed for Testcontainers integration tests, Compose, and the optional
+  `build-admin-web.sh` / `build-dashboard.sh` container builds.
+- Local `run-dev.sh` for Admin requires Node 22/npm on the host. Docker Dev offers
+  a Vite container instead.
+- GitHub CLI (`gh auth login`) is required only for `githelper pr` and
+  `githelper release prepare`, not for installing or compiling a release.
+
+## Download a published release
+
+```bash
+git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
+cd lareferencia-platform
+./githelper init
+./build.sh lareferencia
+```
+
+`init` prepares the commits in the selected release's lock. No manual version
+stamp is needed. To select another published release in a clean workspace, use
+`./githelper switch VERSION`. GitHub's automatic source ZIP contains only the
+parent; use a Git clone or the complete platform ZIP attached to the release.
 
 ## Building
 
+Run platform commands from the workspace root:
+
 ```bash
-./build-java.sh            # all Java modules: mvn clean install -am -DskipTests
-./build-java.sh ibict      # optional Maven profile: lareferencia | ibict | rcaap
-./build.sh lareferencia    # Java modules + React Admin Web + Angular Dashboard
-./build-admin-web.sh       # React Admin Web (Node 22 in Docker) → harvester admin-static/
-./build-dashboard.sh       # Angular Dashboard (Node 18 in Docker) → harvester dashboard-static/
-mvn test                   # run tests (all reactor modules)
-mvn -pl lareferencia-oai-pmh test   # provider protocol tests (Testcontainers, Solr 9.8)
+./build.sh lareferencia      # Java + both SPAs; skips tests and Javadoc
+./build-java.sh lareferencia # Java only; skips tests and Javadoc
+mvn clean install -Plareferencia  # direct Maven build, with tests
+./build-admin-web.sh         # Admin only, Node 22 in Docker → admin-static/
+./build-dashboard.sh         # Dashboard only, Node 18 in Docker → dashboard-static/
 ```
 
-Notes:
+The script `build.sh` defaults to `lite`; explicitly select `lareferencia` for the
+standard full implementation. The Harvester POM also defaults to `lite`.
+Country profiles select dependencies/contexts; they do not add the legacy contrib
+projects back to the reactor. The `rcaap` profile references its independent legacy
+artifact and is not the standard rc4 verification target.
 
-- `build-java.sh` explicitly excludes both frontends. Use `build.sh` for the
-  complete platform, or `build-admin-web.sh` / `build-dashboard.sh` for one UI
-  at a time (`./Docker/docker-dev.sh build dashboard` is the Docker Dev equivalent).
-- Both UI scripts compile in Docker so the host does not need a compatible Node binary or newer glibc. Direct Maven frontend builds still install Node on the host; use the UI scripts on older servers.
-- The Maven **profiles** `lareferencia` (default), `ibict` and `rcaap` select the
-  country-specific contrib dependencies and branding in the harvester pom.
-- Releases: `./githelper release prepare --bump rc` prepares committed Maven/npm versions and module PRs. Repeat after module merges to finalize the lock. See [githelper.md](../githelper.md).
-- Published versions: select the platform tag, run `./githelper init`, then compile with Maven or the existing scripts; no manual version stamp is required.
-
-## Running
-
-| Mode | Command | Use |
-|---|---|---|
-| Production-like Docker | `./Docker/docker.sh` | Platform stack: VuFind, Harvester with Admin Web and Dashboard static assets, entity-rest, oai-pmh (profile `oai`), Solr, PostgreSQL, Elasticsearch. See [../Docker/README.md](../Docker/README.md) and [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md) |
-| Isolated dev Docker | `./Docker/docker-dev.sh` | Separate data and service ports; web access only through the host-separated gateway (8188 isolated, 8088 normal). See [DOCKER_DEV.md](DOCKER_DEV.md) |
-| Local JVM | `java -Dapp.config.dir=... -jar <module>.jar` | Debugging a single module; the `config/` directory must be populated from the `application.properties.model` templates |
-
-Admin Web development has a Vite dev server with its own ports — see
-[lareferencia-lrharvester-admin-web/README.md](../lareferencia-lrharvester-admin-web/README.md)
-(`generate:api` pulls the OpenAPI spec from the harvester, default
-`http://localhost:8080/api/v5/openapi`; export `API_OPENAPI_URL=http://localhost:8090/api/v5/openapi`
-for the standard Docker deployment).
-
-## Configuration in one minute
-
-- Each module's `config/application.properties` is **gitignored** (local values);
-  `application.properties.model` is the versioned template — keep it in sync when you
-  add a property (the golden rule).
-- Most modules load additional `config/application.properties.d/*.properties` fragments
-  alphabetically at startup; which key is read by which class is documented per file in
-  [CONFIGURATION_PROPERTIES.md](CONFIGURATION_PROPERTIES.md). The base directory is
-  relocated with `-Dapp.config.dir=…` ([CONFIG_DIRECTORY.md](CONFIG_DIRECTORY.md)).
-- Docker deployments override values via `Docker/.env` (`LR_PORT_*`, build profile,
-  memory limits) and per-service config overrides under `Docker/config-overrides/`.
+Both frontend Maven projects are enabled unless `-Dno-frontends` is supplied.
+The full build writes separate `admin-static/` and `dashboard-static/` trees.
+The individual Docker frontend scripts avoid depending on host Node/glibc.
 
 ## Testing
 
-- Full suite: `mvn test` (the core-lib suite alone is ~1.1k tests — snapshot report in
-  [lareferencia-core-lib/src/test/README.md](../lareferencia-core-lib/src/test/README.md)).
-- OAI provider regression: protocol verbs validated against the official XSD
-  ([oai-compatibility-contract](../lareferencia-oai-pmh/docs/testing/oai-compatibility-contract.md)).
-- Incremental OAI harness with deterministic fixtures:
-  [testing/oai-incremental](../testing/oai-incremental/README.md) (provider on 8096 /
-  8196 in dev).
+```bash
+python3 -m unittest discover -p 'test_*.py'
+mvn clean verify -Plareferencia
+# Provider only: verify includes Solr integration tests; test runs unit tests.
+mvn -pl lareferencia-oai-pmh verify
+# After the Maven frontend build:
+(cd lareferencia-lrharvester-admin-web && ./node/node node_modules/vitest/vitest.mjs run)
+```
+
+Docker must be available for integration tests. `mvn test` does not execute OAI's
+Failsafe integration phase; use `verify` for the complete Maven suite.
+CI also supplies a disposable PostgreSQL 15 database and passes
+`-Dindexing.test.jdbc-url=jdbc:postgresql://HOST:PORT/indexing_test` to enable the
+optional database tests (user `postgres`, password `indexing-test` in the test
+fixtures). Use a disposable database, separate from runtime data.
+
+## Coordinated development and releases
+
+```bash
+./githelper feature start mejora-cosecha --modules lareferencia-core-lib,lareferencia-lrharvester-app
+./githelper feature add lareferencia-oai-pmh
+# Commit functional changes in each repository, then create/update PRs:
+./githelper pr
+./githelper release prepare --bump rc
+./githelper pr
+```
+
+Feature branches start from fetched `origin/main`. Repeat release preparation
+and `pr` after module merges to refresh the final lock. Label the coordinator only
+when the module commits are integrated; its merge publishes the prepared version.
+See [githelper.md](../githelper.md) for checks, numbering and recovery. `init` on a
+registered feature branch prepares its module branches and freezes the others.
+`init --dev` provides the traditional manifest-branch initialization where no
+branch-set exists. `sync`/`pull` are explicit development operations.
+
+## Running
+
+| Mode | Command | Access |
+|---|---|---|
+| Standard Compose | `./Docker/docker.sh wizard` | Harvester loopback `8090/admin/` and `8090/dashboard/es/`; optional external VuFind integration |
+| Isolated Docker Dev | `./Docker/docker-dev.sh wizard` | Harvester `8190/admin/` and `8190/dashboard/es/`; gateway `admin.localhost:8188/admin/` and `dashboard.localhost:8188/dashboard/es/`; Vite is internal |
+| Local JVM | `java -Dapp.config.dir=/path/to/config -jar harvester.jar` | Use the configured server port and provision the runtime services |
+
+Compose defaults to PostgreSQL 17 and Solr 9.11. PostgreSQL 14 data requires the
+[documented migration or image pin](../Docker/README.md#-postgresql-14--17).
+Build success does not validate production TLS or complete the pending Dashboard
+browser/gateway acceptance checks in [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md).
+
+## Configuration and identity
+
+Application-specific `config/application.properties` is a local override; the
+versioned `.model` file documents available settings. Harvester and Shell also
+load ordered `application.properties.d/*.properties` fragments. Configure their
+base with `-Dapp.config.dir=...`; do not define conflicting values in multiple
+fragments. See [CONFIG_DIRECTORY.md](CONFIG_DIRECTORY.md) and
+[CONFIGURATION_PROPERTIES.md](CONFIGURATION_PROPERTIES.md).
+
+Harvester users, tokens and sessions live in PostgreSQL. Apply migrations, then
+create the first administrator with `security-create-admin <username>` in the
+interactive shell. There are no default accounts. See [AUTHENTICATION.md](AUTHENTICATION.md).
+
+Metadata export commands, mapping installation, WAL requirements and batch exit
+codes are documented in [METADATA_EXPORT.md](METADATA_EXPORT.md); the record and
+package contracts are in [METADATA_EXCHANGE_FORMAT.md](METADATA_EXCHANGE_FORMAT.md).
 
 ## Where to edit what
 
-| You want to… | Go to |
+| Change | Repository |
 |---|---|
-| Change harvester behavior (workers, actions, API) | `lareferencia-lrharvester-app` + `lareferencia-core-lib` |
-| Change entity/indexing logic | `lareferencia-entity-lib` (+ `lareferencia-indexing-filters-lib`) |
-| Work on the Admin Web UI | `lareferencia-lrharvester-admin-web` |
-| Add/adjust dARK integration | `lareferencia-dark-lib` |
-| Add shell commands | `lareferencia-shell` (+ `lareferencia-shell-entity-plugin` for entities) |
-| Change OAI provider behavior | `lareferencia-oai-pmh` |
-| Change Solr schemas | `lareferencia-solr-cores` (services run Solr 9.8 copies) |
-| Update docs | `docs/` with a `**Status:** current · **Last verified:** <date>` header |
+| Harvesting, validation, export or workers | core-lib and the relevant application |
+| Entity model/indexing | entity-lib; indexing-filters-lib |
+| Administration UI | lrharvester-admin-web |
+| Read-only Dashboard | repository-dashboard |
+| Shell commands | shell; shell-entity-plugin |
+| OAI provider | oai-pmh |
+| ARK support | dark-lib |
+| Solr configsets | owning module; Docker stages copies |
 
-## Conventions
-
-- Java packages follow `org.lareferencia.core.*` (10 packages —
-  [REFACTORING_PACKAGE_STRUCTURE.md](REFACTORING_PACKAGE_STRUCTURE.md)).
-- Configuration keys are documented in the `.model` file and, for the fragments, in
-  [CONFIGURATION_PROPERTIES.md](CONFIGURATION_PROPERTIES.md) — avoid defining the same
-  key in both the base file and a fragment.
-- Documentation lives in `docs/`; every document carries a status line
-  ([DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) explains the lifecycle).
-
-Support: [soporte@lareferencia.redclara.net](mailto:soporte@lareferencia.redclara.net)
-
-Related: [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`GLOSSARY.md`](GLOSSARY.md) ·
-[`DOCUMENTATION_INDEX.md`](DOCUMENTATION_INDEX.md)
+Core libraries use `org.lareferencia.core.*`; the Harvester application retains
+`org.lareferencia.backend.*`. Repository docs carry status/review dates; historical
+records remain historical. See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md).

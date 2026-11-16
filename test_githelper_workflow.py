@@ -170,6 +170,10 @@ class ReleaseArtifactTests(unittest.TestCase):
     def setUp(self):
         from scripts import coordinator_release
         self.release = coordinator_release
+        # Normal-publication fixtures stay independent of manual replacement inputs.
+        env_patch = patch.dict('os.environ', {'REPLACE_VERSION': '', 'EXPECTED_TAG_SHA': ''})
+        env_patch.start()
+        self.addCleanup(env_patch.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

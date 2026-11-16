@@ -204,3 +204,24 @@ Para reintentar una publicación fallida, usa Re-run jobs o workflow_dispatch co
 el número del coordinador mergeado. Un tag ya creado sobre ese commit conserva
 su versión. Una release ya publicada se conserva; una draft parcial exige revisión
 manual antes de reintentar.
+
+## Reedición explícita de una candidata
+
+El flujo normal no reemplaza releases ni tags. Una reedición excepcional de una
+RC ya publicada requiere autorización expresa y un respaldo completo de sus
+assets y metadatos, comprobados con SHA-256.
+
+Después de mergear los PR de módulos y el coordinador con CI en verde, ejecutar
+manualmente `Coordinator release` con el número de ese PR y estos campos:
+
+- `replace_version`: candidata numerada exacta, por ejemplo `5.0.0-rc4`.
+- `expected_tag_sha`: SHA completo al que apunta actualmente ese tag.
+
+La versión debe coincidir con el padre y `VERSION`. Este modo solo admite
+candidatas publicadas y mutables, comprueba el SHA anterior, vuelve a ejecutar
+las pruebas y sube los nuevos assets a un borrador. Solo después de comprobar
+sus tamaños y hashes vuelve a verificar el tag, sustituye la publicación y mueve
+el tag al coordinador nuevo. `release.json` conserva `replaces_tag_commit`.
+Una interrupción durante el intercambio conserva el borrador nuevo para
+inspección y recuperación manual; no se debe iniciar otro intercambio a ciegas.
+Dejar ambos campos vacíos mantiene el comportamiento habitual de publicación.

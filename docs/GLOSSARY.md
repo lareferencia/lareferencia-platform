@@ -1,6 +1,6 @@
 # Glossary
 
-**Status:** current · **Last verified:** 2026-09-30
+**Status:** current · **Last verified:** 2026-11-16
 
 Vocabulary used across the platform and its documentation. Links point to the document
 with the details ([DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for everything else).
@@ -26,12 +26,15 @@ with the details ([DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for everythin
 | **Metadata store** | Where transformed metadata records live: filesystem by default (`FS`), with H2/SQLite per-network variants selected by `metadata.store.type`. → [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](ALMACENAMIENTO_REFERENCIA_RAPIDA.md) |
 | **Network** | The top-level configuration unit: a set of OAI-PMH sources with format, validation rules, transformations and attributes (including the dARK NAAN). |
 | **OAI-PMH** | The harvesting protocol; the platform is both harvester (client) and provider (`lareferencia-oai-pmh`, port 8096). |
-| **Profile (build)** | Maven profile selecting country branding/dependencies: `lareferencia` (default), `ibict`, `rcaap`. |
+| **Profile (build)** | Maven profile selecting country branding/dependencies: `lite` (default for build.sh and the Harvester POM), `lareferencia` (the standard full implementation), `ibict`, `rcaap` (legacy dependency). |
 | **Provider** | The `lareferencia-oai-pmh` module serving OAI-PMH from the Solr `oai` core. |
-| **Solr core** | A Solr index with its schema; `lareferencia-solr-cores` holds the definitions (canonical `oai` core is `LUCENE_42`; services run Solr 9.8 copies). |
+| **Solr core** | A Solr index with its schema; solr-cores holds a configuration inventory. Current Compose stages oai from the provider and biblio from external VuFind for its Solr 9.11 runtime. |
 | **Snapshot** | Directory of a validation run's persisted state (catalog + validation DBs), used for reuse/rollback. |
 | **TaskManager / Worker** | The legacy engine's executor (`TaskManager`) and the unit that performs an action (`HarvestingWorker`, `SemanticIndexerWorker`, …). |
 | **Validation rules** | JSON-defined rules (dynamic schemas + i18n) executed per record. → [DYNAMIC_SCHEMA_REFACTORING.md](DYNAMIC_SCHEMA_REFACTORING.md) |
+| **Workspace lock** | `workspace.lock`: exact commits of every manifest repository; identifies the module sources built together. → [githelper](../githelper.md) |
+| **Coordinator PR** | Platform PR that freezes the module commits and prepared common version; its labeled merge publishes the release after validation. → [githelper](../githelper.md) |
+| **Metadata export** | Read-only LGK extraction with mapping profiles, record provenance and a SQLite package index. → [METADATA_EXPORT.md](METADATA_EXPORT.md) |
 | **VuFind** | The end-user search UI (PHP, external fork, separate database). |
 
 Related: [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`CONFIGURATION_PROPERTIES.md`](CONFIGURATION_PROPERTIES.md) ·
