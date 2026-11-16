@@ -63,6 +63,69 @@
 
 	<dependencyManagement>
 		<dependencies>
+            <!-- Active platform modules inherit one coordinated release version. -->
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-oclc-harvester</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-core-lib</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-entity-lib</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-indexing-filters-lib</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-shell-entity-plugin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-shell</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-dark-lib</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-lrharvester-app</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-entity-rest</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-oai-pmh</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-lrharvester-admin-web</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+            </dependency>
+            <dependency>
+                <groupId>org.lareferencia</groupId>
+                <artifactId>lareferencia-repository-dashboard</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+            </dependency>
 			<dependency>
 				<groupId>org.testcontainers</groupId>
 				<artifactId>testcontainers-bom</artifactId>

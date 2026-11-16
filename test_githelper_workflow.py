@@ -33,23 +33,6 @@ class VersionTests(unittest.TestCase):
             with self.subTest(old=old, bump=bump), self.assertRaises(RuntimeError):
                 next_version(old, bump)
 
-    def test_stamp_preserves_third_party_and_aligns_packages(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            pom = '''<project xmlns="http://maven.apache.org/POM/4.0.0">
-<modelVersion>4.0.0</modelVersion><groupId>org.lareferencia</groupId>
-<artifactId>test</artifactId><version>5.0.0-rc3</version>
-<parent><groupId>org.springframework.boot</groupId><artifactId>parent</artifactId><version>3.5.0</version></parent>
-<dependencies><dependency><groupId>org.lareferencia</groupId><artifactId>core</artifactId><version>5.0.0-rc3</version></dependency>
-<dependency><groupId>third.party</groupId><artifactId>other</artifactId><version>5.0.0-rc3</version></dependency></dependencies></project>'''
-            (root / 'pom.xml').write_text(pom)
-            (root / 'package-lock.json').write_text(json.dumps({'version': 'old', 'packages': {'': {'version': 'old'}}}))
-            stamp(root, '5.0.0-rc4', [])
-            result = (root / 'pom.xml').read_text()
-            self.assertEqual(result.count('<version>5.0.0-rc4</version>'), 2)
-            self.assertIn('<version>3.5.0</version>', result)
-            self.assertIn('<version>5.0.0-rc3</version>', result)
-            self.assertEqual(json.loads((root / 'package-lock.json').read_text())['packages']['']['version'], '5.0.0-rc4')
 
 
 class WorkflowTests(unittest.TestCase):

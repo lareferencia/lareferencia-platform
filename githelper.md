@@ -211,6 +211,36 @@ Si no se indica `--modules`, se usan todos los modulos de `workspace.ini`.
 ./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
 ```
 
+## Versión común de los módulos activos
+
+Los 12 módulos Maven activos heredan su versión de `lareferencia-parent`. Sus POM
+no declaran una versión de proyecto propia. El padre centraliza las versiones de
+las dependencias internas en `dependencyManagement` mediante `${project.version}`.
+La referencia `<parent><version>` sigue siendo explícita, como requiere Maven 3,
+y se actualiza junto con la versión del padre.
+
+Los POM de Admin Web y Repository Dashboard heredan también del padre. Antes de
+`npm ci`, Maven sincroniza `package.json` y `package-lock.json` con su versión
+heredada, sin crear commits ni tags npm. En el código fuente ambas aplicaciones
+usan la misma versión que la plataforma.
+
+```bash
+./githelper version sync --check  # comprobar herencia, dependencias y versiones npm
+./githelper version sync          # alinear referencias al padre y metadatos npm
+./githelper version set 5.0.0-rc4 # cambiar la versión común
+./change-version.sh 5.0.0-rc4     # misma operación, interfaz compatible
+```
+
+Estas operaciones recorren los módulos activos del reactor, incluidos los
+frontends. Validan todos los POM antes de escribir. No modifican `contrib-ibict`,
+`contrib-rcaap`, otros proyectos fuera del reactor ni VuFind. Los módulos legacy
+conservan sus versiones y sus dependencias explícitas. Las referencias internas
+a ellos en perfiles legacy conservan también la versión original.
+
+Para compilar OAI-PMH fuera del reactor hay que instalar primero el POM padre de
+la plataforma. Su CI realiza ese paso; su Dockerfile recibe el POM como contexto
+adicional `platform-parent`. El runtime del proveedor sigue siendo independiente.
+
 ## Lock de módulos
 
 `workspace.lock` es JSON versionado con esquema 1 y, para cada módulo del manifest,
@@ -290,9 +320,10 @@ numeración en todos los repos, CI aplica una transformación explícita y deter
 ./githelper release stamp 5.0.0-rc4
 ```
 
-Este comando modifica los POM de la plataforma, sus referencias internas y las
-versiones de `package.json` / `package-lock.json`, y genera `VERSION`. No cambia
-versiones de dependencias externas. Es una operación de build: úsala en un clon
+Este comando cambia la versión del padre, las referencias al padre de los 12
+módulos activos y los metadatos npm, y genera `VERSION`. Las dependencias internas
+reciben esa versión por `dependencyManagement`; no se añaden versiones propias
+a los hijos. No cambia los módulos legacy ni las dependencias externas. Es una operación de build: úsala en un clon
 limpio o temporal. Después del stamp el lock sigue identificando los commits de
 origen, pero `lock verify` rechazará los cambios de compilación hasta que vuelvas
 a un workspace limpio.

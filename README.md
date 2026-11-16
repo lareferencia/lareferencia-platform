@@ -271,6 +271,12 @@ For coordinated development and releases:
 ./githelper release plan --bump rc
 ```
 
+Active Maven modules inherit their version from `lareferencia-parent`; internal
+dependency versions are managed centrally. Both frontend package manifests and
+lockfiles follow the same version. Check alignment with
+`./githelper version sync --check`, or update it with `./change-version.sh <version>`.
+Legacy contribution modules retain their independent versions.
+
 Commit `workspace.lock` in the platform PR and add exactly one `release:*` label.
 Merging that coordinator PR builds the locked modules and publishes a new numbered
 release. PR CI only validates. See [githelper.md](githelper.md#pr-coordinador-y-releases)

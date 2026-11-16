@@ -174,45 +174,29 @@ def release_plan(h, root, bump):
 
 
 def stamp(root, version, modules):
-    """Generate build versions without changing the locked source identities."""
-    ns = "{http://maven.apache.org/POM/4.0.0}"
-    for directory in [root] + [root / e["path"] for e in modules]:
-        pom = directory / "pom.xml"
-        if not pom.exists():
-            continue
-        original = pom.read_text()
-        tree = ET.fromstring(original)
-        project_group = tree.findtext(ns + "groupId") or tree.findtext(ns + "parent/" + ns + "groupId")
-        # Preserve formatting; change only project coordinates and LA Referencia
-        # parent/dependency blocks, never third-party dependency versions.
-        text = original
-        if project_group == "org.lareferencia":
-            own = tree.findtext(ns + "version")
-            if own:
-                # Replace the first matching project version outside parent.
-                chunks = re.split(r"(<parent>.*?</parent>)", text, flags=re.S)
-                for i in range(0, len(chunks), 2):
-                    updated, count = re.subn(r"<version>" + re.escape(own) + r"</version>", f"<version>{version}</version>", chunks[i], count=1)
-                    if count:
-                        chunks[i] = updated
-                        break
-                text = "".join(chunks)
-        def platform_block(match):
-            block = match[0]
-            if re.search(r"<groupId>\s*org\.lareferencia\s*</groupId>", block):
-                return re.sub(r"<version>[^<]+</version>", f"<version>{version}</version>", block, count=1)
-            return block
-        text = re.sub(r"<parent>.*?</parent>|<dependency>.*?</dependency>", platform_block, text, flags=re.S)
-        pom.write_text(text)
-        for package in [directory / "package.json", directory / "package-lock.json",
-                        directory / "angular/package.json", directory / "angular/package-lock.json"]:
-            if package.exists():
-                data = json.loads(package.read_text())
-                data["version"] = version
-                if "" in data.get("packages", {}):
-                    data["packages"][""]["version"] = version
-                package.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    """Apply the build version to active inherited POMs and npm metadata only."""
+    from platform_versioning import set_platform_version
+    set_platform_version(root, version)
     (root / "VERSION").write_text(version + "\n")
+
+
+def version_command(h, args):
+    from platform_versioning import read_version, set_platform_version, version_changes
+    try:
+        root = h.get_repo_root()
+        version = args.version if args.version_action == "set" else read_version(root)
+        if getattr(args, "check", False):
+            changes = version_changes(root, version)
+            if changes:
+                raise RuntimeError("Version metadata differs from parent: " + ", ".join(str(p.relative_to(root)) for p in changes))
+            h.info(f"OK   active module and npm versions match {version}")
+        else:
+            changes = set_platform_version(root, version)
+            h.info(f"OK   platform version {version}: updated {len(changes)} files (legacy excluded)")
+        return 0
+    except (RuntimeError, OSError, ValueError, ET.ParseError) as exc:
+        return h.fail(str(exc))
+
 
 
 def release_command(h, args):
@@ -239,6 +223,14 @@ def release_command(h, args):
 
 
 def register_commands(parser, subparsers, h):
+    versions = subparsers.add_parser("version", help="Synchronize active inherited Maven and npm versions.")
+    commands = versions.add_subparsers(dest="version_action", required=True)
+    sync = commands.add_parser("sync")
+    sync.add_argument("--check", action="store_true", help="Check alignment without writing files.")
+    sync.set_defaults(func=lambda args: version_command(h, args))
+    set_version = commands.add_parser("set")
+    set_version.add_argument("version")
+    set_version.set_defaults(func=lambda args: version_command(h, args))
     feature = subparsers.add_parser("feature", help="Coordinated feature branches from main.")
     commands = feature.add_subparsers(dest="feature_action", required=True)
     start = commands.add_parser("start")

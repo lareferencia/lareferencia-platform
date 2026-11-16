@@ -70,16 +70,18 @@ jobs:
         run: |
           python3 scripts/coordinator_release.py plan "$RUNNER_TEMP/coordinator.json" >> "$GITHUB_OUTPUT"
       - name: Test tooling
-        run: python3 -m unittest discover -p 'test_githelper*.py' -v
+        run: python3 -m unittest discover -p 'test_*.py' -v
       - name: Restore exact merged module commits
         run: |
           ./githelper lock checkout
           ./githelper lock verify --merged
+          ./githelper version sync --check
       - name: Generate versioned build metadata
         env:
           RELEASE_VERSION: ${{ steps.plan.outputs.version }}
         run: |
           ./githelper release stamp "$RELEASE_VERSION"
+          ./githelper version sync --check
           python3 scripts/coordinator_release.py metadata "$RUNNER_TEMP/coordinator.json" "$RELEASE_VERSION"
       - uses: actions/setup-java@v4
         with:

@@ -51,7 +51,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Test workspace tooling
-        run: python3 -m unittest discover -p 'test_githelper*.py' -v
+        run: python3 -m unittest discover -p 'test_*.py' -v
       - name: Reject retired storage references
         run: |
           if rg -n -i 'parquet|org\.apache\.parquet|repository\.parquet|parquet-hadoop' \
@@ -62,6 +62,8 @@ jobs:
           fi
       - name: Check out locked modules
         run: ./githelper lock checkout
+      - name: Check inherited Maven and npm versions
+        run: ./githelper version sync --check
       - name: Validate coordinator and preview release
         if: github.event_name == 'pull_request'
         env:
