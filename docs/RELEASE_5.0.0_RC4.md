@@ -62,7 +62,7 @@ publica esa versión. Consulte [githelper](../githelper.md).
 
 La integración de documentación, core y shell pasó la suite completa el
 2026-11-16: 1.424 casos Maven sin fallos ni errores (uno deshabilitado), 74 pruebas
-de frontend y 48 de herramientas, incluidas las comprobaciones de sustitución controlada.
+de frontend y 49 de herramientas, incluidas las comprobaciones de sustitución controlada.
 El helper de build de Admin también se verificó con su destino `admin-static/`.
 
 La compilación no equivale a una validación de navegador del Dashboard. Sus

@@ -24,7 +24,7 @@ class ReplacementTests(unittest.TestCase):
         self.names = ['lareferencia-platform-5.0.0-rc4.zip', 'SHA256SUMS', 'release.json', 'workspace.lock']
         for name in self.names:(self.root / name).write_bytes(b'new verified content')
         self.assets = [{'name':n,'size':20,'state':'uploaded','digest':'sha256:'+hashlib.sha256(b'new verified content').hexdigest()} for n in self.names]
-        self.calls=[];self.bad_asset=False;self.tag_changed=False;self.tag_reads=0
+        self.calls=[];self.bad_asset=False;self.tag_changed=False;self.tag_reads=0;self.missing_draft=False
         for obj, name, value in [(release, 'ROOT', self.root)]:
             p=patch.object(obj,name,value);p.start();self.addCleanup(p.stop)
         p=patch.dict(os.environ,{'GH_REPO':'test/repo','REPLACE_VERSION':'','EXPECTED_TAG_SHA':''});p.start();self.addCleanup(p.stop)
@@ -40,10 +40,10 @@ class ReplacementTests(unittest.TestCase):
             self.tag_reads+=1
             return json.dumps({'object':{'sha':'c'*40 if self.tag_changed and self.tag_reads>1 else self.old}})
         if path.endswith('/releases/tags/'+self.version):return json.dumps({'id':10,'draft':False,'prerelease':True})
-        if '/releases/tags/replacement-' in path:
+        if path.endswith('/releases?per_page=100'):
             assets=[dict(a) for a in self.assets]
             if self.bad_asset:assets[0]['digest']='sha256:wrong'
-            return json.dumps({'id':20,'draft':True,'assets':assets})
+            return json.dumps([] if self.missing_draft else [{'id':20,'draft':True,'tag_name':'replacement-'+self.version+'-'+self.new[:12],'assets':assets}])
         raise AssertionError(args)
 
     def perform(self):
@@ -57,6 +57,11 @@ class ReplacementTests(unittest.TestCase):
         tag=next(i for i,c in enumerate(self.calls) if c[2]=='repos/test/repo/git/refs/tags/'+self.version)
         publish=next(i for i,c in enumerate(self.calls) if c[2]=='repos/test/repo/releases/20')
         self.assertLess(create,delete);self.assertLess(delete,tag);self.assertLess(tag,publish)
+
+    def test_missing_draft_preserves_old_release_and_tag(self):
+        self.missing_draft=True
+        with self.assertRaisesRegex(RuntimeError,'exactly one uploaded'):self.perform()
+        self.assertFalse(any('DELETE' in c or 'PATCH' in c for c in self.calls))
 
     def test_bad_asset_preserves_old_release_and_tag(self):
         self.bad_asset=True

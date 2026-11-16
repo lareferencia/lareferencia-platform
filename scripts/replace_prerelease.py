@@ -53,7 +53,12 @@ def replace(version, expected_sha):
             'Exact source commits and provenance are in workspace.lock and release.json.')
     release.run('gh', 'release', 'create', staging_tag, '--draft', '--prerelease', '--target', sha,
                 '--title', f'Staged replacement {version}', '--notes', note, *files)
-    staged = api('/releases/tags/' + staging_tag)
+    # Drafts may not have a Git tag yet, so GitHub's published-by-tag endpoint
+    # returns 404. Resolve the uniquely named draft through the release listing.
+    matches = [r for r in api('/releases?per_page=100') if r['tag_name'] == staging_tag and r['draft']]
+    if len(matches) != 1:
+        raise RuntimeError('Expected exactly one uploaded replacement draft; old release preserved.')
+    staged = matches[0]
     print(f"Replacement draft uploaded: {staged['id']}", flush=True)
     if not staged['draft']:
         raise RuntimeError('Replacement staging release must be a draft.')
