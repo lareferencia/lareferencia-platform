@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release runner: tags the merge SHA, records generated build versions separately."""
+"""Publish the exact version already committed and validated in the coordinator."""
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -33,7 +33,11 @@ def plan(pr_path):
     existing = [t for t in run('git', 'tag', '--points-at', sha).splitlines() if VERSION.fullmatch(t)]
     if len(existing) > 1:
         raise RuntimeError('Multiple release versions point at coordinator SHA.')
-    version = existing[0] if existing else release_plan(h, ROOT, labels[0])['version']
+    from platform_versioning import read_version
+    version = (ROOT / 'VERSION').read_text().strip()
+    expected = existing[0] if existing else release_plan(h, ROOT, labels[0])['version']
+    if not VERSION.fullmatch(version) or version != expected or read_version(ROOT) != version:
+        raise RuntimeError(f'Prepared version is stale or inconsistent; run githelper release prepare --bump {labels[0]} (expected {expected}).')
     print(f'version={version}')
 
 
@@ -42,7 +46,7 @@ def metadata(pr_path, version):
     data = dict(version=version, coordinator_pr=pr['html_url'],
                 coordinator_commit=run('git', 'rev-parse', 'HEAD'),
                 modules=read_lock(h, ROOT),
-                build_version_overlay='githelper release stamp ' + version)
+                source_version=version)
     (ROOT / 'release.json').write_text(json.dumps(data, indent=2) + '\n')
 
 

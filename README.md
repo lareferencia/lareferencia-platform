@@ -4,7 +4,7 @@ LA Referencia is a platform for harvesting, processing, and indexing scholarly m
 
 ## 🚀 Current Status
 
-**Current development version: 5.0.0-rc3** (branch `main`).
+**Current development version: 5.0.0-rc4** (branch `main`).
 
 - Full OAI-PMH harvesting and a modernized standalone OAI-PMH data provider
 - Entity-based metadata processing with filesystem + SQLite storage
@@ -209,7 +209,7 @@ Note: dependent projects migrate `org.lareferencia.backend.*` → `org.lareferen
 git clone https://github.com/lareferencia/lareferencia-platform.git
 cd lareferencia-platform
 
-# Clone workspace modules declared in workspace.ini
+# Prepare the exact module commits frozen in workspace.lock
 ./githelper init
 
 # Build the standard implementation (Java modules + both web UIs)
@@ -255,7 +255,7 @@ Each module is an independent Git repository cloned in the workspace root and de
 
 ```bash
 ./githelper status                          # Parent + module status
-./githelper init                            # Clone missing modules
+./githelper init                            # Prepare frozen modules, or registered feature branches
 ./githelper pull                            # Pull parent branch and modules
 ./githelper switch <parent-branch>          # Switch parent branch (applies matching branch-set if present)
 ./githelper branch-set capture <name>       # Snapshot current module branches (reproducible with: ./githelper sync --set <name>)
@@ -266,30 +266,44 @@ Each module is an independent Git repository cloned in the workspace root and de
 For coordinated development and releases:
 
 ```bash
-./githelper feature start codex/123-description --modules lareferencia-core-lib,lareferencia-lrharvester-app
-./githelper lock capture --from-main  # after merging the module PRs
-./githelper release plan --bump rc
+./githelper feature start mejora-cosecha --modules lareferencia-core-lib,lareferencia-lrharvester-app
+./githelper feature add lareferencia-oai-pmh
+# Commit functional changes in each affected repository, then:
+./githelper pr
+# Prepare common versions and PRs; repeat after merging module PRs:
+./githelper release prepare --bump rc
+./githelper pr
 ```
 
-Active Maven modules inherit their version from `lareferencia-parent`; internal
-dependency versions are managed centrally. Both frontend package manifests and
-lockfiles follow the same version. Check alignment with
-`./githelper version sync --check`, or update it with `./change-version.sh <version>`.
-Legacy contribution modules retain their independent versions.
+Active modules inherit the parent version; internal dependency versions are
+centralized and npm metadata follows the same version. Preparation commits these
+versions before publication. Legacy contributions retain their independent versions.
+Apply exactly one matching `release:*` label once all module PRs are merged and the
+coordinator lock is refreshed. Its merge publishes the prepared version after CI.
+See [githelper.md](githelper.md) for the complete workflow and recovery.
 
-Commit `workspace.lock` in the platform PR and add exactly one `release:*` label.
-Merging that coordinator PR builds the locked modules and publishes a new numbered
-release. PR CI only validates. See [githelper.md](githelper.md#pr-coordinador-y-releases)
-for labels, build version metadata, GitHub setup and recovery.
+### Download a Published Version
 
-Development modules normally use `branch = main`; release modules can pin `tag = <version>` (optionally plus an exact `commit` SHA). Maven build profiles (`lareferencia`, `lite`, `rcaap`, `ibict`) are independent of branch-sets. See [githelper.md](githelper.md).
-
-### Checkout a Tagged Version
+Once 5.0.0-rc4 is published (it is currently being prepared):
 
 ```bash
-git checkout 4.2.6
+git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
+cd lareferencia-platform
 ./githelper init
+./build.sh lareferencia
+# Or compile directly with Maven; no version-stamping command is needed:
+# mvn clean install -Plareferencia
 ```
+
+To align an existing clean workspace with another release:
+
+```bash
+./githelper switch 5.0.0-rc5
+```
+
+Historical versions without workspace.lock retain their original installation
+instructions. GitHub's automatic source ZIP contains only the parent repository;
+use a Git clone or the complete platform ZIP attached to the release.
 
 ## 🔧 Configuration
 

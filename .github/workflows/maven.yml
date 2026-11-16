@@ -61,7 +61,7 @@ jobs:
             exit 1
           fi
       - name: Check out locked modules
-        run: ./githelper lock checkout
+        run: ./githelper init
       - name: Check inherited Maven and npm versions
         run: ./githelper version sync --check
       - name: Validate coordinator and preview release
@@ -71,23 +71,30 @@ jobs:
         run: |
           if python3 -c 'import json,os,sys; sys.exit(not any(x["name"].startswith("release:") for x in json.loads(os.environ["LABELS_JSON"])))'; then
             ./githelper lock verify --merged
-            ./githelper release plan --labels-json "$LABELS_JSON" | tee release-plan.json
-            ./githelper release stamp "$(python3 -c 'import json; print(json.load(open("release-plan.json"))["version"])')"
-            printf 'Release preview: `%s`\n' "$(cat release-plan.json)" >> "$GITHUB_STEP_SUMMARY"
+            python3 -c 'import json,os; json.dump({"labels":json.loads(os.environ["LABELS_JSON"])},open("/tmp/coordinator-labels.json","w"))'
+            python3 scripts/coordinator_release.py plan /tmp/coordinator-labels.json >> "$GITHUB_STEP_SUMMARY"
           else
             ./githelper lock verify
           fi
+      - name: Prepare a fresh source download
+        run: |
+          git clone --no-local --no-checkout "$GITHUB_WORKSPACE" "$RUNNER_TEMP/platform-source"
+          git -C "$RUNNER_TEMP/platform-source" checkout --detach "$GITHUB_SHA"
+          cd "$RUNNER_TEMP/platform-source"
+          ./githelper init
+          ./githelper version sync --check
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: temurin
           cache: maven
-      - name: Build and test platform
+      - name: Build and test freshly downloaded platform
+        working-directory: ${{ runner.temp }}/platform-source
         run: |
           mvn --batch-mode --no-transfer-progress clean verify -Plareferencia \
             -Dindexing.test.jdbc-url=jdbc:postgresql://127.0.0.1:5432/indexing_test
       - name: Test administration frontend
-        working-directory: lareferencia-lrharvester-admin-web
+        working-directory: ${{ runner.temp }}/platform-source/lareferencia-lrharvester-admin-web
         run: ./node/node node_modules/vitest/vitest.mjs run
       - name: Preserve test diagnostics
         if: failure()
@@ -95,6 +102,6 @@ jobs:
         with:
           name: test-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            **/target/surefire-reports/**
-            **/target/failsafe-reports/**
+            ${{ runner.temp }}/platform-source/**/target/surefire-reports/**
+            ${{ runner.temp }}/platform-source/**/target/failsafe-reports/**
           if-no-files-found: ignore

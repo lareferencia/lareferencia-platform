@@ -217,6 +217,26 @@ class ReleaseArtifactTests(unittest.TestCase):
         checksum = hashlib.sha256((self.root / 'lareferencia-platform-5.0.0-rc4.zip').read_bytes()).hexdigest()
         self.assertIn(checksum, (self.root / 'SHA256SUMS').read_text())
 
+    def test_publication_uses_prepared_version_and_rejects_stale_number(self):
+        init_repo(self.root)
+        (self.root / 'pom.xml').write_text('<project xmlns="http://maven.apache.org/POM/4.0.0"><version>5.0.0-rc4</version></project>')
+        (self.root / 'VERSION').write_text('5.0.0-rc4\n')
+        pr = self.root / 'pr.json'
+        pr.write_text(json.dumps({'labels': [{'name': 'release:rc'}]}))
+        git(['add', '.'], self.root)
+        git(['commit', '-m', 'baseline'], self.root)
+        git(['tag', '5.0.0-rc3'], self.root)
+        git(['commit', '--allow-empty', '-m', 'prepared coordinator'], self.root)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            self.release.plan(str(pr))
+        self.assertIn('version=5.0.0-rc4', output.getvalue())
+        git(['tag', '5.0.0-rc4'], self.root)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.release.plan(str(pr))  # retry on its already-created tag
+        git(['commit', '--allow-empty', '-m', 'later coordinator'], self.root)
+        with self.assertRaisesRegex(RuntimeError, 'stale'):
+            self.release.plan(str(pr))
+
     def test_published_release_is_preserved(self):
         from types import SimpleNamespace
         sha = 'a' * 40

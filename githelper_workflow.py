@@ -26,6 +26,8 @@ def create_branches(h, args, include_parent):
         workspace = h.load_workspace(root)
         modules = h.select_modules(workspace, args.modules)
         branch = args.branch or h.get_current_branch(root)
+        if include_parent and not branch.startswith("codex/"):
+            branch = "codex/" + branch
         if not branch or branch == "main":
             raise RuntimeError("Choose a feature branch, different from main.")
         checked(h, root, "check-ref-format", "--branch", branch)
@@ -105,6 +107,9 @@ def lock_command(h, args):
             temporary.replace(root / LOCK)
         else:
             entries = read_lock(h, root)
+            if getattr(args, "modules", None):
+                names = {m.name for m in h.select_modules(h.load_workspace(root), args.modules)}
+                entries = [e for e in entries if e["name"] in names]
             # All existing clones are checked before any checkout takes place.
             for e in entries:
                 repo = root / e["path"]
@@ -160,8 +165,9 @@ def next_version(previous, bump):
             "minor": f"{major}.{minor+1}.0", "major": f"{major+1}.0.0"}[bump]
 
 
-def release_plan(h, root, bump):
-    tags = checked(h, root, "tag", "--list").splitlines()
+def release_plan(h, root, bump, remote=False):
+    namespace = 'refs/githelper/releases/' if remote else 'refs/tags/'
+    tags = [ref[len(namespace):] for ref in checked(h, root, 'for-each-ref', '--format=%(refname)', namespace).splitlines()]
     versions = [t for t in tags if VERSION.fullmatch(t)]
     if not versions:
         raise RuntimeError("No numbered release tag found; bootstrap a baseline tag first.")
@@ -169,7 +175,7 @@ def release_plan(h, root, bump):
         m = VERSION.fullmatch(tag)
         return (*map(int, m.groups()[:3]), int(m[4]) if m[4] else float("inf"))
     previous = max(versions, key=key)
-    checked(h, root, "merge-base", "--is-ancestor", previous, "HEAD")
+    checked(h, root, "merge-base", "--is-ancestor", namespace + previous, "HEAD")
     return dict(previous=previous, version=next_version(previous, bump), bump=bump)
 
 
@@ -223,6 +229,9 @@ def release_command(h, args):
 
 
 def register_commands(parser, subparsers, h):
+    from githelper_coordination import dispatch
+    pr = subparsers.add_parser("pr", help="Push committed feature changes and create/update module and coordinator PRs (requires gh).")
+    pr.set_defaults(func=lambda args: dispatch(h, "pr", args))
     versions = subparsers.add_parser("version", help="Synchronize active inherited Maven and npm versions.")
     commands = versions.add_subparsers(dest="version_action", required=True)
     sync = commands.add_parser("sync")
@@ -238,6 +247,9 @@ def register_commands(parser, subparsers, h):
     start.add_argument("--modules", required=True)
     start.add_argument("--base", default="origin/main")
     start.set_defaults(func=lambda args: create_branches(h, args, True))
+    add = commands.add_parser("add", help="Add modules to the current coordinated feature from origin/main.")
+    add.add_argument("modules", help="Comma-separated module names.")
+    add.set_defaults(func=lambda args: dispatch(h, "add", args))
     lock = subparsers.add_parser("lock", help="Capture, checkout or verify exact module commits.")
     commands = lock.add_subparsers(dest="lock_action", required=True)
     for action in ("capture", "checkout", "verify"):
@@ -248,6 +260,9 @@ def register_commands(parser, subparsers, h):
         command.set_defaults(func=lambda args: lock_command(h, args))
     release = subparsers.add_parser("release")
     commands = release.add_subparsers(dest="release_action", required=True)
+    prepare = commands.add_parser("prepare", help="Commit aligned versions and lock; repeat after module merges.")
+    prepare.add_argument("--bump", required=True, choices=("patch", "minor", "major", "rc", "stable"))
+    prepare.set_defaults(func=lambda args: dispatch(h, "prepare", args))
     plan = commands.add_parser("plan")
     plan.add_argument("--bump", choices=("patch", "minor", "major", "rc", "stable"))
     plan.add_argument("--labels-json")

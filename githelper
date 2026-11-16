@@ -612,6 +612,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     try:
         root = get_repo_root()
         workspace = load_workspace(root)
+        branch_set = getattr(args, "branch_set", None) or get_current_branch(root)
+        mapping = workspace.branch_sets.get(branch_set, {})
+        if (root / "workspace.lock").is_file() and not getattr(args, "dev", False) and not mapping:
+            from githelper_workflow import lock_command
+            return lock_command(sys.modules[__name__], argparse.Namespace(lock_action="checkout", merged=False, modules=args.modules))
+        if (root / "workspace.lock").is_file() and mapping:
+            from githelper_install import initialize_feature
+            return initialize_feature(sys.modules[__name__], root, args, mapping)
         modules = select_modules(workspace, args.modules)
         branch_set_name = resolve_branch_set_arg(args)
     except RuntimeError as err:
@@ -719,29 +727,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
 
 def cmd_switch(args: argparse.Namespace) -> int:
-    try:
-        root = get_repo_root()
-        workspace = load_workspace(root)
-        select_modules(workspace, args.modules)
-    except RuntimeError as err:
-        return fail(str(err))
-
-    target = args.branch
-    ensure_remote_refs(root)
-
-    if not branch_contains_workspace_manifest(root, target):
-        return fail(
-            f"branch '{target}' does not contain {MANIFEST_FILE}.\n"
-            "This branch uses the old submodule layout; use plain git switch if you really want to inspect it."
-        )
-
-    parent_result = switch_to_branch(root, target)
-    if parent_result.returncode != 0:
-        return fail(f"Could not switch parent to '{target}': {parent_result.stderr or parent_result.stdout}")
-
-    info(f"OK   parent: now on '{target}'.")
-    sync_ns = argparse.Namespace(branch_set=target, legacy_branch=None, modules=args.modules)
-    return cmd_sync(sync_ns)
+    from githelper_install import switch
+    return switch(sys.modules[__name__], args)
 
 
 def cmd_branch_create(args: argparse.Namespace) -> int:
@@ -940,6 +927,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_status.set_defaults(func=cmd_status)
 
     p_init = subparsers.add_parser("init", help="Clone missing workspace repositories from workspace.ini.")
+    p_init.add_argument("--dev", action="store_true", help="Initialize development branches instead of frozen module commits.")
     p_init.add_argument("--set", dest="branch_set", help="Use this branch-set while cloning.")
     p_init.add_argument("--branch", dest="legacy_branch", help=argparse.SUPPRESS)
     p_init.add_argument("--modules", help="Comma-separated module list. Defaults to all modules.")

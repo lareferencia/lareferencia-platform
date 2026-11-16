@@ -1,6 +1,6 @@
 # Developer Onboarding Guide
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-11-16
 
 How to get from an empty machine to a running development environment, verified against
 the scripts on 2026-09-23. Start with [`ARCHITECTURE.md`](ARCHITECTURE.md) for the big
@@ -23,7 +23,7 @@ This repository is a **workspace of nested independent git repositories**:
 ```bash
 git clone <this-repo>
 cd lareferencia-platform
-./githelper init     # clones the nested modules from workspace.ini (branch main)
+./githelper init     # frozen module commits or registered feature branches
 ./githelper --help   # other workspace commands
 ```
 
@@ -55,7 +55,8 @@ Notes:
 - Both UI scripts compile in Docker so the host does not need a compatible Node binary or newer glibc. Direct Maven frontend builds still install Node on the host; use the UI scripts on older servers.
 - The Maven **profiles** `lareferencia` (default), `ibict` and `rcaap` select the
   country-specific contrib dependencies and branding in the harvester pom.
-- Version bumps: `./change-version.sh <version>` (`mvn versions:set` across the reactor).
+- Releases: `./githelper release prepare --bump rc` prepares committed Maven/npm versions and module PRs. Repeat after module merges to finalize the lock. See [githelper.md](../githelper.md).
+- Published versions: select the platform tag, run `./githelper init`, then compile with Maven or the existing scripts; no manual version stamp is required.
 
 ## Running
 
