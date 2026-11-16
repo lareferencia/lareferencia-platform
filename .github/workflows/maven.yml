@@ -1,109 +1,98 @@
-# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-name: Java CI with Maven
+name: Platform CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-
+  release-labels:
+    name: Initialize release labels
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      issues: write
     steps:
-    
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Create missing release labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/coordinator_release.py labels
 
-    - name: Init workspace modules
-      run: ./githelper init
-
-    - name: Reject retired storage references
-      run: |
-        if rg -n -i "parquet|org\\.apache\\.parquet|repository\\.parquet|parquet-hadoop" \
-          --glob '!Docker/data/**' \
-          --glob '!**/target/**' \
-          --glob '!**/node_modules/**' \
-          --glob '!.github/workflows/maven.yml' \
-          .; then
-          echo "Retired storage references found in source, configuration, or documentation"
-          exit 1
-        fi
-    - name: Set up JDK 21
-      uses: actions/setup-java@v3
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        cache: maven
-        
-    - name: ssh setup
-      uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: ${{ secrets.LMATAS_PRIVATE_KEY }}
-
-    - uses: avides/actions-project-version-check@v1.4.0
-      id: version_check 
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        file-to-check: ./pom.xml
-
-    - name: use-version-from-check
-      run: echo ${{ steps.version_check.outputs.version }} 
-
-    - name: Test OAI-PMH provider
-      run: mvn --batch-mode -pl lareferencia-oai-pmh test
-      
-    - name: Build with Maven
-      run: bash build.sh lareferencia
-
-    - name: Compress Build
-      working-directory: .
-      shell: bash
-      run: |
-        archive="lareferencia-platform-${{ steps.version_check.outputs.version  }}.zip"
-        rm -f "$archive"
-        zip -qr "$archive" . \
-          -x "target/*" \
-          -x "*/target/*" \
-          -x ".git/*" \
-          -x "*/.git/*"
-        ls -lh "$archive"
-
-    - name: Verify release artifacts
-      run: |
-        unzip -Z1 lareferencia-platform-${{ steps.version_check.outputs.version }}.zip > zip-contents.txt
-        if grep -nE "(^|/)target(/|$)" zip-contents.txt; then
-          echo "ERROR: zip contains target/ directories"
-          exit 1
-        fi
-        find . -maxdepth 2 -name "*.jar" -not -path "./target/*" -not -path "*/target/*" | sed 's|^\./||' | while read -r jar; do
-          grep -Fxq "$jar" zip-contents.txt
-        done
-
-    - name: Delete existing release if exists
-      continue-on-error: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh release delete ${{ steps.version_check.outputs.version }} --yes --cleanup-tag || true
-
-    - name: Create or Update Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.version_check.outputs.version }}
-        name: Release ${{ steps.version_check.outputs.version }}
-        files: ./lareferencia-platform-${{ steps.version_check.outputs.version }}.zip
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      
-
-  
+  integration:
+    name: Locked platform integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: indexing-test
+          POSTGRES_DB: indexing_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d indexing_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test workspace tooling
+        run: python3 -m unittest discover -p 'test_githelper*.py' -v
+      - name: Reject retired storage references
+        run: |
+          if rg -n -i 'parquet|org\.apache\.parquet|repository\.parquet|parquet-hadoop' \
+            --glob '!docs/**' --glob '!Docker/data/**' --glob '!**/target/**' \
+            --glob '!**/node_modules/**' --glob '!.github/workflows/maven.yml' .; then
+            echo 'Retired storage references found'
+            exit 1
+          fi
+      - name: Check out locked modules
+        run: ./githelper lock checkout
+      - name: Validate coordinator and preview release
+        if: github.event_name == 'pull_request'
+        env:
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels) }}
+        run: |
+          if python3 -c 'import json,os,sys; sys.exit(not any(x["name"].startswith("release:") for x in json.loads(os.environ["LABELS_JSON"])))'; then
+            ./githelper lock verify --merged
+            ./githelper release plan --labels-json "$LABELS_JSON" | tee release-plan.json
+            ./githelper release stamp "$(python3 -c 'import json; print(json.load(open("release-plan.json"))["version"])')"
+            printf 'Release preview: `%s`\n' "$(cat release-plan.json)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            ./githelper lock verify
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      - name: Build and test platform
+        run: |
+          mvn --batch-mode --no-transfer-progress clean verify -Plareferencia \
+            -Dindexing.test.jdbc-url=jdbc:postgresql://127.0.0.1:5432/indexing_test
+      - name: Test administration frontend
+        working-directory: lareferencia-lrharvester-admin-web
+        run: ./node/node node_modules/vitest/vitest.mjs run
+      - name: Preserve test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+          if-no-files-found: ignore

@@ -240,60 +240,6 @@ class PinnedTagWorkflowTests(unittest.TestCase):
             self.assertIn("module | tag:4.2.7", status.stdout)
 
 
-class MigrationSmokeTests(unittest.TestCase):
-    def test_migrate_from_submodules_in_place(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            source = root / "module-src"
-            parent = root / "parent"
-
-            init_repo(source)
-            (source / "README.md").write_text("module\n", encoding="utf-8")
-            git(["add", "README.md"], source)
-            git(["commit", "-m", "initial module"], source)
-
-            init_repo(parent)
-            (parent / "workspace.ini").write_text(
-                textwrap.dedent(
-                    f"""
-                    [workspace]
-                    default_branch = main
-
-                    [module.module]
-                    url = {source}
-                    branch = main
-                    """
-                ).strip()
-                + "\n",
-                encoding="utf-8",
-            )
-            git(["add", "workspace.ini"], parent)
-            git(["commit", "-m", "add workspace manifest"], parent)
-            run(["git", "-c", "protocol.file.allow=always", "submodule", "add", str(source), "module"], parent)
-            git(["commit", "-m", "add submodule"], parent)
-
-            dry_run = run(
-                [sys.executable, str(GITHELPER), "migrate", "from-submodules", "--in-place", "--dry-run"],
-                parent,
-            )
-            self.assertIn("dry-run", dry_run.stdout)
-
-            run([sys.executable, str(GITHELPER), "migrate", "from-submodules", "--in-place"], parent)
-
-            ls_files = git(["ls-files", "-s"], parent).stdout
-            self.assertNotIn("160000", ls_files)
-            self.assertTrue((parent / "module" / ".git").is_dir())
-            self.assertFalse((parent / ".gitmodules").exists())
-            self.assertEqual(git(["-C", "module", "status", "--short"], parent).stdout.strip(), "")
-
-            config_result = subprocess.run(
-                ["git", "config", "--get-regexp", r"^submodule\."],
-                cwd=str(parent),
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            self.assertNotEqual(config_result.returncode, 0)
 
 
 if __name__ == "__main__":

@@ -262,6 +262,19 @@ Each module is an independent Git repository cloned in the workspace root and de
 ./githelper url rewrite --to https
 ```
 
+For coordinated development and releases:
+
+```bash
+./githelper feature start codex/123-description --modules lareferencia-core-lib,lareferencia-lrharvester-app
+./githelper lock capture --from-main  # after merging the module PRs
+./githelper release plan --bump rc
+```
+
+Commit `workspace.lock` in the platform PR and add exactly one `release:*` label.
+Merging that coordinator PR builds the locked modules and publishes a new numbered
+release. PR CI only validates. See [githelper.md](githelper.md#pr-coordinador-y-releases)
+for labels, build version metadata, GitHub setup and recovery.
+
 Development modules normally use `branch = main`; release modules can pin `tag = <version>` (optionally plus an exact `commit` SHA). Maven build profiles (`lareferencia`, `lite`, `rcaap`, `ibict`) are independent of branch-sets. See [githelper.md](githelper.md).
 
 ### Checkout a Tagged Version

@@ -58,7 +58,7 @@
 	<spring-boot.executable>true</spring-boot.executable>
 	<lareferencia.shell.appname>lareferencia-shell</lareferencia.shell.appname>		<harvester.appname>harvester</harvester.appname>
 		<entity.rest.appname>entity-rest</entity.rest.appname>
-		<testcontainers.version>1.20.1</testcontainers.version>
+		<testcontainers.version>1.21.4</testcontainers.version>
 	</properties>
 
 	<dependencyManagement>

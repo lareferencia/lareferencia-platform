@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "modules": [
+    {
+      "name": "lareferencia-solr-cores",
+      "path": "lareferencia-solr-cores",
+      "url": "https://github.com/lareferencia/lareferencia-solr-cores",
+      "commit": "7fa44f555815b9ab6a7d48c82f0d7d3989c6ec65"
+    },
+    {
+      "name": "lareferencia-oclc-harvester",
+      "path": "lareferencia-oclc-harvester",
+      "url": "https://github.com/lareferencia/lareferencia-oclc-harvester",
+      "commit": "afc1872c6232b077f6e69610027c23d9b6296f47"
+    },
+    {
+      "name": "lareferencia-core-lib",
+      "path": "lareferencia-core-lib",
+      "url": "https://github.com/lareferencia/lareferencia-core-lib",
+      "commit": "b65023b65f6ec2ada6ff0676d10f05eeec671816"
+    },
+    {
+      "name": "lareferencia-entity-lib",
+      "path": "lareferencia-entity-lib",
+      "url": "https://github.com/lareferencia/lareferencia-entity-lib",
+      "commit": "c2872a5e780e1c1dfdb29d06f51b98d82af5d4d8"
+    },
+    {
+      "name": "lareferencia-contrib-rcaap",
+      "path": "lareferencia-contrib-rcaap",
+      "url": "https://github.com/lareferencia/lareferencia-contrib-rcaap",
+      "commit": "f8003a809be40ad92b133d626b6a6e60254a30db"
+    },
+    {
+      "name": "lareferencia-contrib-ibict",
+      "path": "lareferencia-contrib-ibict",
+      "url": "https://github.com/lareferencia/lareferencia-contrib-ibict",
+      "commit": "bfaa2792ff71a2ca53a3af193c38a93c6c879e5a"
+    },
+    {
+      "name": "lareferencia-indexing-filters-lib",
+      "path": "lareferencia-indexing-filters-lib",
+      "url": "https://github.com/lareferencia/lareferencia-indexing-filters-lib",
+      "commit": "aef0379aa0559cff34fbccab53dde446aad18753"
+    },
+    {
+      "name": "lareferencia-shell-entity-plugin",
+      "path": "lareferencia-shell-entity-plugin",
+      "url": "https://github.com/lareferencia/lareferencia-shell-entity-plugin",
+      "commit": "9cea759ff6a07822124dbbd9a8e1f98fb8c38eaf"
+    },
+    {
+      "name": "lareferencia-shell",
+      "path": "lareferencia-shell",
+      "url": "https://github.com/lareferencia/lareferencia-shell",
+      "commit": "e81966558e76b2350c9b27b341616e15e2fd9b60"
+    },
+    {
+      "name": "lareferencia-lrharvester-app",
+      "path": "lareferencia-lrharvester-app",
+      "url": "https://github.com/lareferencia/lareferencia-lrharvester-app",
+      "commit": "caaf09347301659584c786f05e2f263322443d46"
+    },
+    {
+      "name": "lareferencia-lrharvester-admin-web",
+      "path": "lareferencia-lrharvester-admin-web",
+      "url": "https://github.com/lareferencia/lareferencia-lrharvester-admin-web",
+      "commit": "06d4850149b9b93143d4ee4d9b35fc3d819bf73d"
+    },
+    {
+      "name": "lareferencia-entity-rest",
+      "path": "lareferencia-entity-rest",
+      "url": "https://github.com/lareferencia/lareferencia-entity-rest",
+      "commit": "32b0c34cb769287226c7a1da4460cee9c6116724"
+    },
+    {
+      "name": "lareferencia-repository-dashboard",
+      "path": "lareferencia-repository-dashboard",
+      "url": "https://github.com/lareferencia/lareferencia-repository-dashboard.git",
+      "commit": "2e81dc9182b8e648c13a1f2437ddd00e5fe0f866"
+    },
+    {
+      "name": "lareferencia-oai-pmh",
+      "path": "lareferencia-oai-pmh",
+      "url": "https://github.com/lareferencia/lareferencia-oai-pmh",
+      "commit": "a1a9f93137685eec1e2fc1bc75431d4301c6f640"
+    },
+    {
+      "name": "lareferencia-dark-lib",
+      "path": "lareferencia-dark-lib",
+      "url": "https://github.com/lareferencia/lareferencia-dark-lib",
+      "commit": "6e6ccf368068f96e06048b40a6cc1dc1a9413fb4"
+    },
+    {
+      "name": "vufind",
+      "path": "vufind",
+      "url": "https://github.com/vufind-org/vufind",
+      "commit": "acde2b922de221d855c1ca1883c9c648b1e427f2"
+    }
+  ]
+}

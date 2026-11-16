@@ -156,14 +156,24 @@ Este comando actualiza:
 - URLs de modulos en `workspace.ini`.
 - `origin` en clones existentes en disco.
 
-## Manejo de cambios locales al crear branch
+## Crear ramas desde main
 
-Cuando ejecutas `branch create`, si un modulo tiene cambios sin commit, `githelper` pregunta para ese modulo:
+`branch create` descarga `origin` y crea las ramas desde `origin/main`, aunque
+el módulo esté actualmente en otra rama. `--base` permite otra base explícita.
+Rechaza clones sucios y ramas que ya existen; nunca las reutiliza silenciosamente.
+Comprueba todos los repos antes de crear la primera rama. Ante un error de Git
+durante la creación, informa el fallo; las ramas ya creadas permanecen disponibles.
 
-- `[l]` llevar cambios a la nueva branch.
-- `[d]` dejar cambios en la branch actual.
+Para crear también la rama del padre y registrar el branch-set automáticamente:
 
-Si eliges `[d]`, se crea la branch objetivo si hace falta, pero no se cambia de branch en ese modulo.
+```bash
+./githelper feature start codex/123-descripcion \
+  --modules lareferencia-core-lib,lareferencia-lrharvester-app
+```
+
+El padre y los módulos seleccionados deben estar limpios. El branch-set generado
+se debe commitear en el padre. Los módulos no seleccionados conservan su checkout;
+`sync` aplica posteriormente sus defaults si necesitas normalizar todo el workspace.
 
 ## Seleccion de modulos
 
@@ -200,3 +210,139 @@ Si no se indica `--modules`, se usan todos los modulos de `workspace.ini`.
 ```bash
 ./githelper branch create --modules lareferencia-core-lib,lareferencia-shell
 ```
+
+## Lock de módulos
+
+`workspace.lock` es JSON versionado con esquema 1 y, para cada módulo del manifest,
+nombre, path, URL y SHA completo. Incluye componentes externos distribuidos, como
+VuFind, fijado en el manifest a su tag upstream. Los módulos con tag deben coincidir
+con esa tag; los demás deben pertenecer a `origin/main` al publicar.
+
+```bash
+# Capturar los HEAD actuales: exige todos los módulos limpios.
+./githelper lock capture
+
+# Capturar los main remotos y las tags fijadas sin cambiar ningún checkout local.
+# Es el comando habitual después de mergear los PR de los módulos.
+./githelper lock capture --from-main
+
+# Clonar lo que falte y restaurar exactamente el lock en detached HEAD.
+./githelper lock checkout
+
+# Verificar SHA y limpieza; no cambia de rama.
+./githelper lock verify
+
+# Además exige que todos los commits estén integrados en main
+# (o coincidan con la tag fijada, para módulos upstream).
+./githelper lock verify --merged
+```
+
+`checkout` rechaza clones sucios, remotos distintos del manifest, paths inseguros,
+SHA inválidos y locks incompletos. Comprueba los clones existentes antes de cambiar
+el primero. No restaura cambios locales ni hace reset. `sync` y `pull` siguen
+orientados al desarrollo por ramas; para reproducir una release usa `lock checkout`.
+
+## PR coordinador y releases
+
+1. Crea la feature con `feature start`; desarrolla y abre un PR a `main` por módulo.
+2. Abre el PR del padre con el branch-set y un lock de la combinación a probar.
+   Sin etiqueta de release se pueden probar SHA todavía no integrados.
+3. Mergea los PR de módulos y actualiza el lock con sus SHA finales. Si usaste
+   squash o rebase, captura los SHA resultantes, no los anteriores al merge.
+4. Añade exactamente una etiqueta de release al PR coordinador y revisa CI.
+5. Mergea ese PR: `Coordinator release` verifica el lock, calcula la versión,
+   compila, ejecuta tests y publica el tag, ZIP, checksums, lock y `release.json`.
+
+Etiquetas y ejemplos:
+
+| Etiqueta | Antes | Después |
+|---|---|---|
+| `release:rc` | `5.0.0-rc3` | `5.0.0-rc4` |
+| `release:stable` | `5.0.0-rc4` | `5.0.0` |
+| `release:patch` | `5.0.0` | `5.0.1` |
+| `release:minor` | `5.0.1` | `5.1.0` |
+| `release:major` | `5.1.0` | `6.0.0` |
+
+Mientras la última versión sea candidata se exige `rc` o `stable`. La numeración
+parte de la mayor tag reconocida y exige que sea ancestro del coordinador. Los
+nombres históricos `5.0.0-alpha`, `5.0.0-beta` y `5.0.0-rc` no numerados se ignoran.
+
+Puedes previsualizar localmente después de descargar las tags:
+
+```bash
+git fetch origin --tags
+./githelper release plan --bump rc
+```
+
+La previsión de un PR puede aumentar si otra release se publica antes de su merge.
+La versión definitiva se asigna durante la publicación serializada. La cola de
+GitHub conserva hasta 100 ejecuciones pendientes. Si hay una publicación fuera del
+orden de commits, falla por ancestry en vez de etiquetar una regresión.
+
+### Versiones de compilación y reproducibilidad
+
+La tag apunta exactamente al commit mergeado del coordinador. Los SHA del lock
+identifican las fuentes originales de los módulos. Para no generar commits de
+numeración en todos los repos, CI aplica una transformación explícita y determinista:
+
+```bash
+./githelper release stamp 5.0.0-rc4
+```
+
+Este comando modifica los POM de la plataforma, sus referencias internas y las
+versiones de `package.json` / `package-lock.json`, y genera `VERSION`. No cambia
+versiones de dependencias externas. Es una operación de build: úsala en un clon
+limpio o temporal. Después del stamp el lock sigue identificando los commits de
+origen, pero `lock verify` rechazará los cambios de compilación hasta que vuelvas
+a un workspace limpio.
+
+El ZIP incluye estas fuentes con versiones aplicadas, los cuatro JAR desplegables
+y los dos frontends compilados, sin caches ni configuraciones locales ignoradas.
+`release.json` registra la versión, el PR, el commit coordinador, los SHA de módulos
+y el comando de transformación. El checksum corresponde al ZIP.
+
+Para reconstruir desde Git en un directorio nuevo:
+
+```bash
+git clone https://github.com/lareferencia/lareferencia-platform.git
+cd lareferencia-platform
+git checkout 5.0.0-rc4
+./githelper lock checkout
+./githelper lock verify --merged
+./githelper release stamp 5.0.0-rc4
+mvn --batch-mode clean verify -Plareferencia
+```
+
+Las fuentes quedan fijadas; dependencias de registros externos y timestamps del
+build no están congelados, por lo que no se promete un ZIP idéntico byte a byte.
+
+### Configuración inicial en GitHub
+
+El workflow crea automáticamente las cinco etiquetas `release:*` que falten en los
+PR abiertos desde este mismo repositorio y al integrar cambios en `main`; conserva
+las etiquetas ya existentes. Protege `main` exigiendo el check
+`Locked platform integration` actualizado con la base antes de mergear. Protege
+las tags numeradas contra cambios y activa releases inmutables si están disponibles.
+Los workflows usan `GITHUB_TOKEN`, sin la clave SSH personal que usaba el flujo
+anterior. Los módulos declarados actualmente son públicos; para módulos privados
+haría falta configurar credenciales de lectura limitadas a esos repositorios.
+
+`Platform CI` nunca publica. `Coordinator release` publica solo PR mergeados con
+una etiqueta de release. Las candidatas se marcan como prerelease en GitHub.
+No se borran ni reemplazan tags, releases o assets existentes. Se crea una draft,
+se adjuntan assets y después se publica. Una draft parcial requiere inspección
+manual antes de reintentar; una release ya publicada se conserva intacta.
+
+Para recuperar una ejecución fallida, usa **Re-run jobs** o `workflow_dispatch` del
+workflow `Coordinator release` indicando el número del PR ya mergeado. Si una tag
+ya fue creada sobre ese commit, se reutiliza su versión, sin asignar otra. Si se
+publicaron versiones posteriores sobre commits descendientes, no se numera el
+commit antiguo como si fuera una nueva release.
+
+Los jobs de CI y release levantan además un PostgreSQL 15 efímero y pasan
+`indexing.test.jdbc-url` a Maven. Esto activa las pruebas optativas de concurrencia
+y persistencia de resultados de indexación y las consultas operativas de tags.
+La contraseña `indexing-test` pertenece exclusivamente a esa base desechable;
+no se conecta a ninguna base de producción. Las demás integraciones usan sus
+propios contenedores de Testcontainers. Se requiere Docker disponible; la versión
+de Testcontainers está fijada en 1.21.4 para admitir Docker 29.

@@ -172,7 +172,7 @@ def validate_module_path(path: str) -> None:
     module_path = Path(path)
     if module_path.is_absolute():
         raise RuntimeError(f"Module path must be relative: {path}")
-    if ".." in module_path.parts:
+    if not module_path.parts or ".git" in module_path.parts or ".." in module_path.parts:
         raise RuntimeError(f"Module path must stay inside the workspace: {path}")
 
 
@@ -745,117 +745,8 @@ def cmd_switch(args: argparse.Namespace) -> int:
 
 
 def cmd_branch_create(args: argparse.Namespace) -> int:
-    try:
-        root = get_repo_root()
-        workspace = load_workspace(root)
-        modules = select_modules(workspace, args.modules)
-    except RuntimeError as err:
-        return fail(str(err))
-
-    if not modules:
-        return fail("No modules selected. Use --modules <m1,m2,...>.")
-
-    branch = args.branch or get_current_branch(root)
-    if not branch:
-        return fail("Parent repository is in detached HEAD; pass --branch explicitly.")
-
-    created = 0
-    existing = 0
-    kept_changes = 0
-    errors = 0
-
-    for module in modules:
-        repo = root / module.path
-        if not repo.exists() or not is_git_repository(repo):
-            warn(f"{module.name}: repository missing or uninitialized; run './githelper init'.")
-            errors += 1
-            continue
-
-        fetch_result = ensure_remote_refs(repo)
-        if fetch_result.returncode != 0:
-            warn(f"{module.name}: fetch failed: {fetch_result.stderr or fetch_result.stdout}")
-            errors += 1
-            continue
-
-        dirty = working_tree_dirty(repo)
-        if dirty:
-            try:
-                policy = prompt_changes_policy(module.name)
-            except RuntimeError as err:
-                return fail(str(err))
-            if policy == "keep":
-                if local_branch_exists(repo, branch):
-                    info(
-                        f"OK   {module.name}: branch '{branch}' ya existía. "
-                        "Se mantienen cambios en la branch actual."
-                    )
-                    existing += 1
-                    kept_changes += 1
-                    continue
-
-                if remote_branch_exists(repo, branch):
-                    result = run_git(["branch", "--track", branch, f"origin/{branch}"], repo)
-                    if result.returncode == 0:
-                        info(
-                            f"OK   {module.name}: branch local '{branch}' creada desde 'origin/{branch}'. "
-                            "Cambios permanecen en la branch actual."
-                        )
-                        created += 1
-                        kept_changes += 1
-                    else:
-                        warn(
-                            f"{module.name}: no se pudo crear branch local '{branch}' "
-                            f"sin cambiar de branch: {result.stderr or result.stdout}"
-                        )
-                        errors += 1
-                    continue
-
-                result = run_git(["branch", branch], repo)
-                if result.returncode == 0:
-                    info(
-                        f"OK   {module.name}: branch '{branch}' creada desde HEAD actual. "
-                        "Cambios permanecen en la branch actual."
-                    )
-                    created += 1
-                    kept_changes += 1
-                else:
-                    warn(
-                        f"{module.name}: no se pudo crear branch '{branch}' "
-                        f"sin cambiar de branch: {result.stderr or result.stdout}"
-                    )
-                    errors += 1
-                continue
-
-        if local_branch_exists(repo, branch):
-            result = run_git(["switch", branch], repo)
-            if result.returncode == 0:
-                info(f"OK   {module.name}: branch '{branch}' already existed, switched to it.")
-                existing += 1
-            else:
-                warn(f"{module.name}: branch '{branch}' exists but switch failed: {result.stderr or result.stdout}")
-                errors += 1
-            continue
-
-        if remote_branch_exists(repo, branch):
-            result = run_git(["switch", "-c", branch, "--track", f"origin/{branch}"], repo)
-            if result.returncode == 0:
-                info(f"OK   {module.name}: created local tracking branch '{branch}'.")
-                created += 1
-            else:
-                warn(f"{module.name}: could not create tracking branch '{branch}': {result.stderr or result.stdout}")
-                errors += 1
-            continue
-
-        result = run_git(["switch", "-c", branch], repo)
-        if result.returncode == 0:
-            info(f"OK   {module.name}: created new branch '{branch}' from current HEAD.")
-            created += 1
-        else:
-            warn(f"{module.name}: could not create branch '{branch}': {result.stderr or result.stdout}")
-            errors += 1
-
-    info(f"Summary: created={created} existing={existing} kept_changes={kept_changes} errors={errors}")
-    return 1 if errors else 0
+    from githelper_workflow import create_branches
+    return create_branches(sys.modules[__name__], args, include_parent=False)
 
 
 def cmd_branch_set_capture(args: argparse.Namespace) -> int:
@@ -1109,6 +1000,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--branch",
         help="Branch name. Defaults to parent current branch.",
     )
+    p_branch_create.add_argument("--base", default="origin/main", help="Explicit base (default: origin/main).")
     p_branch_create.set_defaults(func=cmd_branch_create)
 
     p_branch_set = subparsers.add_parser("branch-set", help="Capture and manage workspace branch sets.")
@@ -1127,6 +1019,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_branch_set_capture.set_defaults(func=cmd_branch_set_capture)
 
+    from githelper_workflow import register_commands
+    register_commands(parser, subparsers, sys.modules[__name__])
     return parser
 
 
