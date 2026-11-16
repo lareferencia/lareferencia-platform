@@ -46,7 +46,7 @@ def replace(version, expected_sha):
     files = [f'lareferencia-platform-{version}.zip', 'SHA256SUMS', 'release.json', 'workspace.lock']
     expected = {name: (release.ROOT / name).stat().st_size for name in files}
     checksums = {name: digest(release.ROOT / name) for name in files}
-    staging_tag = f'staging/{version}-{sha[:12]}'
+    staging_tag = f'replacement-{version}-{sha[:12]}'
     note = (f'Complete {version} integration. Replaces the earlier publication at {expected_sha}.\n\n'
             'Includes metadata exchange documentation, immutable SQLite export reads, export profile listing, '
             'batch outcome codes, reviewed component guides and corrected Admin build destination. '

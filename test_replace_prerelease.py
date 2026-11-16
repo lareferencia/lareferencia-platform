@@ -40,7 +40,7 @@ class ReplacementTests(unittest.TestCase):
             self.tag_reads+=1
             return json.dumps({'object':{'sha':'c'*40 if self.tag_changed and self.tag_reads>1 else self.old}})
         if path.endswith('/releases/tags/'+self.version):return json.dumps({'id':10,'draft':False,'prerelease':True})
-        if '/releases/tags/staging/' in path:
+        if '/releases/tags/replacement-' in path:
             assets=[dict(a) for a in self.assets]
             if self.bad_asset:assets[0]['digest']='sha256:wrong'
             return json.dumps({'id':20,'draft':True,'assets':assets})
