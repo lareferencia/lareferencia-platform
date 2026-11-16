@@ -63,6 +63,8 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as output:
               output.write(f'COORDINATOR_SHA={sha}\nCOORDINATOR_PR={pr["number"]}\n')
           PY
+          # GITHUB_ENV is available only to subsequent steps. Resolve it locally too.
+          COORDINATOR_SHA="$(python3 -c 'import json, os; from pathlib import Path; print(json.loads((Path(os.environ["RUNNER_TEMP"]) / "coordinator.json").read_text())["merge_commit_sha"])')"
           git merge-base --is-ancestor "$COORDINATOR_SHA" origin/main
           git checkout --detach "$COORDINATOR_SHA"
       - name: Validate prepared version or resume unpublished tag
