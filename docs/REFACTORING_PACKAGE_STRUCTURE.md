@@ -1,6 +1,6 @@
 # Estructura de paquetes vigente
 
-**Status:** current · **Last verified:** 2026-09-23
+**Status:** current · **Last verified:** 2026-11-16
 
 Este documento describe el `lareferencia-core-lib` actual, no un plan histórico.
 
@@ -15,12 +15,15 @@ Este documento describe el `lareferencia-core-lib` actual, no un plan histórico
 - `org.lareferencia.core.util`: utilidades transversales (`ConfigPathResolver`, etc.).
 - `org.lareferencia.core.embedding`: soporte de embeddings.
 - `org.lareferencia.core.oabroker`: integración con OAI Broker.
+- `org.lareferencia.core.export`: exportación LGK, mapping XOAI, lotes e índices SQLite de paquetes.
 
 El dominio no depende de UI/transporte; los workers consumen interfaces de metadata, catálogo y validación; la selección `workflow.engine=legacy|flowable` pertenece a configuración.
 
 ## Convenciones de paquetes y migración
 
-El namespace vigente es `org.lareferencia.core`. Las referencias antiguas `org.lareferencia.backend` no deben aparecer en código nuevo ni en documentación.
+El namespace vigente es `org.lareferencia.core`. El código de las bibliotecas core usa ese namespace. La aplicación Harvester
+conserva `org.lareferencia.backend.*`; no confundir su paquete con el namespace
+anterior de las bibliotecas.
 
 Convenciones: dominio en `core.domain`, metadata en `core.metadata`, catálogo en `core.repository.catalog`, validación en `core.repository.validation`, servicios en `core.service`, workers en `core.worker` y workflow en `core.task`/`core.flowable`.
 

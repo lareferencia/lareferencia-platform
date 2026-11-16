@@ -1,6 +1,6 @@
 # Migración del Repository Dashboard a la autenticación y API v5
 
-**Status:** integration in progress · **Last updated:** 2026-09-30 · **Angular refactor and separate builds:** implemented and compiled · **runtime/gateway verification:** pending
+**Status:** integration in progress · **Last updated:** 2026-11-16 · **Angular refactor and separate builds:** implemented and compiled · **runtime/gateway verification:** pending
 
 Este documento es el plan de trabajo para migrar `lareferencia-repository-dashboard`
 (Angular) al esquema local de autenticación y consultas del Harvester v5. Actualizar
@@ -19,13 +19,14 @@ contratos nativos de `/api/v5`. Se añade un gateway local para simular hosts se
 la configuración de TLS y hostnames de producción debe aplicarse al proxy de despliegue.
 No exponer públicamente el puerto del Harvester.
 
-El proyecto padre está en `5.0.0-rc3`. El dashboard se alineó a esa versión y el tag
-existente `2.2.0` conserva la versión anterior.
+El Dashboard hereda del padre de plataforma, actualmente `5.0.0-rc4`. Maven
+sincroniza `angular/package.json` y la entrada raíz del lock npm con esa versión.
+Los tags históricos del repositorio Dashboard conservan sus contenidos anteriores.
 
 ## Estado actual
 
 - [x] Clonar y registrar `lareferencia-repository-dashboard` como módulo Git del platform.
-- [x] Alinear `angular/package.json` y el lockfile raíz a `5.0.0-rc3`.
+- [x] Heredar la versión del padre y sincronizar `angular/package.json` y `angular/package-lock.json` (actualmente `5.0.0-rc4`).
 - [x] Migrar autenticación, rutas y servicios Angular (compila; validación en navegador pendiente).
 - [x] Corregir y documentar brechas del adaptador `/api/v5/dashboard` (adapter y normalización del frontend en su lugar; validación runtime pendiente).
 - [ ] Validar los flujos Angular con `ADMIN` y `DASHBOARD`, y el rechazo de `READER`.

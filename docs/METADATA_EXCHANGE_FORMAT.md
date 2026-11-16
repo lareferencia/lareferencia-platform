@@ -1,6 +1,6 @@
 # Formato de intercambio de metadata y enriquecimientos
 
-**Status:** current · **Last verified:** 2026-11-11
+**Status:** current · **Last verified:** 2026-11-16
 
 Este documento especifica el paquete que produce el exportador de metadata y el
 formato recomendado para devolver resultados externos. Describe el contrato

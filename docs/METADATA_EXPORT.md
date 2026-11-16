@@ -1,6 +1,6 @@
 # Exportación de metadata para enriquecimientos
 
-**Status:** current · **Last verified:** 2026-11-11
+**Status:** current · **Last verified:** 2026-11-16
 
 El shell exporta metadata original o procesada desde snapshots LGK para
 clasificación y enriquecimiento externo. Usa el acrónimo de red, el ID del
@@ -71,7 +71,7 @@ compresión predeterminada. Los límites y opciones completos se muestran con:
 help export-metadata
 ```
 
-En modo no interactivo (script o `--network ...` por línea de comandos) los
+En modo no interactivo (comando pasado al ejecutable del shell) los
 exit codes distinguen resultados: `COMPLETE` termina con 0, `PARTIAL` con 2
 (por registros con error; el paquete y su `errors.jsonl` son consumibles
 parcialmente) y `FAILED` con 1. El progreso se registra en el log cada 10.000
@@ -89,8 +89,10 @@ por registro; estos dejan el paquete en estado `PARTIAL`. Un fallo de
 infraestructura deja `FAILED`. Para colecciones completas, consume solo paquetes
 `COMPLETE`.
 
-El lector abre SQLite en modo de solo lectura y no ejecuta nuevas validaciones ni
-transformaciones. Fija los snapshots LGK al inicio y detecta cambios mientras
+El lector abre SQLite en modo de solo lectura inmutable (`mode=ro&immutable=1`)
+y no ejecuta nuevas validaciones ni transformaciones. Si el catálogo o la base de
+validación tienen un WAL no vacío, rechaza la exportación: hay que finalizar el
+snapshot antes de reintentar, sin borrar manualmente el WAL. Fija los snapshots LGK al inicio y detecta cambios mientras
 exporta. JSON no incluye los XML originales: recuperarlos requiere conservar el
 almacén de metadata del snapshot. No se requieren migraciones PostgreSQL.
 

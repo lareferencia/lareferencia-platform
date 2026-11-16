@@ -1,9 +1,9 @@
 # Architecture Overview
 
-**Status:** current · **Last verified:** 2026-09-29
+**Status:** current · **Last verified:** 2026-11-16
 
 High-level map of the LA Referencia platform: modules, ports and the main data flows.
-Verified against the code and build files on 2026-09-29. Configuration details live in
+Verified against the code and build files on 2026-11-16. Configuration details live in
 [`CONFIGURATION_PROPERTIES.md`](CONFIGURATION_PROPERTIES.md); terminology in
 [`GLOSSARY.md`](GLOSSARY.md); the full document index in
 [`DOCUMENTATION_INDEX.md`](DOCUMENTATION_INDEX.md).
@@ -16,7 +16,7 @@ flowchart LR
 
     subgraph HARV["lareferencia-lrharvester-app · 8090"]
         direction TB
-        AW["React Admin Web (served at /)"]
+        AW["React Admin Web (/admin/)"]
         V5["Management API v5"]
         TM["Task manager / actions"]
         HW["Harvest workers"] --> CAT[("SQLite catalog")]
@@ -34,7 +34,7 @@ flowchart LR
     DARK["dARK minter<br/>(external service)"]
 
     subgraph CONS["Other services"]
-        VUF["VuFind · 8080"]
+        VUF["External VuFind · 8080"]
         ENT["entity-rest · 8094"]
         OAIP["oai-pmh · 8096"]
     end
@@ -54,7 +54,7 @@ flowchart LR
 ```
 
 The `lareferencia-shell` (CLI) administers the same PostgreSQL/Solr/Elasticsearch
-backends outside the web app. VuFind is an external fork (PHP) with its own database.
+backends outside the web app. VuFind is an external fork (PHP) with its own database; it is excluded from the platform manifest, lock and release archives, although Docker can prepare it separately.
 The Admin Web and Repository Dashboard are built independently into `admin-static/` and
 `dashboard-static/`; the Harvester serves them only below `/admin/` and `/dashboard/`.
 
@@ -84,8 +84,8 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
    network (`network.attributes.ark_naan`) and the API routes are
    `POST /api/v5/dark/naans/{arkNaan}/preview|stage|reconcile`
    ([HARVESTER_MANAGEMENT_API_V5.md](HARVESTER_MANAGEMENT_API_V5.md)).
-6. **Publication.** `lareferencia-oai-pmh` is a standalone Spring Boot app (no
-   lareferencia library dependencies): it reads the Solr `oai` core and serves the
+6. **Publication.** `lareferencia-oai-pmh` is an independently deployable Spring Boot app
+   that inherits the platform parent and version (no direct LA Referencia module dependency): it reads the Solr `oai` core and serves the
    OAI-PMH protocol on port 8096, so external harvesters can harvest LA Referencia.
 7. **Consumption.** VuFind searches Solr. The Angular Repository Dashboard uses local v5
    sessions and read-only `/api/v5/dashboard` routes. Its public proxy host is allowlisted
@@ -98,7 +98,7 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 
 | Repository | Kind | Role |
 |---|---|---|
-| `lareferencia-core-lib` | Java library | Domain, metadata, catalog + validation repositories, service, task, worker, embedding, flowable, util (`ConfigPathResolver`, `PropertiesDirectoryListener`), oabroker |
+| `lareferencia-core-lib` | Java library | Domain, metadata export, catalog + validation repositories, service, task, worker, embedding, flowable, util (`ConfigPathResolver`, `PropertiesDirectoryListener`), oabroker |
 | `lareferencia-entity-lib` | Java library | Entity model + Elasticsearch/OpenSearch indexer (`JSONElasticEntityIndexerThreadedImpl`) |
 | `lareferencia-lrharvester-app` | Spring Boot app | Harvester workers and v5 API; serves Admin at `/admin/` and Dashboard at `/dashboard/` |
 | `lareferencia-lrharvester-admin-web` | React / Node 22 | Admin Web source; built into the harvester's `admin-static/` |
@@ -110,13 +110,19 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 | `lareferencia-dark-lib` | Java library | dARK client: `DarkProperties`, minter/stage/reconcile |
 | `lareferencia-oclc-harvester` | Java library | Adapted OCLC Harvester2 (OAI-PMH client) |
 | `lareferencia-indexing-filters-lib` | Java library | `FieldOccurrenceFilter` strategies for indexing |
-| `lareferencia-solr-cores` | config | Solr core definitions (canonical `oai` core still `LUCENE_42`; services run Solr 9.8 copies) |
-| `lareferencia-contrib-ibict` / `rcaap` | Java library | Country variants (not compiled in the v5 reactor; enabled by Maven profile) |
+| `lareferencia-solr-cores` | config | Configset inventory; Compose stages oai from the provider and biblio from external VuFind (Solr 9.11 runtime) |
+| `lareferencia-contrib-ibict` / `rcaap` | Java library | Legacy country libraries, excluded from the reactor and retained at 4.2.6; the optional rcaap profile still references its legacy artifact |
 
 Dependency sketch (from the poms): `lrharvester-app` → core-lib + dark-lib (+ entity-lib
 per profile); `entity-rest` → core-lib + entity-lib; `oai-pmh` → standalone. The
-Angular Repository Dashboard is a separate frontend planned to call Harvester's API after its v5 migration. Libraries come transitively through core-lib (e.g. oclc-harvester,
+Angular Repository Dashboard is a separate frontend using the Harvester v5 read-only
+adapter; browser/gateway acceptance checks still pending are listed in its migration guide. Libraries come transitively through core-lib (e.g. oclc-harvester,
 indexing-filters-lib).
+
+The manifest locks 15 repositories: 12 active Maven modules (10 Java plus two
+frontends), solr-cores and two legacy contrib modules. The parent adds the thirteenth
+reactor project. Active versions and internal dependency versions come from
+`lareferencia-parent`; npm manifests follow that version. See [githelper](../githelper.md).
 
 ## Ports
 
