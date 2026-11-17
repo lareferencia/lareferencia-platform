@@ -1,0 +1,4 @@
+interface:
+  display_name: "Features LA Referencia"
+  short_description: "Desarrollo coordinado de features con githelper"
+  default_prompt: "Usa $lareferencia-features para implementar una feature en los módulos de LA Referencia y verificar los cambios."

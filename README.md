@@ -289,6 +289,21 @@ Apply exactly one matching `release:*` label once all module PRs are merged and 
 coordinator lock is refreshed. Its merge publishes the prepared version after CI.
 See [githelper.md](githelper.md) for the complete workflow and recovery.
 
+### Develop Features with Codex
+
+The repository includes the [lareferencia-features skill](.agents/skills/lareferencia-features/SKILL.md)
+in `.agents/skills`, so it travels with the platform checkout. Open Codex in the
+platform directory and invoke it with your feature request:
+
+```text
+$lareferencia-features Implementa [descripción de la funcionalidad]
+```
+
+The skill covers module discovery, branches from main, implementation, tests,
+commits and coordinated PRs with an updated lock. Release preparation and
+publication apply when requested. Its supporting references and UI metadata
+are included in the same directory; no personal filesystem paths are required.
+
 ### Download a Published Version
 
 For the published 5.0.0-rc4 release:
