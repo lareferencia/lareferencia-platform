@@ -8,6 +8,9 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Correcciones
 
+- La exportación de metadatos interpreta los campos XOAI sin nombre como valores
+  y conserva su contenido (core-lib `3a0cbf3`).
+
 - La limpieza de metadatos huérfanos abre los catálogos protegidos y aborta antes
   de escanear o borrar si falla la lectura o si no se carga ninguna referencia
   protegida (core-lib).
@@ -17,3 +20,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 - Corrige la copia de recursos estáticos al construir la imagen Docker del
   proveedor OAI-PMH: utiliza el directorio `static/` en lugar de `static_en/`.
   ([#112](https://github.com/lareferencia/lareferencia-platform/pull/112))
+
+### Cambios
+
+- El perfil de exportación para clasificación contempla todas las variantes DC
+  configuradas (shell `d87a859`).
