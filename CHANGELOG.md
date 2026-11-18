@@ -8,6 +8,9 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Correcciones
 
+- La limpieza de metadatos huérfanos registra los hashes escaneados, los
+  candidatos y los borrados en el historial de los snapshots protegidos.
+
 - La exportación de metadatos interpreta los campos XOAI sin nombre como valores
   y conserva su contenido (core-lib `3a0cbf3`).
 
