@@ -11,6 +11,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 - La limpieza de metadatos huérfanos abre los catálogos protegidos y aborta antes
   de escanear o borrar si falla la lectura o si no se carga ninguna referencia
   protegida (core-lib).
+  ([core-lib #23](https://github.com/lareferencia/lareferencia-core-lib/pull/23),
+  [plataforma #114](https://github.com/lareferencia/lareferencia-platform/pull/114))
 
 - Corrige la copia de recursos estáticos al construir la imagen Docker del
   proveedor OAI-PMH: utiliza el directorio `static/` en lugar de `static_en/`.
