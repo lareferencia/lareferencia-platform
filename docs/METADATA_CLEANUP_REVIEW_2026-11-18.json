@@ -1,0 +1,156 @@
+{
+  "audit_date": "2026-11-18",
+  "network": "BR",
+  "snapshot": 4193,
+  "method": "Read-only SQLite reference queries and filesystem directory listings; file existence only; no metadata contents modified or restored.",
+  "per_catalog": [
+    {
+      "stage": "completed",
+      "snapshot": 4193,
+      "kind": "catalog",
+      "rows": 4307594,
+      "references": 4163778,
+      "present": 3435052,
+      "missing": 728726,
+      "active_missing": 728726,
+      "active_references": 4163778,
+      "rows_without_hash": 143816,
+      "missing_examples": [
+        {
+          "identifier": "oai:MAXWELL.puc-rio.br:8464",
+          "hash": "20000635A1FF9E00",
+          "deleted": false
+        },
+        {
+          "identifier": "002892635",
+          "hash": "20000F5EC358E3AD",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:acervodigital.ufpr.br:1884/30025",
+          "hash": "2000145F8B888DE3",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:www.rle.ucpel.tche.br:article/389",
+          "hash": "200017623EC4DB2A",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:repositorio.pgsscogna.com.br:123456789/58858",
+          "hash": "20001855E280F0A3",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:teses.usp.br:tde-27092017-100701",
+          "hash": "20001E529AF43105",
+          "deleted": false
+        },
+        {
+          "identifier": "003245471",
+          "hash": "20002234D9944C4B",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:ojs2.www.halacsolcha.org:article/590",
+          "hash": "200029EE1FD3EC35",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:repositorio.ufpb.br:123456789/35730",
+          "hash": "200029F2E19B4295",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:www.lume.ufrgs.br:10183/269357",
+          "hash": "20002CECF7B56C8F",
+          "deleted": false
+        }
+      ],
+      "elapsed_seconds": 94.5
+    },
+    {
+      "stage": "completed",
+      "snapshot": 4193,
+      "kind": "validation",
+      "rows": 4163778,
+      "references": 4163778,
+      "present": 3435600,
+      "missing": 728178,
+      "active_missing": 728178,
+      "active_references": 4163778,
+      "rows_without_hash": 0,
+      "missing_examples": [
+        {
+          "identifier": "oai:repositorio.cruzeirodosul.edu.br:123456789/3004",
+          "hash": "200001535B25D8A7",
+          "deleted": false
+        },
+        {
+          "identifier": "003294928",
+          "hash": "20000178286892AB",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:arandu.ufrpe.br:123456789/2749",
+          "hash": "200004BDE24FF615",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:ojs.200.223.74.126:article/595",
+          "hash": "200004DC755F1EB1",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:oai:ri.ufs.br:repo_01:riufs/21553",
+          "hash": "200010D4256FBA97",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:www.lume.ufrgs.br:10183/289182",
+          "hash": "200015E18E3D2DBA",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:periodicos.utfpr:article/13382",
+          "hash": "200018EACDAF8FF3",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:oai:ri.ufs.br:repo_01:riufs/7773",
+          "hash": "20001B9444B27994",
+          "deleted": false
+        },
+        {
+          "identifier": "oai:periodicos.ufc:article/91093",
+          "hash": "20002309737523B4",
+          "deleted": false
+        },
+        {
+          "identifier": "002928910",
+          "hash": "20002CA499BACF8B",
+          "deleted": false
+        }
+      ],
+      "elapsed_seconds": 149.5
+    }
+  ],
+  "combined": {
+    "stage": "completed",
+    "snapshot": 4193,
+    "references": 8327556,
+    "unique_referenced_hashes": 8323963,
+    "unique_missing_hashes": 1456268,
+    "missing_original_references": 728726,
+    "missing_published_references": 728178,
+    "missing_valid_published_references": 502572,
+    "valid_published_references": 2872830,
+    "elapsed_seconds": 106.1
+  },
+  "limitations": [
+    "Counts are references unless explicitly labelled unique hashes.",
+    "Existing files were not decompressed or checked against their content hash.",
+    "Filesystem observations and separate SQLite read snapshots are not one atomic cross-store snapshot.",
+    "Absence does not establish when or by which operation a file was removed."
+  ]
+}
