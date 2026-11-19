@@ -60,6 +60,16 @@ Si cambia el frontend admin, tras preparar sus dependencias con Maven ejecutar t
 
 Adaptar los checks a los archivos modificados y las instrucciones actuales. Informar bloqueos y pruebas omitidas con precisión. No exigir que el lock coincida con nuevos commits antes de que el paso de PR lo actualice.
 
+Para compilar, usar los scripts oficiales según el alcance:
+
+| Comando | Alcance | Docker para compilar |
+| --- | --- | --- |
+| `./build.sh lareferencia` | Java, Admin UI y Dashboard; Maven descarga los Node configurados | No |
+| `./build-java.sh lareferencia` | Sólo Java | No |
+| `./build-admin-web.sh` / `./build-dashboard.sh` | Un frontend por separado, con Node en contenedor | Sí |
+
+`build.sh` y `build-java.sh` omiten las pruebas. La compilación completa sin Docker no implica que las pruebas de integración con Testcontainers puedan ejecutarse sin Docker. No instalar Node global ni sustituir estos scripts por comandos ad hoc cuando el usuario solicita el build oficial.
+
 ## Commits y PR
 
 1. Revisar los diffs de cada repositorio y crear commits separados con archivos explícitos. Incluir el trabajo funcional y documentación de plataforma antes de ejecutar el comando de PR.
