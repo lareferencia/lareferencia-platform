@@ -286,6 +286,14 @@ Las variantes `POST .../query` aceptan filtros tipados y los traducen al formato
 
 Los campos disponibles en esta iteración son `IDENTIFIER`, `VALID`, `TRANSFORMED`, `RULE_VALID` y `RULE_INVALID`. Summary, records y occurrences poseen DTOs explícitos en OpenAPI; ya no se publican como un `JsonNode` opaco. La variante de metadata devuelve `application/xml`.
 
+Para `IDENTIFIER`, `EQ` (predeterminado) compara el valor completo y distingue mayúsculas. `CONTAINS` busca una subcadena literal con la comparación de mayúsculas ASCII de SQLite LIKE. Los filtros se combinan con AND sobre registros activos. Las frecuencias cuentan los valores de esos registros y pueden incluir varios valores por registro.
+
+Las reglas del resumen corresponden al snapshot consultado. El campo nullable
+`occurrenceCaptureEnabled` indica la política efectiva de captura por regla en
+las nuevas validaciones. Un valor nulo identifica evidencia histórica insuficiente.
+Los antiguos snapshots sin definición archivada pueden devolver una etiqueta
+numérica y metadatos de regla nulos. [Semántica y pruebas históricas](DASHBOARD_ETAPA_2_EVIDENCIAS.md).
+
 ### Identidad y perfiles de atributos
 
 - `GET /api/v5/me` devuelve usuario, roles normalizados, IDs de redes legibles y si la identidad es una cuenta técnica.
@@ -322,7 +330,7 @@ Los tipos disponibles son:
 - `CANCEL_ALL`: detiene y limpia la cola de la red.
 - `RESCHEDULE`: vuelve a programar la red según su cron.
 
-Los comandos devuelven `202 Accepted` y un recibo con `requestId`, red, hora, resultado, mensaje y ruta de runtime. Los lotes devuelven un recibo padre y un resultado hijo por red, por lo que pueden reflejar aceptación parcial.
+Los comandos devuelven `202 Accepted` y un recibo con `requestId`, red, hora, resultado, mensaje y ruta de runtime. Los lotes devuelven un recibo padre y un resultado hijo por red en el orden solicitado. Si una red tiene la acción deshabilitada, su hijo indica `REJECTED` y explica el motivo. Se conservan los resultados del resto de redes. En el motor legacy, el `requestId` de cada hijo admitido para `RUN_ACTION` identifica el grupo de workers en `GET /api/v5/runtime/executions`. [Verificación desde el admin](ADMIN_UI_OPERACIONES.md)
 
 El runtime declara `engineType` y `cancellationScope`. En legacy el alcance de cancelación es la red; en Flowable puede ser un proceso.
 
