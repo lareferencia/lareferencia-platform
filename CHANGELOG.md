@@ -49,7 +49,7 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
-- El historial del dashboard React permite comparar dos cosechas por volumen, tasa de validez, transformaciones y duración. [Pruebas con cosechas reales de PA](https://github.com/lareferencia/lareferencia-repository-dashboard/blob/3ce35be1c7ad52acc881c20c23d8c3af515f1e9a/docs/evidencias/historial-evolucion/README.md#pa-con-tres-cosechas-reales)
+- La portada del dashboard React permite buscar repositorios por nombre o sigla. El historial abre en Evolución y ofrece una comparación bajo demanda con fecha, hora y acceso al diagnóstico de ambas cosechas. [Portada](https://github.com/lareferencia/lareferencia-repository-dashboard/blob/20eedeb9a6e0a0954fa847e88a6112c563094588/docs/evidencias/portada/README.md) · [Comparación de PA #3 y #4](https://github.com/lareferencia/lareferencia-repository-dashboard/blob/20eedeb9a6e0a0954fa847e88a6112c563094588/docs/evidencias/historial-evolucion/README.md#pa-3-y-4-con-la-comparación-bajo-demanda)
 
 - Maven puede empaquetar el dashboard React con el perfil optativo `dashboard-react`. El diagnóstico reúne las reglas, los registros y sus detalles con la presentación del admin.
 
