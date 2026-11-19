@@ -59,7 +59,7 @@
       "name": "lareferencia-lrharvester-app",
       "path": "lareferencia-lrharvester-app",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-app",
-      "commit": "d919a0751c81656667f46ca14c26c46e99452b7a"
+      "commit": "8d5575d081c10c6fad2a3a8c9ef29f85e597e83e"
     },
     {
       "name": "lareferencia-lrharvester-admin-web",
@@ -77,7 +77,7 @@
       "name": "lareferencia-repository-dashboard",
       "path": "lareferencia-repository-dashboard",
       "url": "https://github.com/lareferencia/lareferencia-repository-dashboard.git",
-      "commit": "13abe1b7232d55fafd3b7ab5ce95991aebe011c8"
+      "commit": "9560717773e45f586e8a642997d2f2e6daccb051"
     },
     {
       "name": "lareferencia-oai-pmh",

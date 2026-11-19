@@ -12,7 +12,7 @@ La API usa los repositorios JPA, el sistema de diagnóstico y `NetworkActionkMan
 La superficie soportada es `/api/v5/**`. Las rutas fuera de v5 no forman parte del
 contrato público de Harvester y la cadena de seguridad deniega rutas desconocidas.
 
-### Compatibilidad de lectura para el dashboard anterior
+### API de lectura del dashboard
 
 La ruta separada `/api/v5/dashboard` ofrece las consultas de cosecha y validación del
 dashboard v2 sin alterar los endpoints nativos de v5. Conserva los parámetros y
@@ -32,10 +32,12 @@ la estructura paginada de Spring Data (`content`, `totalElements`, `number`,
 | GET | `/validation/source/{acronym}/{snapshotId}/records` | Registros con filtros v2 (`is_valid`, `is_transformed`, `valid_rules`, `invalid_rules`, `oai_identifier`). |
 | GET | `/validation/source/{acronym}/{snapshotId}/valid_occrs/{ruleId}` | Ocurrencias válidas por regla. |
 | GET | `/validation/source/{acronym}/{snapshotId}/invalid_occrs/{ruleId}` | Ocurrencias inválidas por regla. |
+| GET | `/validation/source/{acronym}/{snapshotId}/metadata?identifier={idOai}` | XML histórico publicado, en JSON `{"xml":"…"}`. |
 
-Se exige la autenticación local de v5 (sesión o token técnico) y el permiso de
-lectura sobre la red; para una consulta por snapshot también se comprueba su
-propietario antes de leer estadísticas. Una red o snapshot ajeno devuelve `403`.
+El resumen, los registros y las frecuencias aceptan los mismos filtros opcionales. `valid_rules` e `invalid_rules` admiten parámetros repetidos. Los criterios se combinan por intersección. `oai_identifier` busca por contenido. Las frecuencias cuentan cada ocurrencia de los registros seleccionados y abarcan todas las páginas. Sin filtros se obtiene el informe global.
+
+El XML requiere sesión, acceso a la red propietaria y coincidencia exacta del identificador activo en el snapshot. El servidor resuelve el hash publicado en ese snapshot y lee el archivo histórico de la red. Un identificador omitido o vacío devuelve 400. Una sesión ausente devuelve 401, una red sin permiso devuelve 403 y un acrónimo distinto del propietario de un snapshot autorizado devuelve 404. También devuelve 404 si el snapshot fue eliminado o falta el registro o su XML.
+
 No se reproducen los endpoints de broker, usuarios/Keycloak ni la autenticación
 de v2. Tampoco se habilita la ruta antigua `/api/v2`.
 

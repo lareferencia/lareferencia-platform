@@ -8,6 +8,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Correcciones
 
+- El dashboard React consulta el XML histórico por red y aplica la selección de registros al resumen, al cumplimiento y a las frecuencias de cada regla. [Contrato de lectura v5](docs/HARVESTER_MANAGEMENT_API_V5.md)
+
 - Se corrigió el timeout de Solr en el entorno de pruebas del harvester. La indexación desde el admin se verificó contra los 3.444 identificadores de un snapshot histórico. [Evidencias](docs/ADMIN_UI_INDEXACION.md)
 
 - Los lotes del admin devuelven un resultado por fuente aunque una tenga la
@@ -47,9 +49,15 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- Maven puede empaquetar el dashboard React con el perfil optativo `dashboard-react`. El diagnóstico reúne las reglas, los registros y sus detalles con la presentación del admin.
+
+- El candidato React del dashboard incorpora el historial de cosechas, el gráfico por intervalo y el widget de estadísticas configurable por instalación y repositorio.
+
+- El candidato React del dashboard permite filtrar registros de validación, consultar sus ocurrencias y exportar CSV de las reglas visibles, de la página actual y de las frecuencias por regla.
+
 - El Repository Dashboard se incorpora al grupo de ramas `codex/rc5-pre`, con su
-  plan de migración a React versionado y su commit fijado en el lock. La migración
-  todavía no está implementada.
+  plan de migración a React versionado y su commit fijado en el lock. Angular
+  sigue siendo el dashboard predeterminado.
 
 - El perfil de exportación para clasificación contempla todas las variantes DC
   configuradas (shell `d87a859`).
