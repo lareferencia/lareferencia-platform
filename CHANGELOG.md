@@ -47,5 +47,9 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- El Repository Dashboard se incorpora al grupo de ramas `codex/rc5-pre`, con su
+  plan de migración a React versionado y su commit fijado en el lock. La migración
+  todavía no está implementada.
+
 - El perfil de exportación para clasificación contempla todas las variantes DC
   configuradas (shell `d87a859`).
