@@ -47,6 +47,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
   proveedor OAI-PMH: utiliza el directorio `static/` en lugar de `static_en/`.
   ([#112](https://github.com/lareferencia/lareferencia-platform/pull/112))
 
+- En el dashboard, los registros se muestran como válidos o inválidos, el paginador de cosechas aparece bajo su selector y el historial ofrece un botón de diagnóstico separado del ID.
+
 ### Cambios
 
 - Maven y los scripts de plataforma y Docker compilan y publican el dashboard React en `/dashboard/` de forma predeterminada. El código Angular se conserva en `angular/` fuera de la compilación.
