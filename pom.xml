@@ -263,7 +263,7 @@
 			<modules>
 				<!-- Generates the React SPA into lrharvester-app/admin-static before packaging the harvester. -->
 				<module>lareferencia-lrharvester-admin-web</module>
-				<!-- Generates the Angular dashboard into lrharvester-app/dashboard-static. -->
+				<!-- Generates the React dashboard into lrharvester-app/dashboard-static. -->
 				<module>lareferencia-repository-dashboard</module>
 			</modules>
 		</profile>

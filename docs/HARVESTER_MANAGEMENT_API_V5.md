@@ -405,5 +405,5 @@ sesiones, CSRF, grants y tokens, consultar la matriz de verificación de
 - No hay tabla ni historial persistente de comandos: los recibos representan aceptación HTTP, no una ejecución durable.
 - No se modificaron `INetworkActionExecutor`, TaskManager, Flowable ni los workers.
 - No se añadió CRUD masivo de registros, bitstreams o metadata; la API ofrece diagnóstico y lectura XML puntual.
-- Admin React se sirve desde `admin-static/` bajo `/admin/`; Dashboard Angular desde `dashboard-static/` bajo `/dashboard/`. No existe fallback AngularJS `/legacy`.
+- Admin React se sirve desde `admin-static/` bajo `/admin/`; Dashboard React desde `dashboard-static/` bajo `/dashboard/`. No existe fallback AngularJS `/legacy`.
 - Las superficies `/rest`, `/public` y `/private` no son interfaces soportadas ni deben utilizarse como alternativa a v5.

@@ -92,7 +92,7 @@ def version_changes(root, version):
             if count != 1:
                 raise RuntimeError(f'{name}: parent version is missing.')
             changes[pom] = text[:block.start()] + replacement + text[block.end():]
-        for package_dir in [pom.parent, pom.parent / 'angular']:
+        for package_dir in [pom.parent, pom.parent / 'angular', pom.parent / 'web']:
             for filename in ['package.json', 'package-lock.json']:
                 path = package_dir / filename
                 if not path.is_file():

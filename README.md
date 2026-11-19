@@ -33,8 +33,8 @@ rc4 includes the metadata-export and documentation improvements described in
 - **Hybrid storage**: original metadata XML on the filesystem (GZIP, hash-partitioned) + SQLite per-snapshot databases for the record catalog, validation results and statistics
 - **Incremental processing**: catalogs track record changes (`N`/`U`/`D`), validation state is reused across snapshots via fingerprints and manifests, and indexers consume record-level deltas
 - **File-based snapshot logging** under `{basePath}/{NETWORK}/snapshots/snapshot_{id}/snapshot.log` (no database tables)
-- **Harvester Management API v5**, the React Admin Web, and the read-only Angular Repository Dashboard
-- **Repository Dashboard** (Angular, read-only) published separately from the Admin Web
+- **Harvester Management API v5**, the React Admin Web, and the read-only React Repository Dashboard
+- **Repository Dashboard** (React, read-only) published separately from the Admin Web
 - **Action configuration model**: per-network action configuration (JSONB), scheduled actions and worker parameterization
 - **Entity `deleted` flag workflow**: soft-delete entities and remove them (and their relations) from indexes
 - **dARK**: ARK persistent identifier minting, staging/reconciliation workers and legacy ARK CSV import
@@ -70,7 +70,7 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | `lareferencia-solr-cores` | Config | Solr configsets (`biblio`, `entity`, `historic`, `networks`, `oai`, `projects`, `vstats`) |
 | `lareferencia-lrharvester-app` | Web app | Main harvester: networks, harvesting, validation and publication; serves separate Admin/Dashboard SPAs and `/api/v5` |
 | `lareferencia-lrharvester-admin-web` | Web app (React 19/Vite) | Administration UI consuming the v5 API; built into `admin-static/` |
-| `lareferencia-repository-dashboard` | Web app (Angular) | Read-only repository dashboard consuming dashboard endpoints in v5; built into `dashboard-static/` |
+| `lareferencia-repository-dashboard` | Web app (React + Vite) | Read-only repository dashboard consuming dashboard endpoints in v5; built into `dashboard-static/` |
 | `lareferencia-entity-rest` | Web app | REST API for entity data (`/api/v2`, in transition after Solr indexing removal) |
 | `lareferencia-oai-pmh` | Web app | Standalone OAI-PMH 2.0 provider over the Solr publication index (XOAI 3.4, Spring Boot 3.5) |
 | `lareferencia-shell` | CLI | Spring Shell console: harvesting, database, maintenance, entity and dark commands |
@@ -82,7 +82,7 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | Service | URL | Notes |
 |---|---|---|
 | Harvester + Admin Web (React) | `http://localhost:8190/admin/` or `http://admin.localhost:8188/admin/` | Direct loopback or gateway (isolated); gateway normal mode defaults to 8088 |
-| Repository Dashboard (Angular) | `http://localhost:8190/dashboard/es/` or `http://dashboard.localhost:8188/dashboard/es/` | Direct loopback or gateway; gateway host allows only dashboard read APIs and auth |
+| Repository Dashboard (React) | `http://localhost:8190/dashboard/es/` or `http://dashboard.localhost:8188/dashboard/es/` | Direct loopback or gateway; gateway host allows only dashboard read APIs and auth |
 | Harvester Management API v5 | `http://localhost:8190/api/v5` in isolated Docker Dev | Direct loopback access; v5 authentication/authorization remains enforced. Gateway admin host exposes the full API; dashboard host is allowlisted to read endpoints |
 | Entity REST | `http://localhost:8094/api/v2/…` | Swagger UI `http://localhost:8094/swagger` |
 | OAI-PMH provider | `http://localhost:8096/` | OAI endpoint at `/request`; container port 8092 |
@@ -174,7 +174,7 @@ elastic.indexer.circuit.breaker.max.failures=10
 - `org.lareferencia.backend.api.v5`: typed DTO REST API under `/api/v5` (networks, snapshots, actions, workers, validators/transformers, diagnostics, users, dARK, network transfers, attribute profiles) with Problem Details errors and OpenAPI at `/api/v5/openapi`
 - Authentication: local PostgreSQL users and JDBC sessions for the React web UI; revocable scoped Bearer tokens for integrations. Roles are global `ADMIN` and repository-scoped read-only `READER`.
 - The first administrator is created interactively from `lareferencia-shell` after Flyway migration (`security-create-admin <username>`). No default user or Keycloak migration exists.
-- Admin Web: React + Vite, built into the Harvester `admin-static/` and served at `/admin/`. The read-only Angular Dashboard is built into `dashboard-static/` and served at `/dashboard/`. `/legacy`, `/rest`, `/public` and `/private` are not exposed as legacy application APIs.
+- Admin Web: React + Vite, built into the Harvester `admin-static/` and served at `/admin/`. The read-only React Dashboard is built into `dashboard-static/` and served at `/dashboard/`. `/legacy`, `/rest`, `/public` and `/private` are not exposed as legacy application APIs.
 - Full setup, cookie/CSRF behavior, token lifecycle and authorization matrix: [Authentication and authorization](docs/AUTHENTICATION.md).
 
 Reference: [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md) · auth: [AUTHENTICATION.md](docs/AUTHENTICATION.md) (new) · backlog: [HARVESTER_ADMIN_WEB_V5_BACKLOG.md](docs/HARVESTER_ADMIN_WEB_V5_BACKLOG.md) (new)
@@ -228,7 +228,7 @@ cd lareferencia-platform
 # Admin web only (Node 22, output copied into admin-static/)
 ./build-admin-web.sh
 
-# Dashboard only (Node 18 in Docker, output copied into dashboard-static/)
+# Dashboard only (Node 22 in Docker, output copied into dashboard-static/)
 ./build-dashboard.sh
 
 # Other build profiles: lite | rcaap | ibict

@@ -50,6 +50,17 @@ class InheritedVersionTests(unittest.TestCase):
                 file.write_text('original legacy or external content')
                 self.excluded.append(file)
 
+    def test_stamp_updates_react_dashboard_package_and_lock(self):
+        frontend = self.root / 'web/web'
+        frontend.mkdir()
+        for name in ('package.json', 'package-lock.json'):
+            (frontend / name).write_bytes((self.npm / name).read_bytes())
+        stamp(self.root, '5.0.0-rc5', [])
+        self.assertEqual(json.loads((frontend / 'package.json').read_text())['version'], '5.0.0-rc5')
+        lock = json.loads((frontend / 'package-lock.json').read_text())
+        self.assertEqual(lock['version'], lock['packages']['']['version'])
+        self.assertEqual(lock['version'], '5.0.0-rc5')
+
     def test_release_stamp_updates_only_inherited_platform_version_and_npm(self):
         old_excluded = {p:p.read_bytes() for p in self.excluded}
         stamp(self.root, '5.0.0-rc4', [{'path':'lareferencia-contrib-rcaap'}, {'path':'vufind'}])

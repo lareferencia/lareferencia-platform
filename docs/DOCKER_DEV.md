@@ -60,7 +60,7 @@ directly at `http://localhost:8190/admin/` and
 `http://dashboard.localhost:8188/dashboard/es/` (isolated mode; normal mode
 defaults to 8088). The gateway's Admin host routes to `admin-web-dev`, which
 provides Vite hot-module replacement; Vite itself is not published to the host.
-Dashboard Angular is served as a compiled SPA from Harvester; after changing it, run
+Dashboard React is served as a compiled SPA from Harvester; after changing it, run
 `./Docker/docker-dev.sh rebuild dashboard` to rebuild its assets and restart
 Harvester. Direct loopback access skips the gateway's host allowlist, but all API
 authentication and authorization are still enforced by Harvester.
@@ -100,7 +100,7 @@ Rebuild one application and restart only its container:
 
 ## Harvester admin web
 
-The React Admin Web and Angular Dashboard are published independently into `admin-static/` and `dashboard-static/`. A frontend-only change does not recompile Harvester Java:
+The React Admin Web and React Dashboard are published independently into `admin-static/` and `dashboard-static/`. A frontend-only change does not recompile Harvester Java:
 
 ```bash
 ./Docker/docker-dev.sh rebuild frontend
@@ -121,7 +121,7 @@ Harvester Java changes use the normal Java cycle:
 ./Docker/docker-dev.sh rebuild harvester
 ```
 
-`watch harvester` distinguishes these paths automatically. React or Angular changes rebuild only that SPA and restart Harvester; Harvester Java or Maven changes rebuild the JAR and recreate the container.
+`watch harvester` distinguishes these paths automatically. Changes to either React frontend rebuild only that SPA and restart Harvester; Harvester Java or Maven changes rebuild the JAR and recreate the container.
 
 ## Developer Harvester account
 

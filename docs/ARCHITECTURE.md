@@ -39,7 +39,7 @@ flowchart LR
         OAIP["oai-pmh · 8096"]
     end
 
-    RDB["Repository Dashboard (Angular, read-only)"]
+    RDB["Repository Dashboard (React, read-only)"]
 
     SRC -->|"OAI-PMH ListRecords"| HW
     ESI -->|"entities"| ES
@@ -87,7 +87,7 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 6. **Publication.** `lareferencia-oai-pmh` is an independently deployable Spring Boot app
    that inherits the platform parent and version (no direct LA Referencia module dependency): it reads the Solr `oai` core and serves the
    OAI-PMH protocol on port 8096, so external harvesters can harvest LA Referencia.
-7. **Consumption.** VuFind searches Solr. The Angular Repository Dashboard uses local v5
+7. **Consumption.** VuFind searches Solr. The React Repository Dashboard uses local v5
    sessions and read-only `/api/v5/dashboard` routes. Its public proxy host is allowlisted
    to auth/session endpoints and GET dashboard requests; it cannot reach admin APIs.
    See [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md). `entity-rest` keeps the
@@ -102,7 +102,7 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 | `lareferencia-entity-lib` | Java library | Entity model + Elasticsearch/OpenSearch indexer (`JSONElasticEntityIndexerThreadedImpl`) |
 | `lareferencia-lrharvester-app` | Spring Boot app | Harvester workers and v5 API; serves Admin at `/admin/` and Dashboard at `/dashboard/` |
 | `lareferencia-lrharvester-admin-web` | React / Node 22 | Admin Web source; built into the harvester's `admin-static/` |
-| `lareferencia-repository-dashboard` | Angular / Node 18 | Read-only Dashboard source; built into the harvester's `dashboard-static/` |
+| `lareferencia-repository-dashboard` | React + Vite / Node 22 | Read-only Dashboard source; built into the harvester's `dashboard-static/` |
 | `lareferencia-shell` | Spring Shell CLI | Administration commands (DB migrate, indexing, Excel network loads, …) |
 | `lareferencia-shell-entity-plugin` | plugin | Entity-specific shell commands |
 | `lareferencia-entity-rest` | Spring Boot app | Legacy REST surface: `GET /search/entity/{type}` (8094, Springfox `/swagger`) |
@@ -115,7 +115,7 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 
 Dependency sketch (from the poms): `lrharvester-app` → core-lib + dark-lib (+ entity-lib
 per profile); `entity-rest` → core-lib + entity-lib; `oai-pmh` → standalone. The
-Angular Repository Dashboard is a separate frontend using the Harvester v5 read-only
+React Repository Dashboard is a separate frontend using the Harvester v5 read-only
 adapter; browser/gateway acceptance checks still pending are listed in its migration guide. Libraries come transitively through core-lib (e.g. oclc-harvester,
 indexing-filters-lib).
 

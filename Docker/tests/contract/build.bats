@@ -42,7 +42,7 @@ setup()      { sandbox::create; }
   export FAKE_FAIL="build-dashboard.sh"
   docker_sh build
   assert_failure
-  assert_output_contains "Angular Dashboard build failed"
+  assert_output_contains "React Dashboard build failed"
   refute_called "mvn clean package"
   refute_called "compose -f"   # no image build
 }

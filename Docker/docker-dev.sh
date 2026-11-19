@@ -292,8 +292,7 @@ compile_frontend() {
 }
 
 compile_dashboard() {
-  echo "Compiling Angular dashboard and publishing it to harvester/dashboard-static..."
-  run_maven_builder -f lareferencia-repository-dashboard/pom.xml package
+  "${ROOT_DIR}/build-dashboard.sh"
 }
 
 compile_all() {
@@ -423,7 +422,7 @@ watch_service() {
   while true; do
     watch_root="${ROOT_DIR}/${module}"
     if [ "${service}" = harvester ]; then
-      current="$(find "${ROOT_DIR}/lareferencia-lrharvester-admin-web" "${ROOT_DIR}/lareferencia-repository-dashboard" "${watch_root}" -type d \( -name node_modules -o -name node -o -name dist -o -name target \) -prune -o -type f \( -path '*/src/*' -o -name pom.xml -o -name package.json -o -name package-lock.json \) -newer "${stamp}" -print -quit)"
+      current="$(find "${ROOT_DIR}/lareferencia-lrharvester-admin-web" "${ROOT_DIR}/lareferencia-repository-dashboard" "${watch_root}" -type d \( -path "${ROOT_DIR}/lareferencia-repository-dashboard/angular" -o -name node_modules -o -name node -o -name dist -o -name target \) -prune -o -type f \( -path '*/src/*' -o -path '*/lareferencia-repository-dashboard/web/config/*' -o -path '*/lareferencia-repository-dashboard/web/*/index.html' -o -name vite.config.ts -o -name pom.xml -o -name package.json -o -name package-lock.json \) -newer "${stamp}" -print -quit)"
     else
       current="$(find "${watch_root}" -type f \( -path '*/src/*' -o -name pom.xml \) -newer "${stamp}" -print -quit)"
     fi

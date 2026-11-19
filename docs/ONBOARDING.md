@@ -29,8 +29,7 @@ The consolidated metadata-export changes and verification scope are described in
 
 - Git, Python 3.9+, JDK 17+ and Maven 3.9.x. Platform CI uses Java 21; OAI CI also
   verifies Java 17.
-- Maven downloads pinned Node/npm versions for frontend builds (Node 22 for Admin,
-  Node 18 for Dashboard); a separate global Node installation is not required.
+- Maven downloads pinned Node/npm versions for frontend builds (Node 22 for both Admin and Dashboard); a separate global Node installation is not required.
 - Docker is needed for Testcontainers integration tests, Compose, and the optional
   `build-admin-web.sh` / `build-dashboard.sh` container builds.
 - Local `run-dev.sh` for Admin requires Node 22/npm on the host. Docker Dev offers
@@ -61,7 +60,7 @@ Run platform commands from the workspace root:
 ./build-java.sh lareferencia # Java only; skips tests and Javadoc
 mvn clean install -Plareferencia  # direct Maven build, with tests
 ./build-admin-web.sh         # Admin only, Node 22 in Docker → admin-static/
-./build-dashboard.sh         # Dashboard only, Node 18 in Docker → dashboard-static/
+./build-dashboard.sh         # Dashboard only, Node 22 in Docker → dashboard-static/
 ```
 
 The script `build.sh` defaults to `lite`; explicitly select `lareferencia` for the
