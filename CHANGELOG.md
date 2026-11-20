@@ -49,6 +49,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 - En el dashboard, los registros se muestran como válidos o inválidos. El selector de diagnóstico reúne las cosechas en un solo desplegable. El historial y su CSV muestran primero las más recientes, y un icono separado del ID abre el diagnóstico cuando está disponible.
 
+- El dashboard deshabilita **Ocurrencias** cuando el snapshot indica que la regla carece de ese recuento. Los conteos de registros aprobados y fallidos siguen disponibles.
+
 ### Cambios
 
 - Maven y los scripts de plataforma y Docker compilan y publican el dashboard React en `/dashboard/` de forma predeterminada. El código Angular se conserva en `angular/` fuera de la compilación.
