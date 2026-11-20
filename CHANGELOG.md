@@ -47,7 +47,7 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
   proveedor OAI-PMH: utiliza el directorio `static/` en lugar de `static_en/`.
   ([#112](https://github.com/lareferencia/lareferencia-platform/pull/112))
 
-- En el dashboard, los registros se muestran como válidos o inválidos, el paginador de cosechas aparece bajo su selector y el historial ofrece un botón de diagnóstico separado del ID.
+- En el dashboard, los registros se muestran como válidos o inválidos. El selector de diagnóstico reúne las cosechas en un solo desplegable. El historial y su CSV muestran primero las más recientes, y un icono separado del ID abre el diagnóstico cuando está disponible.
 
 ### Cambios
 
