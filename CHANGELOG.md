@@ -51,6 +51,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 - El dashboard deshabilita **Ocurrencias** cuando el snapshot indica que la regla carece de ese recuento. Los conteos de registros aprobados y fallidos siguen disponibles.
 
+- En snapshots históricos sin indicador de captura, el dashboard comprueba si hay ocurrencias guardadas para los registros activos antes de ofrecer el recuento por regla.
+
 ### Cambios
 
 - Maven y los scripts de plataforma y Docker compilan y publican el dashboard React en `/dashboard/` de forma predeterminada. El código Angular se conserva en `angular/` fuera de la compilación.

@@ -17,7 +17,7 @@
       "name": "lareferencia-core-lib",
       "path": "lareferencia-core-lib",
       "url": "https://github.com/lareferencia/lareferencia-core-lib",
-      "commit": "2beb753a1cfd03931ee5af41e2932578489f38c9"
+      "commit": "20434b93fe23a4e47181d64a693bb7bc9d8179d6"
     },
     {
       "name": "lareferencia-entity-lib",
@@ -77,7 +77,7 @@
       "name": "lareferencia-repository-dashboard",
       "path": "lareferencia-repository-dashboard",
       "url": "https://github.com/lareferencia/lareferencia-repository-dashboard.git",
-      "commit": "bad41bec2b7f3313bf0a989f5fec93e17c554f6e"
+      "commit": "105fc0f093f2d2ebb1bf6b76ad66ac7e7b7bee4d"
     },
     {
       "name": "lareferencia-oai-pmh",
