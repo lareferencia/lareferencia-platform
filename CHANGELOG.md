@@ -63,6 +63,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- La normalización de campos evita consultar el XML cuando ambas opciones están desactivadas en una ruta simple y reduce el trabajo al eliminar duplicados. Los perfiles conservan sus valores, el orden y el validador embebido. [Mediciones y compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#normalización-de-ocurrencias-de-un-campo)
+
 - La guía de configuración del dashboard explica cómo activar y desactivar Cosechas, Validaciones y Estadísticas, aplicar los cambios a los tres idiomas y asignar a cada repositorio su identificador del proveedor de estadísticas (dashboard `a6b6be6`).
 
 - En el dashboard se separaron la búsqueda de repositorios de la navegación y la selección de las dos cosechas de su presentación. La tabla del historial gestiona su paginación y su CSV. Se retiraron funciones de validación sustituidas, se documentaron en inglés las decisiones de compatibilidad y se organizaron las pruebas por funcionalidad.

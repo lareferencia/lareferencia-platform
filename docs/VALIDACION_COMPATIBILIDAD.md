@@ -84,6 +84,23 @@ Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta acep
 
 ## Evidencia en el checkout de desarrollo
 
+### Normalización de ocurrencias de un campo
+
+`FieldContentNormalizeRule` puede quitar las ocurrencias rechazadas por su validador embebido y las repeticiones exactas de un texto. La comparación distingue espacios, mayúsculas y acentos. Al combinar las opciones, la regla valida cada ocurrencia en orden y recuerda incluso los valores rechazados. Devuelve `true` si elimina alguna ocurrencia. Los dos indicadores valen `false` por defecto. En ese caso, las rutas de sintaxis simple se pueden omitir sin consultar el XML.
+
+Se compararon core-lib `9eb9a7e` y `6ad2d88` usando Java 21 y heap de 384 MiB. Cada configuración se ejecutó en dos JVM independientes por versión, con 20 lotes de calentamiento y nueve de medición. Cada lote aplicó la regla a 64 copias preparadas de un registro con 128 textos y un elemento vacío. El campo contenía ocho textos válidos distintos y un texto de un carácter que se repetía. El validador exigía dos caracteres. Los intervalos muestran las medianas por JVM en microsegundos por registro.
+
+| Opciones activas | Antes, µs | Después, µs |
+|---|---:|---:|
+| Ninguna | 73,57–80,39 | 0,40 |
+| Solo quitar inválidos | 79,74–83,70 | 91,56–92,90 |
+| Solo quitar duplicados | 87,67–94,86 | 74,95–77,63 |
+| Ambas | 78,82–79,55 | 75,00–75,54 |
+
+El caso de solo validación fue más lento en este ensayo. Con las dos opciones desactivadas la asignación del hilo bajó de 158.896 a 216 bytes por registro.
+
+Se compararon el JSON serializado, el XML y el indicador de cambio antes y después. Sobre 150 originales de AREANDINA se aplicaron dos veces la regla histórica con su validador embebido y una variante que además elimina duplicados en `dc.subject.*`. También coincidieron los resultados del transformador Standard y de los validadores 1 y 5 cargados desde su JSON original sobre la misma muestra.
+
 ### Alta de un valor fijo
 
 `FieldAddRule` agrega el texto de `value` al campo `targetFieldName`. Para evitar duplicados, editar la regla en el admin, activar **Omitir si el campo ya contiene el mismo texto** y guardar el perfil. Con `skipExistingValue: true`, una coincidencia exacta deja el XML intacto y devuelve `false`. Se distinguen espacios, acentos y mayúsculas. El campo puede contener otros valores. Se conserva cualquier duplicado anterior. La opción desactivada se omite al serializar la regla y los perfiles históricos siguen agregando una ocurrencia por pasada. Antes de volver a un motor anterior, desactivar la opción y guardar el perfil.
