@@ -1,10 +1,10 @@
-"""Version 3 of the LA Referencia license family catalog and recognition rules."""
+"""Recognition codes and aliases for the LA Referencia rights taxonomy."""
 import re
 
-FAMILIES = (
+RECOGNITION_CODES = (
     'CC-BY', 'CC-BY-SA', 'CC-BY-ND', 'CC-BY-NC', 'CC-BY-NC-SA', 'CC-BY-NC-ND',
     'CC-UNSPECIFIED', 'CC0', 'CC-PDM', 'GPL', 'LGPL', 'GFDL', 'MIT', 'BSD', 'Apache',
-    'OSL', 'ODC-BY', 'ODbL', 'PDDL', 'INSTITUTIONAL', 'OTHER-LICENSE', 'RIGHTSSTATEMENTS',
+    'OSL', 'ODC-BY', 'ODbL', 'PDDL', 'INSTITUTIONAL', 'OTHER-LICENSE', 'RE', 'Copyright',
 )
 # Persistent statement identifiers, with the spelling used by the vocabulary.
 STATEMENT_CODES = {code.casefold(): code for code in (

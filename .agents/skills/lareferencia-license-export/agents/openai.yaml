@@ -1,4 +1,4 @@
 interface:
   display_name: "Licencias de LA Referencia"
-  short_description: "Exportar dc.rights y contar licencias por país"
-  default_prompt: "Usa $lareferencia-license-export para extraer las licencias de una red y contar sus valores únicos."
+  short_description: "Exportar y normalizar licencias y medir cobertura por ítem"
+  default_prompt: "Usa $lareferencia-license-export para normalizar las licencias de una red y contar los ítems por familia."

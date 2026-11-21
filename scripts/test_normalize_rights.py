@@ -1,12 +1,12 @@
 import unittest
 
-from normalize_rights import normalize_rights
-from rights_catalog import FAMILIES
+from normalize_rights import normalize_rights, item_families
+from rights_taxonomy_v7 import FAMILIES
 
 
 class RightsContractTests(unittest.TestCase):
     def test_catalog(self):
-        self.assertEqual(len(set(FAMILIES)), 22)
+        self.assertEqual(len(set(FAMILIES)), 9)
         examples = {
             "The MIT License": "MIT", "Apache-2.0": "Apache", "GNU GPL 3.0": "GPL",
             "BSD-3-Clause license": "BSD", "GNU Free Documentation License": "GFDL",
@@ -14,12 +14,12 @@ class RightsContractTests(unittest.TestCase):
             "http://opensource.org/licenses/osl-3.0.php": "OSL",
             "Open Data Commons Attribution License (ODC-By) v1.0": "ODC-BY",
             "Open Database License (ODC-ODbL)": "ODbL", "PDDL v1.0": "PDDL",
-            "Licencia RepHip": "INSTITUTIONAL", "Publisher's Bespoke License": "OTHER-LICENSE",
-            "Creative Commons": "CC-UNSPECIFIED", "CC0": "CC0", "CC-PDM": "CC-PDM",
+            "Licencia RepHip": "RepHip", "Publisher's Bespoke License": "Publisher's Bespoke License",
+            "Creative Commons": "UNSPECIFIED", "CC0": "CC0", "CC-PDM": "CC-PDM",
         }
-        for value, family in examples.items():
+        for value, instrument in examples.items():
             with self.subTest(value=value):
-                self.assertEqual(normalize_rights(value)["licenses"][0]["family"], family)
+                self.assertEqual(normalize_rights(value)["licenses"][0]["instrument"], instrument)
 
     def test_edition(self):
         for value, expected in [
@@ -32,7 +32,7 @@ class RightsContractTests(unittest.TestCase):
             self.assertEqual((lic["version"], lic["country"], lic["jurisdiction"]), expected)
 
     def test_reviewed_non_cc(self):
-        for label in ("Licença Comum", "Domini públic", "codi: Mozilla (c) autor",
+        for label in ("Licença Comum", "codi: Mozilla (c) autor",
                       "http://www.gnu.org/licenses/licenses.es.html#GPL"):
             with self.subTest(label=label):
                 self.assertEqual(normalize_rights(label)["licenses"], [])
@@ -50,13 +50,21 @@ class RightsContractTests(unittest.TestCase):
         self.assertIsNone(row["licenses"][0]["version"])
         self.assertEqual(normalize_rights("https://www.elsevier.com/tdm/userlicense/1.0/")["licenses"], [])
 
+    def test_copyright_fallback(self):
+        for value in ("Algunos derechos reservados", "Algún derecho reservado", "Some rights reserved",
+                      "© Autora", "Copyright (c) 2022 Revista"):
+            self.assertEqual(normalize_rights(value)["licenses"][0]["family"], "Copyright")
+        self.assertFalse(normalize_rights("No copyright")["licenses"])
+        self.assertEqual(item_families(["Copyright", "CC", "RE"]), {"Copyright", "CC", "RE"})
+        self.assertEqual(item_families(["Copyright", "Copyright"]), {"Copyright"})
+
     def test_context(self):
         row = normalize_rights("codi: GPL (c) Autor, 2025")
         self.assertEqual(row["licenses"][0]["scope"], "code")
         self.assertEqual(row["copyright"], "(c) Autor, 2025")
         result = normalize_rights("https://rightsstatements.org/vocab/InC/1.0/")
-        self.assertEqual(result["licenses"][0], dict(family="RIGHTSSTATEMENTS", kind="rights_statement",
-                         subtype="InC", code="InC", version="1.0", country=None, jurisdiction=None))
+        self.assertEqual(result["licenses"][0], dict(family="RE", kind="rights_statement",
+                         instrument="InC", subtype="InC", code="InC", version="1.0", country=None, jurisdiction=None))
         for url in ("https://rightsstatements.org/", "https://rightsstatements.org/vocab/Unknown/1.0/",
                     "https://other-rightsstatements.org/vocab/InC/1.0/"):
             self.assertEqual(normalize_rights(url)["licenses"], [])

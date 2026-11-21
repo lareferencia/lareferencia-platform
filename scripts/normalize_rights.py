@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalize harvested rights values to the LA Referencia family catalog (v3)."""
+"""Normalize harvested rights values to the LA Referencia family catalog (v7)."""
 import argparse
 import json
 import re
@@ -10,11 +10,32 @@ from classify_export_licenses import classify_inventory_row
 from normalize_cc_licenses import plain
 
 from rights_catalog import REVIEWED_DECLARATIONS, REVIEWED_URLS
-from rights_catalog import FAMILIES, INSTRUMENTS, NAMES, SLUGS, URLS, STATEMENT_CODES, STATEMENT_URI
+from rights_taxonomy_v7 import project_v7
+from rights_catalog import RECOGNITION_CODES, INSTRUMENTS, NAMES, SLUGS, URLS, STATEMENT_CODES, STATEMENT_URI
+
+
+NOTICE_LABEL = re.compile(
+    r"^(?:©|&copy;|\(c\)|copyright\b(?![- ]free\b|\s+(?:expired|waived)\b)|"
+    r"direitos (?:autorais|de autor)\b|"
+    r"(?:(?:todos (?:los|os)|algunos|algun|alguns|algum) )?"
+    r"(?:derechos? reservados?|direitos? reservados?)\b|"
+    r"reserva de (?:todos los|algunos) derechos\b|(?:all|some) rights reserved\b|"
+    r"(?:tots els )?drets reservats\b)"
+)
+
+
+def copyright_only(value):
+    label = " ".join(plain(value).split())
+    return bool(NOTICE_LABEL.match(label))
+
+
+def item_families(families):
+    """Deduplicate family labels within one catalog item."""
+    return set(families)
 
 
 def entry(family, version=None, jurisdiction=None, **details):
-    if family not in FAMILIES:
+    if family not in RECOGNITION_CODES:
         raise ValueError(f"Unknown license family: {family}")
     jurisdiction = jurisdiction.upper() if jurisdiction and jurisdiction != 'international' else jurisdiction
     country = {'UK':'GB','SCOTLAND':'GB','ENGLANDANDWALES':'GB'}.get(jurisdiction)
@@ -154,7 +175,7 @@ def project_rights(old):
             if statement in result.setdefault("rightsStatements", []):
                 continue
             result["rightsStatements"].append(statement)
-            result["licenses"].append(entry("RIGHTSSTATEMENTS", match[2],
+            result["licenses"].append(entry("RE", match[2],
                                             kind="rights_statement", subtype=code, code=code))
             result.setdefault("evidence", []).append(dict(rule="rights_statement_url",
                                                          fragment=match[0]))
@@ -162,14 +183,20 @@ def project_rights(old):
         result['rightsStatements']=[dict(code='PUBLIC-DOMAIN')]
     if old.get('declaredLicenses') and not result['licenses']:
         result['alternatives'] = [from_cc(cc) for cc in old['declaredLicenses']]
+    if (not result['licenses'] and not result.get('candidates') and not result.get('alternatives')
+            and copyright_only(value)):
+        result['licenses'].append(entry('Copyright', kind='copyright_notice'))
+        result.setdefault('copyright', value)
+        result.setdefault('evidence', []).append(dict(fragment=value, rule='copyright_notice'))
     if not result['licenses']:
         result.setdefault('status',old['subtype'])
-    return result
+    return project_v7(result)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('inventory',type=Path)
+    parser.add_argument('--taxonomy-version', type=int, choices=(7,), default=7)
     args=parser.parse_args()
     with args.inventory.open(encoding='utf-8') as stream:
         for line in stream:

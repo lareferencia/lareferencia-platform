@@ -1,9 +1,11 @@
 ---
 name: lareferencia-license-export
-description: Extraer licencias de dc.rights de una o varias redes de LA Referencia, revisar valores únicos y contar los registros que declaran cada valor.
+description: Extraer y normalizar declaraciones de licencia de dc.rights en LA Referencia. Usar para inventarios de valores, cobertura por ítem o desgloses por familia y país.
 ---
 
-# Exportación de licencias
+# Exportación y normalización de licencias
+
+## Exportar y contar valores
 
 La entrega por registro contiene `data.licenses`. Si ya hay un export, comprobar su manifiesto y su `mapping.json` antes de reutilizarlo. Para extraerlo del LGK usar el perfil del shell `config/exports/licenses-v1.json`. Ejemplo para todos los activos de UY con metadata original:
 
@@ -17,4 +19,29 @@ Respetar la variante y el alcance solicitados. Para un inventario por país, con
 python3 scripts/count_export_licenses.py "$EXPORT_DIR" --max-text-length 120 > "$LICENSES_JSONL"
 ```
 
-El inventario contiene una línea por valor con `value` y `recordCount`. Una repetición dentro del mismo registro cuenta una vez. El contador omite vacíos y vocabularios COAR e info:eu-repo. Acepta URL web más largas que el límite aplicado al texto libre; para un límite estricto aplicable también a URL, respetar el criterio pedido al filtrar la entrega. Consultar `docs/LICENSE_METADATA_EXTRACTION.md` en plataforma para los detalles del proceso y verificar los filtros del perfil que quedó en el paquete.
+El inventario contiene una línea por valor con `value` y `recordCount`. Una repetición del mismo valor dentro del ítem cuenta una vez. El contador omite vacíos, COAR e `info:eu-repo`. Las URL HTTP(S) con host y sin espacios quedan exentas del límite de 120 caracteres del contador. Verificar también el límite del perfil del paquete. En la campaña, el perfil omitió todos los valores de más de 300 puntos de código, incluidas las URL. Consultar `docs/LICENSE_METADATA_EXTRACTION.md` para el proceso de extracción.
+
+## Normalizar el inventario
+
+Para varias redes, consolidar por igualdad exacta de `value` y conservar `recordCountByCountry` y su suma en `recordCount`. Reutilizar el diccionario versionado del corte cuando se pida reproducir un resultado. La taxonomía vigente es v7. Para el paquete de Externo usar `derechos-normalizados-v7.jsonl` y verificar `taxonomyVersion: 7` en las filas. Para generar un diccionario a partir del inventario, usar el normalizador del checkout que contiene las reglas correspondientes.
+
+```sh
+python3 scripts/normalize_rights.py "$INVENTORY_JSONL" > "$NORMALIZED_JSONL"
+```
+
+Conservar el valor original y la evidencia disponible. Para Creative Commons, priorizar la URL aplicable, luego el código válido y finalmente el nombre textual. Mantener familia, versión, jurisdicción y alcance según la evidencia. Dejar los conflictos sin resolver en revisión. Las nueve familias son CC, SOFTWARE, DATA, INSTITUTIONAL, EDITORIAL, PUBLIC-DOMAIN, RE, Copyright y OTHER-LICENSE. Informar el instrumento dentro de su familia. RE conserva el código canónico. CC0, CC-PDM y PDDL pertenecen a PUBLIC-DOMAIN.
+
+## Contar ítems y calcular cobertura
+
+Volver a las partes de datos de un paquete `COMPLETE` y comprobar su variante, snapshot y total de filas contra el manifiesto. Para cada ítem `(network, catalogId)`, limpiar los espacios exteriores de `data.licenses`, cruzar los valores exactos con el diccionario y reunir las familias en un conjunto. Contar el ítem una vez en el numerador de derechos identificados si tiene al menos una familia. Para una consulta específica de licencias declaradas seleccionar entradas con `kind = license`. En cada fila de familia, contar el ítem una vez. Deduplicar también los subtotales de CC y no CC, porque un ítem puede aparecer en varias familias. `recordCount` sirve para frecuencias por valor y puede contar al mismo ítem en distintos valores.
+
+- **Denominador completo.** Todos los ítems exportados de la red.
+- **Denominador ajustado.** Ítems con al menos un valor del paquete después de retirar vacíos y los prefijos COAR e `info:eu-repo` que reconoce `EXCLUDED_VOCABULARIES` en el contador. Conservar los textos largos presentes en el paquete y las demás declaraciones de derechos. El límite de 120 caracteres corresponde al inventario.
+
+Dividir el mismo numerador por cada denominador. Si un denominador es cero, informar el porcentaje como no calculable. Para un total de varias redes, sumar los conteos antes de dividir.
+
+## Copyright y controles
+
+Contar Copyright en todos los ítems que contengan la declaración, incluso cuando coexista con CC u otra familia. Para «solo Copyright», exigir que el conjunto de familias sea exactamente `{Copyright}`. En Externo v7, Brasil tiene 576.890 ítems con Copyright y 434.834 exclusivamente con Copyright. El total regional deduplicado de derechos identificados es 4.780.113 sobre 10.025.056 exportados y 5.674.627 ajustados.
+
+Consultar los antecedentes metodológicos de la campaña v5 en el [documento de trabajo de normalización de licencias](https://github.com/LA-Referencia-IOI/lareferencia-license-normalization/blob/main/docs/LICENSE_NORMALIZATION_WORKING_PAPER.md).
