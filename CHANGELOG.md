@@ -8,6 +8,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Correcciones
 
+- El widget de estadísticas de uso adopta la tipografía del dashboard.
+
 - El dashboard recupera comparaciones por enlace directo, busca fuentes autorizadas y pagina las frecuencias de cada regla en SQLite. La fuente QAMIX permite verificar registros válidos e inválidos en una misma cosecha con y sin captura de ocurrencias. [Contrato v5](docs/HARVESTER_MANAGEMENT_API_V5.md) · [Casos de prueba](testing/dashboard-validation/README.md)
 
 - El motor, el shell y la API v5 reconocen los nombres históricos de las reglas de validación y transformación, incluso cuando un transformador contiene un validador. Los perfiles instalados cargan directamente con su JSON original. Si se solicita la migración desde el shell, se actualizan las referencias de clase y se conservan los textos de diccionarios, expresiones y descripciones.
