@@ -34,6 +34,10 @@ The following changes are on the `codex/rc5-pre` development branch.
 - Orphaned metadata cleanup records the hashes it scanned, identified as deletion candidates and deleted in the history of the protected snapshots.
 - A Solr timeout in the harvester test environment was fixed. An indexing check from the admin interface matched all 3,444 active, valid identifiers in a historical snapshot to the documents in Solr. [Indexing verification](docs/ADMIN_UI_INDEXACION.md)
 
+### OAI-PMH provider
+
+- The protocol and repository integration tests now start reliably when reverse DNS is slow in Docker. The tests still wait for the OAI Solr core to answer a query before indexing sample records.
+
 ### Metadata exports and processing tools
 
 - SQLite snapshot exports now tolerate an empty write-ahead log (WAL), including one SQLite removes during the check. This fixes a false “snapshot modified” error. A WAL that still contains data continues to block export until the snapshot is finalized. [Export fix](https://github.com/lareferencia/lareferencia-core-lib/commit/2beb753a1cfd03931ee5af41e2932578489f38c9)
