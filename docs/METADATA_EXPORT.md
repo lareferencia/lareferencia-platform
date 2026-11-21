@@ -11,6 +11,8 @@ Esta guía cubre perfiles disponibles y comandos. El contrato minucioso de los
 archivos, JSON/XML, trazabilidad, manifiesto, índice SQLite y retorno de
 enriquecimientos está en [Formato de intercambio](METADATA_EXCHANGE_FORMAT.md).
 
+Para convertir un paquete JSONL en metadata bibliográfica lista para embeddings, consultar [Preparación del paquete anotado](../lareferencia-shell/docs/EMBEDDING_METADATA.md).
+
 ## Perfiles instalados
 
 Los perfiles mantenidos están en
@@ -23,6 +25,7 @@ Los perfiles mantenidos están en
 - `classification-embeddings-v1.json`: títulos, posibles resúmenes y keywords.
   Incluye descripciones sin calificar; en UY pueden ser notas, afiliaciones u
   otros textos además de resúmenes.
+- `bibliographic-roles-v1.json`: títulos, descripciones, keywords, tipos, afiliaciones y financiadores.
 - `licenses-v1.json`: valores de `dc.rights.*` de hasta 300 puntos de código
   Unicode. La versión 1.1 recorta espacios exteriores, excluye los prefijos de
   `info:eu-repo` y de los vocabularios COAR y deduplica por registro.
