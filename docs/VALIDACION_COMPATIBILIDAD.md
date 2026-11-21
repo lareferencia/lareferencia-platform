@@ -84,6 +84,20 @@ Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta acep
 
 ## Evidencia en el checkout de desarrollo
 
+### Alta de un valor fijo
+
+`FieldAddRule` agrega el texto de `value` al campo `targetFieldName`. Para evitar duplicados, editar la regla en el admin, activar **Omitir si el campo ya contiene el mismo texto** y guardar el perfil. Con `skipExistingValue: true`, una coincidencia exacta deja el XML intacto y devuelve `false`. Se distinguen espacios, acentos y mayúsculas. El campo puede contener otros valores. Se conserva cualquier duplicado anterior. La opción desactivada se omite al serializar la regla y los perfiles históricos siguen agregando una ocurrencia por pasada. Antes de volver a un motor anterior, desactivar la opción y guardar el perfil.
+
+Se comparó core-lib `aebb5b7` con el motor actualizado usando el mismo JSON histórico. Cada lote aplicó la regla a 48 copias de un DOM con 32 materias. En dos JVM por versión (Java 21, heap de 384 MiB) se tomaron las medianas de siete lotes después de cuatro de calentamiento. El tiempo por registro excluye la copia del DOM.
+
+| Destino | Antes, ms | Después, ms |
+|---|---:|---:|
+| Ruta única, campo ausente | 0,229–0,284 | 0,005–0,006 |
+| Ruta única, campo existente | 0,048–0,057 | 0,002 |
+| Dos ramas `dc`, campo ausente | 0,181–0,210 | 0,214–0,254 |
+
+La escritura en una ruta única recorre directamente el DOM. Cuando encuentra ramas ambiguas, vuelve a XPath para conservar la elección histórica del destino. Con la nueva opción activada se midió también el coste de comparar el texto: 0,215–0,222 ms al agregar un valor ausente y 0,117–0,161 ms al omitir uno idéntico. Coincidieron el XML y el indicador históricos en 18 casos aplicados dos veces. El transformador Standard y los validadores 1 y 5 cargaron sus JSON originales y dieron los mismos resultados por regla sobre 150 registros de AREANDINA.
+
 ### Nombres de repositorio e institución
 
 `AddRepoNameRule` escribe, en orden, el nombre del repositorio, el de la institución y su acrónimo. Cuando conserva un valor, puede reutilizar los nodos del mismo campo en la operación siguiente del registro. Una escritura invalida la selección. Si falta la ruta de un campo, el escritor XOAI busca el ancestro existente más profundo y crea los elementos restantes en esa rama. Cada registro comienza con una selección nueva.

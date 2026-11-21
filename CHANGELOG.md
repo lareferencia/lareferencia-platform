@@ -61,6 +61,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- `FieldAddRule` permite omitir desde el admin un valor fijo que ya esté presente en el campo. Los perfiles existentes siguen agregándolo en cada pasada. La escritura de campos XOAI con rutas simples y únicas requiere menos tiempo. [Configuración y mediciones](docs/VALIDACION_COMPATIBILIDAD.md#alta-de-un-valor-fijo)
+
 - `AddRepoNameRule` necesita menos consultas XPath para crear la ruta de destino o conservar los tres nombres en un campo compartido. Los perfiles existentes mantienen sus prefijos, el orden de escritura y el reemplazo de la última coincidencia. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#nombres-de-repositorio-e-institución)
 
 - La traducción de campos por prioridad evita repetir consultas XPath en las entradas del diccionario que dejan el registro intacto. Los perfiles existentes conservan el orden de prioridad, las traducciones encadenadas y el comportamiento al detenerse en la primera coincidencia. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#traducción-por-prioridad)
