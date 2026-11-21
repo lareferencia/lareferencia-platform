@@ -10,6 +10,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 - El dashboard recupera comparaciones por enlace directo, busca fuentes autorizadas y pagina las frecuencias de cada regla en SQLite. La fuente QAMIX permite verificar registros válidos e inválidos en una misma cosecha con y sin captura de ocurrencias. [Contrato v5](docs/HARVESTER_MANAGEMENT_API_V5.md) · [Casos de prueba](testing/dashboard-validation/README.md)
 
+- El motor conserva los JSON históricos, corrige la traducción y publicación de valores, aplica el cuantificador guardado y detecta campos XML vacíos. El perfil distribuido de Nodo Central ahora exige al menos un título. En perfiles ya instalados, cada administrador decide si adopta este requisito añadiendo la regla desde **Validadores** en el admin. [Cómo añadir la regla a un perfil existente](docs/VALIDACION_COMPATIBILIDAD.md#añadir-la-regla-de-presencia-de-título-desde-el-admin)
+
 - El dashboard React consulta el XML histórico por red y aplica la selección de registros al resumen, al cumplimiento y a las frecuencias de cada regla. [Contrato de lectura v5](docs/HARVESTER_MANAGEMENT_API_V5.md)
 
 - Se corrigió el timeout de Solr en el entorno de pruebas del harvester. La indexación desde el admin se verificó contra los 3.444 identificadores de un snapshot histórico. [Evidencias](docs/ADMIN_UI_INDEXACION.md)

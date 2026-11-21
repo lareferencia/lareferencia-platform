@@ -17,7 +17,7 @@
       "name": "lareferencia-core-lib",
       "path": "lareferencia-core-lib",
       "url": "https://github.com/lareferencia/lareferencia-core-lib",
-      "commit": "474dc1455adf82283d6af74b40cf197823190c7f"
+      "commit": "1fb8e8ab7e69f39fc8051bec9f2f14d5200250b6"
     },
     {
       "name": "lareferencia-entity-lib",
@@ -53,13 +53,13 @@
       "name": "lareferencia-shell",
       "path": "lareferencia-shell",
       "url": "https://github.com/lareferencia/lareferencia-shell",
-      "commit": "58f83fc2f0c41686e3d0204e9e2520289592d292"
+      "commit": "8e8c695df73945daae38a974cf4034452975c4ff"
     },
     {
       "name": "lareferencia-lrharvester-app",
       "path": "lareferencia-lrharvester-app",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-app",
-      "commit": "e7d5a7a6bf364c02a75a1d9198b3db0ff45cf3bf"
+      "commit": "0efcfd8293014f43d647fb530737e928d949feda"
     },
     {
       "name": "lareferencia-lrharvester-admin-web",
