@@ -70,6 +70,8 @@ Para compilar, usar los scripts oficiales según el alcance:
 
 `build.sh` y `build-java.sh` omiten las pruebas. La compilación completa sin Docker no implica que las pruebas de integración con Testcontainers puedan ejecutarse sin Docker. No instalar Node global ni sustituir estos scripts por comandos ad hoc cuando el usuario solicita el build oficial.
 
+Para cambios en `prepare-embedding-metadata`, el perfil y las pruebas pertenecen a `lareferencia-shell/tools/embedding-metadata/` y `lareferencia-shell/config/exports/`. Instalar el paquete desde el checkout del shell y ejecutar allí `python -m unittest discover -s tools/embedding-metadata` con el entorno virtual activo. Usar `lareferencia-metadata-export` para probar el recorrido con un export real.
+
 ## Commits y PR
 
 1. Revisar los diffs de cada repositorio y crear commits separados con archivos explícitos. Incluir el trabajo funcional y documentación de plataforma antes de ejecutar el comando de PR.
