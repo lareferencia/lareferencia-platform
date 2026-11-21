@@ -84,6 +84,22 @@ Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta acep
 
 ## Evidencia en el checkout de desarrollo
 
+### Metadatos de procedencia
+
+`AddProvenanceMetadataRule` escribe varios campos en el mismo contenedor XOAI. Cuando falta el campo, el motor puede añadirlo al primer contenedor coincidente en una sola consulta al padre. Cuando el campo ya existe, las nuevas ocurrencias se añaden en su propia rama. La mejora se aplica en cada registro y no requiere una caché.
+
+Se comparó core-lib `4734679` con la versión optimizada en Java 21, con dos JVM por versión y un heap de 384 MiB. Cada JVM ejecutó cuatro lotes de calentamiento y siete de medición por caso. Cada lote aplicó el perfil por defecto a 32 copias de un registro XOAI sin contenedor de repositorio. La copia del DOM quedó fuera de la medición. Los intervalos muestran las dos medianas por versión. La memoria corresponde a los bytes asignados por el hilo durante la transformación.
+
+| Atributos de red | Antes, ms/registro | Después, ms/registro | Antes, MB/registro | Después, MB/registro |
+|---|---:|---:|---:|---:|
+| Todos informados | 1,75–1,82 | 1,17–1,34 | 7,86 | 5,02–5,07 |
+| Ausentes | 1,43–1,45 | 1,14–1,15 | 7,84 | 5,01 |
+| Presentes con valor nulo | 1,18–1,38 | 0,90–0,91 | 7,75–7,76 | 5,01 |
+
+La regla conserva los elementos XML vacíos para atributos ausentes y nulos, y sigue publicando `opendoar:` cuando falta el identificador del repositorio. En la segunda aplicación reemplaza los campos configurados para nombre del repositorio, correo e identificador OAI. Los demás se vuelven a añadir en el orden histórico.
+
+Se cargaron tres configuraciones con el nombre histórico de la clase. Se compararon su JSON serializado y, en 72 casos de dos pasadas, el XML completo y el indicador de transformación. Los casos combinan atributos completos, ausentes, nulos y mixtos con rutas anidadas, comodines, destinos compartidos, ramas repetidas y documentos con y sin espacio de nombres. Todos coincidieron. También coincidieron los 150 primeros originales activos del snapshot 6 de AREANDINA al aplicarles el perfil de prueba con atributos mixtos.
+
 ### Renombre masivo de campos
 
 Se compararon seis transformadores pendientes con XML XOAI. Con 32 ocurrencias, el mayor coste por registro correspondió a `FieldNameBulkTranslateRule`. Con dos ocurrencias, `AddProvenanceMetadataRule` costó más que el renombre. La prioridad por instalación depende de las reglas asignadas y del número de valores por campo.

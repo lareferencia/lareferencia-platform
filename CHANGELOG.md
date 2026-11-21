@@ -61,6 +61,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- La regla de procedencia (`AddProvenanceMetadataRule`) reduce el tiempo y la memoria necesarios para escribir campos de repositorio en el XML XOAI. Los perfiles instalados se aplican con su JSON original y siguen publicando los campos vacíos en el mismo orden. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#metadatos-de-procedencia)
+
 - El renombre masivo de campos reutiliza el resultado de la búsqueda del campo de destino al añadir cada valor. Los perfiles existentes conservan sus mapeos encadenados, las repeticiones y el orden de las ocurrencias XML. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#renombre-masivo-de-campos)
 
 - Los transformadores de limpieza reducen los recorridos del XML al eliminar campos y resolver duplicados. El validador de vocabulario único reúne las coincidencias y su diagnóstico en el mismo recorrido. Los perfiles instalados conservan la prioridad configurada, el orden de los valores y el tratamiento de las repeticiones. [Ejemplos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#casos-de-compatibilidad-en-limpieza-y-vocabularios)
