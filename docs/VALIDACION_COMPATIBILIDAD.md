@@ -15,6 +15,19 @@ El motor abre las filas de reglas con los nombres actuales y los de los paquetes
 | Reglas de año | La ejecución usa el año local de inicio. El primer proceso tras el cambio de año recalcula las redes con esa regla, incluso si está embebida en la normalización. |
 | Verificación de URLs | Los registros heredados conservan el resultado hasta una validación completa. Se sigue usando HEAD y HTTP 200. Los límites por conexión y lectura son 5000 y 10000 ms. Pueden configurarse con las propiedades JVM positivas `lareferencia.validation.url.connectTimeoutMillis` y `lareferencia.validation.url.readTimeoutMillis`. |
 
+## Casos de compatibilidad en limpieza y vocabularios
+
+Estas optimizaciones se aplican al cargar el JSON que ya tiene el perfil. El administrador puede conservar la configuración. Los casos siguientes fijan qué valores sobreviven y qué se muestra en el diagnóstico.
+
+| Regla o caso | Comportamiento que conserva el perfil |
+|---|---|
+| Duplicados exactos | Con `A, a, A` quedan `A, a` en ese orden. Se conserva el primer nodo con cada valor, incluidos sus atributos. |
+| Conservar solo la primera ocurrencia | Con `A, B, A` queda el primer `A`. Un campo ausente o con un solo valor conserva su estado y la regla devuelve que el registro sigue igual. |
+| Lista de exclusión | Se eliminan todas las ocurrencias con un valor que figure en la lista, por coincidencia exacta. Las demás mantienen su orden y sus repeticiones. |
+| Vocabulario con prioridad | Gana el término que aparece antes en la lista configurada. A igual prioridad gana el primer nodo en el XML. Los valores ajenos al vocabulario se conservan, incluso si están repetidos. |
+| Vocabulario único aceptado | Dos ocurrencias reconocidas hacen fallar la regla, aunque sean idénticas. Una ocurrencia aceptada de más de 255 puntos de código Unicode cuenta para la validez y su texto se omite del diagnóstico. El diagnóstico conserva el orden, las repeticiones y los avisos históricos. |
+| Contenedores XML al eliminar campos | Un elemento hermano mantiene vivo el contenedor. Si solo quedan texto o comentarios, se elimina el contenedor vacío y se aplica el mismo criterio a sus ancestros. Se conserva la raíz del documento. |
+
 ## Presencia y cardinalidad por familia de reglas
 
 En reglas de contenido y en cada comparación de una expresión, `n` es el número de valores del campo y `m` es el número que satisface la condición. En una regla XPath, `k` es el número de ocurrencias devueltas por el selector.
@@ -70,6 +83,19 @@ python3 testing/validation/compare_snapshots.py /copias/anterior/snapshot_42 /co
 Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta aceptaciones, rechazos y cambios en el hash publicado, en el identificador y en los transformados. Un cambio exclusivamente de XML puede proceder de un transformador aunque coincidan todas las decisiones de validación. Para atribuirlo, reproducir el original con los dos motores y contrastar el contenido después de cada regla en orden.
 
 ## Evidencia en el checkout de desarrollo
+
+### Limpieza de campos con muchas ocurrencias
+
+Se comparó core-lib `c148c6f` con el motor actualizado sobre lotes de 128 registros XOAI, cada uno con 512 ocurrencias en el mismo campo. Las copias del DOM se prepararon antes de empezar a medir. Se alternaron las versiones en cuatro JVM de Java 21 y se tomó la mediana de siete lotes por JVM después de cuatro de calentamiento. Los intervalos son las dos medianas observadas para cada versión.
+
+| Transformador | Anterior, ms por lote | Actualizado, ms por lote |
+|---|---:|---:|
+| Duplicados por prioridad del vocabulario | 95–162 | 29–39 |
+| Duplicados exactos | 90–121 | 25–29 |
+| Conservar solo la primera ocurrencia | 87–108 | 23–25 |
+| Lista de exclusión | 75–96 | 22–24 |
+
+En el mismo ensayo el validador de vocabulario único asignó unos 8 KiB menos por registro. Los tiempos de validación de ambas versiones se solaparon. Además, se cargó el JSON con nombres de clase históricos para cada una de las cinco reglas y se compararon 129 casos por regla, con cero a 128 ocurrencias. Coincidieron el XML y el indicador de cambio de los transformadores, incluida una segunda pasada, y el dictamen y los diagnósticos del validador.
 
 ### Consultas a vocabularios grandes
 

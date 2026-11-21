@@ -61,6 +61,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- Los transformadores de limpieza reducen los recorridos del XML al eliminar campos y resolver duplicados. El validador de vocabulario único reúne las coincidencias y su diagnóstico en el mismo recorrido. Los perfiles instalados conservan la prioridad configurada, el orden de los valores y el tratamiento de las repeticiones. [Ejemplos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#casos-de-compatibilidad-en-limpieza-y-vocabularios)
+
 - El validador de expresiones y el transformador por regex compilan el patrón una sola vez por comparación o por registro, respectivamente. El transformador reutiliza también la selección XPath original. La limpieza de espacios escribe en el XML solo cuando cambia el valor. Estas mejoras se aplican a los perfiles instalados con su configuración actual.
 
 - El motor construye el índice de cada vocabulario grande en su primera consulta y lo reutiliza para todos los registros y páginas de esa ejecución. Cada ejecución simultánea mantiene su propio índice. En Java 21, los índices del perfil de Nodo Central añadieron unos 313 KiB en total (310,1 KiB para idiomas y 3,1 KiB para formatos), con el mismo tamaño tras 20.000 consultas. Los perfiles conservan el CSV original y la coincidencia exacta de términos. [Medición con los vocabularios de Nodo Central](docs/VALIDACION_COMPATIBILIDAD.md#consultas-a-vocabularios-grandes)
