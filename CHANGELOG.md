@@ -37,19 +37,17 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 - La exportación de metadatos interpreta los campos XOAI sin nombre como valores
   y conserva su contenido (core-lib `3a0cbf3`).
 
-- La limpieza de metadatos huérfanos abre los catálogos protegidos y aborta antes
-  de escanear o borrar si falla la lectura o si no se carga ninguna referencia
-  protegida (core-lib).
-  ([core-lib #23](https://github.com/lareferencia/lareferencia-core-lib/pull/23),
-  [plataforma #114](https://github.com/lareferencia/lareferencia-platform/pull/114))
-
-- Corrige la copia de recursos estáticos al construir la imagen Docker del
-  proveedor OAI-PMH: utiliza el directorio `static/` en lugar de `static_en/`.
-  ([#112](https://github.com/lareferencia/lareferencia-platform/pull/112))
+- La exportación de snapshots SQLite ignora los archivos WAL vacíos y tolera que
+  SQLite los elimine durante la comprobación, evitando falsos errores de snapshot
+  modificado. Los WAL con contenido siguen impidiendo la exportación hasta que se
+  finalice el snapshot.
+  ([core-lib `2beb753`](https://github.com/lareferencia/lareferencia-core-lib/commit/2beb753a1cfd03931ee5af41e2932578489f38c9))
 
 - En el dashboard, los registros se muestran como válidos o inválidos. El selector de diagnóstico reúne las cosechas en un solo desplegable. El historial y su CSV muestran primero las más recientes, y un icono separado del ID abre el diagnóstico cuando está disponible.
 
-- El dashboard deshabilita **Ocurrencias** cuando el snapshot indica que la regla carece de ese recuento. Los conteos de registros aprobados y fallidos siguen disponibles.
+- El dashboard muestra **Sin recuento** cuando el snapshot indica que la regla
+  carece de recuento de ocurrencias y ofrece **Ver ocurrencias** cuando está
+  disponible. Los conteos de registros aprobados y fallidos siguen disponibles.
 
 - En snapshots históricos sin indicador de captura, el dashboard comprueba si hay ocurrencias guardadas para los registros activos antes de ofrecer el recuento por regla.
 
@@ -61,7 +59,10 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 - La portada del dashboard React permite buscar repositorios por nombre o sigla. El historial abre en Evolución y ofrece una comparación bajo demanda con fecha, hora y acceso al diagnóstico de ambas cosechas. [Portada](https://github.com/lareferencia/lareferencia-repository-dashboard/blob/20eedeb9a6e0a0954fa847e88a6112c563094588/docs/evidencias/portada/README.md) · [Comparación de PA #3 y #4](https://github.com/lareferencia/lareferencia-repository-dashboard/blob/20eedeb9a6e0a0954fa847e88a6112c563094588/docs/evidencias/historial-evolucion/README.md#pa-3-y-4-con-la-comparación-bajo-demanda)
 
-- Maven puede empaquetar el dashboard React con el perfil optativo `dashboard-react`. El diagnóstico reúne las reglas, los registros y sus detalles con la presentación del admin.
+- El perfil optativo `dashboard-react` añade un ZIP separado del dashboard React;
+  no es necesario para construir React, que ya es la opción predeterminada.
+  El diagnóstico reúne las reglas, los registros y sus detalles con la
+  presentación del admin.
 
 - El candidato React del dashboard incorpora el historial de cosechas, el gráfico por intervalo y el widget de estadísticas configurable por instalación y repositorio.
 
@@ -72,3 +73,17 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 - El perfil de exportación para clasificación contempla todas las variantes DC
   configuradas (shell `d87a859`).
+
+## 5.0.0-rc4 — 2026-11-18
+
+### Correcciones
+
+- La limpieza de metadatos huérfanos abre los catálogos protegidos y aborta antes
+  de escanear o borrar si falla la lectura o si no se carga ninguna referencia
+  protegida (core-lib).
+  ([core-lib #23](https://github.com/lareferencia/lareferencia-core-lib/pull/23),
+  [plataforma #114](https://github.com/lareferencia/lareferencia-platform/pull/114))
+
+- Corrige la copia de recursos estáticos al construir la imagen Docker del
+  proveedor OAI-PMH: utiliza el directorio `static/` en lugar de `static_en/`.
+  ([#112](https://github.com/lareferencia/lareferencia-platform/pull/112))
