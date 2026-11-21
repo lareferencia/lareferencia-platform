@@ -24,8 +24,8 @@ Los perfiles mantenidos están en
   Incluye descripciones sin calificar; en UY pueden ser notas, afiliaciones u
   otros textos además de resúmenes.
 - `licenses-v1.json`: valores de `dc.rights.*` de hasta 300 puntos de código
-  Unicode; recorta espacios exteriores, deduplica y omite valores largos sin
-  truncarlos.
+  Unicode. La versión 1.1 recorta espacios exteriores, excluye los prefijos de
+  `info:eu-repo` y de los vocabularios COAR y deduplica por registro.
 
 Para listar los JSON disponibles en el directorio de configuración:
 
