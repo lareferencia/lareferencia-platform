@@ -84,6 +84,24 @@ Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta acep
 
 ## Evidencia en el checkout de desarrollo
 
+### Traducción por prioridad
+
+Se compararon cinco transformadores en core-lib `d15f385` sobre el mismo XML con 2 y 32 ocurrencias de `dc.subject`. Con 32 ocurrencias, `FieldContentPriorityTranslateRule` empleó 1,55 ms por registro al encontrar la coincidencia en la última de 32 entradas. Le siguieron `AddRepoNameRule` (0,48 ms), `FieldAddRule` (0,37 ms), `FieldContentNormalizeRule` (0,07 ms) y `RemoveDuplicatePrefixedOccrs` (0,07 ms). Con dos ocurrencias se mantuvo ese orden entre los tres primeros. La comparación mide el coste de estas configuraciones por registro. El impacto en una instalación depende también de los diccionarios y de la frecuencia de uso.
+
+La regla ahora selecciona los nodos de origen una vez y repite la consulta antes de la siguiente entrada solo si hubo una escritura. Así, una entrada puede tomar el resultado de la anterior, incluso cuando el campo de origen usa un comodín que incluye el destino. El historial de valores pertenece al registro y conserva los valores que ya fueron retirados.
+
+Se midió el método `transform` en Java 21, en dos JVM por versión, con heap de 384 MiB. Cada lote procesó 16 copias de un DOM con 32 ocurrencias idénticas y un diccionario de 32 entradas. La preparación de las copias quedó fuera de la medición. Los intervalos recogen las medianas de siete lotes por JVM después de cuatro de calentamiento. Los MB son asignaciones del hilo por registro.
+
+| Diccionario | Antes, ms/registro | Después, ms/registro | Antes, MB/registro | Después, MB/registro |
+|---|---:|---:|---:|---:|
+| Ninguna coincidencia | 2,26–2,49 | 0,20–0,22 | 4,70 | 0,14 |
+| Coincide la última entrada | 2,40–2,83 | 0,17–0,18 | 4,80–4,82 | 0,28 |
+| Las 32 entradas encadenan escrituras | 2,25–2,69 | 2,33–2,53 | 8,98 | 8,86–8,88 |
+
+Los tiempos se solapan cuando cada entrada modifica el origen y la siguiente necesita volver a leerlo. En los otros dos escenarios, la selección XPath pasó de 33 consultas a una.
+
+Coincidieron el JSON serializado de 32 configuraciones con nombre de clase histórico y el XML completo y el indicador de transformación en 160 casos aplicados dos veces. Se probaron coincidencias exactas y por prefijo, reemplazo y adición, primera coincidencia y todas, destinos compartidos, rutas con comodines y valores duplicados o vacíos. Sobre 150 originales de AREANDINA se aplicó un perfil de prueba con traducciones encadenadas en `dc.type.*`. Ambos motores modificaron los mismos 60 registros y produjeron el mismo XML en los 150.
+
 ### Metadatos de procedencia
 
 `AddProvenanceMetadataRule` escribe varios campos en el mismo contenedor XOAI. Cuando falta el campo, el motor puede añadirlo al primer contenedor coincidente en una sola consulta al padre. Cuando el campo ya existe, las nuevas ocurrencias se añaden en su propia rama. La mejora se aplica en cada registro y no requiere una caché.

@@ -61,6 +61,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- La traducción de campos por prioridad evita repetir consultas XPath en las entradas del diccionario que dejan el registro intacto. Los perfiles existentes conservan el orden de prioridad, las traducciones encadenadas y el comportamiento al detenerse en la primera coincidencia. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#traducción-por-prioridad)
+
 - La regla de procedencia (`AddProvenanceMetadataRule`) reduce el tiempo y la memoria necesarios para escribir campos de repositorio en el XML XOAI. Los perfiles instalados se aplican con su JSON original y siguen publicando los campos vacíos en el mismo orden. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#metadatos-de-procedencia)
 
 - El renombre masivo de campos reutiliza el resultado de la búsqueda del campo de destino al añadir cada valor. Los perfiles existentes conservan sus mapeos encadenados, las repeticiones y el orden de las ocurrencias XML. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#renombre-masivo-de-campos)
