@@ -59,6 +59,10 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- El motor consulta los vocabularios grandes mediante un índice en memoria. Los perfiles conservan el CSV original y la coincidencia exacta de términos. [Medición con los vocabularios de Nodo Central](docs/VALIDACION_COMPATIBILIDAD.md#consultas-a-vocabularios-grandes)
+
+- La guía de perfiles detalla cómo se evalúa cada cuantificador ante un campo ausente o con varios valores. Con `ALL`, una regla de contenido admite un campo ausente y una regla XPath requiere al menos una ocurrencia seleccionada. [Presencia y cardinalidad por familia de reglas](docs/VALIDACION_COMPATIBILIDAD.md#presencia-y-cardinalidad-por-familia-de-reglas)
+
 - **Título en Nodo Central.** El perfil distribuido incorpora `Title — Presence` para exigir al menos un título con contenido. Los perfiles ya instalados conservan sus reglas. Cada administrador puede añadir la regla desde **Validadores → Reglas → Añadir regla**, conservando la regla `Title` existente. [Instrucciones y valores de configuración](docs/VALIDACION_COMPATIBILIDAD.md#añadir-la-regla-de-presencia-de-título-desde-el-admin)
 
 - **Primera validación tras actualizar.** Cada red vuelve a procesar su catálogo activo y conserva sus informes históricos. Las redes con reglas de año dinámico también se recalculan al cambiar el año. La comprobación de URL usa tiempos de espera configurables, con valores iniciales de 5 segundos para conectar y 10 para leer. [Efectos por regla](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)

@@ -15,6 +15,20 @@ El motor abre las filas de reglas con los nombres actuales y los de los paquetes
 | Reglas de año | La ejecución usa el año local de inicio. El primer proceso tras el cambio de año recalcula las redes con esa regla, incluso si está embebida en la normalización. |
 | Verificación de URLs | Los registros heredados conservan el resultado hasta una validación completa. Se sigue usando HEAD y HTTP 200. Los límites por conexión y lectura son 5000 y 10000 ms. Pueden configurarse con las propiedades JVM positivas `lareferencia.validation.url.connectTimeoutMillis` y `lareferencia.validation.url.readTimeoutMillis`. |
 
+## Presencia y cardinalidad por familia de reglas
+
+En reglas de contenido y en cada comparación de una expresión, `n` es el número de valores del campo y `m` es el número que satisface la condición. En una regla XPath, `k` es el número de ocurrencias devueltas por el selector.
+
+| Cuantificador | Contenido de campo | Comparación dentro de una expresión | Ocurrencias XPath |
+|---|---|---|---|
+| `ALL` | `m = n`, pasa con campo ausente | `m = n`, pasa con campo ausente | `k ≥ 1`, falla con selección vacía |
+| `ONE_OR_MORE` | `m ≥ 1` | `m ≥ 1` | `k ≥ 1` |
+| `ONE_ONLY` | `m = 1` | `m = 1` | `k = 1` |
+| `ZERO_ONLY` | `m = 0` | `m = 0` | `k = 0` |
+| `ZERO_OR_MORE` | `n = 0` o `m ≥ 1` | Siempre pasa | Siempre pasa |
+
+Para exigir al menos un título y que todos los títulos cumplan una longitud, combinar una regla obligatoria de presencia con `ONE_OR_MORE` y otra obligatoria de longitud con `ALL`. En expresiones compuestas, los operadores booleanos se aplican después de evaluar cada comparación. La regla de vocabulario único aceptado tiene su propio criterio fijo y exige exactamente una ocurrencia del vocabulario completo cuyo término esté aceptado.
+
 ## Cambios voluntarios
 
 ### Añadir la regla de presencia de título desde el admin
@@ -56,6 +70,19 @@ python3 testing/validation/compare_snapshots.py /copias/anterior/snapshot_42 /co
 Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta aceptaciones, rechazos y cambios en el hash publicado, en el identificador y en los transformados. Un cambio exclusivamente de XML puede proceder de un transformador aunque coincidan todas las decisiones de validación. Para atribuirlo, reproducir el original con los dos motores y contrastar el contenido después de cada regla en orden.
 
 ## Evidencia en el checkout de desarrollo
+
+### Consultas a vocabularios grandes
+
+La regla `LargeControlledValueFieldContentValidatorRule` genera un índice de pertenencia en memoria en la primera consulta a los términos cargados desde CSV o archivo. Conserva el CSV y la comparación exacta, incluidas mayúsculas, espacios y acentos. El índice requiere memoria adicional proporcional al número de términos distintos.
+
+Se midió la llamada a `validate(String)` en Java 21 con los vocabularios del perfil distribuido de Nodo Central. Cada ronda repitió 20.000 consultas, la mitad con un término del perfil elegido al azar con semilla fija y la mitad con un valor ausente. Los tiempos son la mediana de siete rondas después de cuatro de calentamiento. Miden la búsqueda con la regla ya cargada.
+
+| Vocabulario | Términos | Búsqueda anterior | Búsqueda con índice |
+|---|---:|---:|---:|
+| Idiomas | 8.129 | 144,8 ms | 1,0 ms |
+| Formatos | 83 | 1,84 ms | 0,41 ms |
+
+### Perfiles distribuidos sobre registros locales
 
 Se ejecutaron el motor de referencia del core (`fff4293`) y el actualizado sobre los mismos 150 originales locales. Se seleccionaron los primeros 50 registros activos por ID de los snapshots PA/4, UY/2 y AREANDINA/6. Cada conjunto se procesó con el perfil distribuido de Nodo Central, tanto con 16 como con 17 reglas, y con el par validador/transformador Standard. Esta comparación usa los perfiles distribuidos sobre las tres muestras. Las configuraciones particulares de cada instalación requieren su propio ensayo.
 
