@@ -63,6 +63,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- **Compatibilidad de validadores y transformadores.** En la verificación de cierre, el transformador Standard y dos validadores guardados cargaron con su JSON original y reprodujeron los resultados anteriores en 150 registros de AREANDINA. Pasaron las 1.477 pruebas de los módulos verificados. En la medición de `FieldContentNormalizeRule`, quitar duplicados fue más rápido y quitar únicamente valores inválidos fue más lento. [Casos y mediciones](docs/VALIDACION_COMPATIBILIDAD.md#normalización-de-ocurrencias-de-un-campo)
+
 - La normalización de campos evita consultar el XML cuando ambas opciones están desactivadas en una ruta simple y reduce el trabajo al eliminar duplicados. Los perfiles conservan sus valores, el orden y el validador embebido. [Mediciones y compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#normalización-de-ocurrencias-de-un-campo)
 
 - La guía de configuración del dashboard explica cómo activar y desactivar Cosechas, Validaciones y Estadísticas, aplicar los cambios a los tres idiomas y asignar a cada repositorio su identificador del proveedor de estadísticas (dashboard `a6b6be6`).
