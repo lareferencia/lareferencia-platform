@@ -8,7 +8,9 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Correcciones
 
-- El widget de estadísticas de uso adopta la tipografía del dashboard.
+- El widget de estadísticas de uso adopta la tipografía del dashboard. En la copia de pruebas, el widget de Nodo Uruguay y la consulta independiente al proveedor para el mismo período (diciembre de 2025 a junio de 2026) coincidieron en 532.454 vistas y 84.344 descargas (dashboard `258939e`).
+
+- El comparador de cosechas muestra el aviso y mantiene la tabla cerrada si el enlace contiene tres identificadores. Desde ese estado se puede elegir una pareja válida. También se comprobó que recupera una pareja guardada cuando desaparece la página original y hay que reintentar la consulta de una cosecha (dashboard `6dd2b30`).
 
 - El dashboard recupera comparaciones por enlace directo, busca fuentes autorizadas y pagina las frecuencias de cada regla en SQLite. La fuente QAMIX permite verificar registros válidos e inválidos en una misma cosecha con y sin captura de ocurrencias. [Contrato v5](docs/HARVESTER_MANAGEMENT_API_V5.md) · [Casos de prueba](testing/dashboard-validation/README.md)
 
@@ -60,6 +62,12 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 - En snapshots históricos sin indicador de captura, el dashboard comprueba si hay ocurrencias guardadas para los registros activos antes de ofrecer el recuento por regla.
 
 ### Cambios
+
+- La guía de configuración del dashboard explica cómo activar y desactivar Cosechas, Validaciones y Estadísticas, aplicar los cambios a los tres idiomas y asignar a cada repositorio su identificador del proveedor de estadísticas (dashboard `a6b6be6`).
+
+- En el dashboard se separaron la búsqueda de repositorios de la navegación y la selección de las dos cosechas de su presentación. La tabla del historial gestiona su paginación y su CSV. Se retiraron funciones de validación sustituidas, se documentaron en inglés las decisiones de compatibilidad y se organizaron las pruebas por funcionalidad.
+
+- El cliente del dashboard comparte la validación de respuestas paginadas y conserva las reglas, los contadores y los campos opcionales de snapshots históricos. La comparación con el cliente anterior dio el mismo resultado en 56 casos, incluidos datos de PA y AREANDINA. Con Node 22.14.0 pasaron las 52 pruebas y se compiló el dashboard en español, inglés y portugués (dashboard `e14bdac`).
 
 - `FieldAddRule` permite omitir desde el admin un valor fijo que ya esté presente en el campo. Los perfiles existentes siguen agregándolo en cada pasada. La escritura de campos XOAI con rutas simples y únicas requiere menos tiempo. [Configuración y mediciones](docs/VALIDACION_COMPATIBILIDAD.md#alta-de-un-valor-fijo)
 
