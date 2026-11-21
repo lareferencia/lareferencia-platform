@@ -10,7 +10,9 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 - El dashboard recupera comparaciones por enlace directo, busca fuentes autorizadas y pagina las frecuencias de cada regla en SQLite. La fuente QAMIX permite verificar registros válidos e inválidos en una misma cosecha con y sin captura de ocurrencias. [Contrato v5](docs/HARVESTER_MANAGEMENT_API_V5.md) · [Casos de prueba](testing/dashboard-validation/README.md)
 
-- El motor conserva los JSON históricos, corrige la traducción y publicación de valores, aplica el cuantificador guardado y detecta campos XML vacíos. El perfil distribuido de Nodo Central ahora exige al menos un título. En perfiles ya instalados, cada administrador decide si adopta este requisito añadiendo la regla desde **Validadores** en el admin. [Cómo añadir la regla a un perfil existente](docs/VALIDACION_COMPATIBILIDAD.md#añadir-la-regla-de-presencia-de-título-desde-el-admin)
+- El motor, el shell y la API v5 reconocen los nombres históricos de las reglas de validación y transformación, incluso cuando un transformador contiene un validador. Los perfiles instalados cargan directamente con su JSON original. Si se solicita la migración desde el shell, se actualizan las referencias de clase y se conservan los textos de diccionarios, expresiones y descripciones.
+
+- Las expresiones de campo respetan el cuantificador guardado en el perfil. Los transformadores de traducción y alta condicional publican todas las modificaciones realizadas, la limpieza elimina también los elementos XML vacíos y el reemplazo por expresión regular solo cuenta un identificador como transformado cuando cambia su valor.
 
 - El dashboard React consulta el XML histórico por red y aplica la selección de registros al resumen, al cumplimiento y a las frecuencias de cada regla. [Contrato de lectura v5](docs/HARVESTER_MANAGEMENT_API_V5.md)
 
@@ -56,6 +58,12 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 - En snapshots históricos sin indicador de captura, el dashboard comprueba si hay ocurrencias guardadas para los registros activos antes de ofrecer el recuento por regla.
 
 ### Cambios
+
+- **Título en Nodo Central.** El perfil distribuido incorpora `Title — Presence` para exigir al menos un título con contenido. Los perfiles ya instalados conservan sus reglas. Cada administrador puede añadir la regla desde **Validadores → Reglas → Añadir regla**, conservando la regla `Title` existente. [Instrucciones y valores de configuración](docs/VALIDACION_COMPATIBILIDAD.md#añadir-la-regla-de-presencia-de-título-desde-el-admin)
+
+- **Primera validación tras actualizar.** Cada red vuelve a procesar su catálogo activo y conserva sus informes históricos. Las redes con reglas de año dinámico también se recalculan al cambiar el año. La comprobación de URL usa tiempos de espera configurables, con valores iniciales de 5 segundos para conectar y 10 para leer. [Efectos por regla](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)
+
+- **Opciones de transformación.** La nueva regla `ReduceRecordsBySizeRule` permite eliminar campos cuando el XML supera un umbral en bytes UTF-8. Las reglas de renombre de campos permiten procesar todas las ocurrencias con `processAllOccurrences`. Los perfiles existentes conservan el límite de 101 ocurrencias y el comportamiento de `ReduceHeavyRecords`. [Configuración y reversión](docs/VALIDACION_COMPATIBILIDAD.md#opciones-de-transformación-y-reversión)
 
 - Los perfiles de exportación XOAI admiten exclusiones por prefijo. La versión 1.1 del perfil de licencias las aplica a los vocabularios COAR e `info:eu-repo` al generar JSON y JSONL.
 
