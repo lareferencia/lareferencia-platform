@@ -84,6 +84,21 @@ Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta acep
 
 ## Evidencia en el checkout de desarrollo
 
+### Renombre masivo de campos
+
+Se compararon seis transformadores pendientes con XML XOAI. Con 32 ocurrencias, el mayor coste por registro correspondió a `FieldNameBulkTranslateRule`. Con dos ocurrencias, `AddProvenanceMetadataRule` costó más que el renombre. La prioridad por instalación depende de las reglas asignadas y del número de valores por campo.
+
+Para el renombre se movieron todas las ocurrencias de `dc.subject` a `dc.type.none`, inicialmente ausente. Se alternaron dos JVM por versión (Java 21), con cinco lotes de 12 registros después de tres de calentamiento. Las copias del XML se prepararon antes de medir. Los intervalos recogen las medianas por JVM.
+
+| Ocurrencias | Antes, ms/registro | Después, ms/registro | Memoria asignada antes → después |
+|---|---:|---:|---:|
+| 2 | 1,36–1,61 | 1,01–1,59 | 2,44 → 1,35 MB |
+| 32 | 14,84–16,08 | 4,52–5,45 | 38,68 → 5,62 MB |
+
+El cambio está en la escritura compartida de campos. Cuando el destino ya existe, se añade el valor junto al primer campo coincidente, incluso si pertenece a la segunda de varias ramas con el mismo nombre. Se conserva el orden de los mapeos, de modo que un renombre posterior puede tomar como origen el resultado del anterior. Se compararon 80 casos cargados desde JSON histórico en dos pasadas, con destinos existentes y ausentes, comodines, selectores de elementos, campos con nombre, namespaces y rutas inválidas. Coincidieron el XML, el indicador de transformación y las excepciones observadas.
+
+También se aplicó un perfil de prueba con dos renombres encadenados a los primeros 150 originales activos del snapshot 6 de AREANDINA. Se movieron 541 ocurrencias de materia en 147 registros. El hash del XML resultante y el indicador de transformación coincidieron para los 150 registros en ambos motores.
+
 ### Limpieza de campos con muchas ocurrencias
 
 Se comparó core-lib `c148c6f` con el motor actualizado sobre lotes de 128 registros XOAI, cada uno con 512 ocurrencias en el mismo campo. Las copias del DOM se prepararon antes de empezar a medir. Se alternaron las versiones en cuatro JVM de Java 21 y se tomó la mediana de siete lotes por JVM después de cuatro de calentamiento. Los intervalos son las dos medianas observadas para cada versión.

@@ -61,6 +61,8 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
+- El renombre masivo de campos reutiliza el resultado de la búsqueda del campo de destino al añadir cada valor. Los perfiles existentes conservan sus mapeos encadenados, las repeticiones y el orden de las ocurrencias XML. [Mediciones y casos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#renombre-masivo-de-campos)
+
 - Los transformadores de limpieza reducen los recorridos del XML al eliminar campos y resolver duplicados. El validador de vocabulario único reúne las coincidencias y su diagnóstico en el mismo recorrido. Los perfiles instalados conservan la prioridad configurada, el orden de los valores y el tratamiento de las repeticiones. [Ejemplos de compatibilidad](docs/VALIDACION_COMPATIBILIDAD.md#casos-de-compatibilidad-en-limpieza-y-vocabularios)
 
 - El validador de expresiones y el transformador por regex compilan el patrón una sola vez por comparación o por registro, respectivamente. El transformador reutiliza también la selección XPath original. La limpieza de espacios escribe en el XML solo cuando cambia el valor. Estas mejoras se aplican a los perfiles instalados con su configuración actual.
