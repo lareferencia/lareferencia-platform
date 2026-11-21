@@ -84,6 +84,25 @@ Las claves `rule_<id>` identifican las reglas del perfil. El resumen cuenta acep
 
 ## Evidencia en el checkout de desarrollo
 
+### Nombres de repositorio e institución
+
+`AddRepoNameRule` escribe, en orden, el nombre del repositorio, el de la institución y su acrónimo. Cuando conserva un valor, puede reutilizar los nodos del mismo campo en la operación siguiente del registro. Una escritura invalida la selección. Si falta la ruta de un campo, el escritor XOAI busca el ancestro existente más profundo y crea los elementos restantes en esa rama. Cada registro comienza con una selección nueva.
+
+Se comparó core-lib `41374a5` con el motor optimizado. Se usaron dos JVM Java 21 por versión, heap de 384 MiB, cuatro lotes de calentamiento y siete de medición. Cada lote aplicó la regla a 32 copias de un registro con 32 ocurrencias de materia. Para conservar y reemplazar, el destino contenía también 32 valores, con dos coincidencias por prefijo. Las copias del DOM se prepararon antes de medir. Los intervalos recogen las medianas por JVM. Los MB corresponden a bytes asignados por el hilo durante la transformación.
+
+| Caso | Antes, ms/registro | Después, ms/registro | Antes, MB/registro | Después, MB/registro |
+|---|---:|---:|---:|---:|
+| Agregar solo el repositorio, ruta ausente | 0,378–0,386 | 0,250–0,265 | 1,36 | 0,69 |
+| Agregar los tres nombres, ruta ausente | 0,427–0,458 | 0,306–0,320 | 1,93 | 1,25 |
+| Conservar los tres nombres existentes | 0,110–0,130 | 0,046–0,049 | 0,44 | 0,15 |
+| Reemplazar los tres nombres existentes | 0,200–0,202 | 0,206–0,219 | 0,86 | 0,86 |
+
+El reemplazo fue ligeramente más lento en este ensayo. Se conserva la semántica histórica de quitar solo la última coincidencia, dejar su contenedor en el DOM y añadir el nuevo valor en el destino que corresponda. La regla sigue devolviendo `true` si alguna opción de adición está habilitada, incluso al conservar todos los nombres.
+
+Se cargó el JSON histórico con las opciones por defecto y otras 96 configuraciones con el antiguo nombre de clase. Coincidieron su serialización, el indicador de transformación y el XML en dos pasadas sobre 385 casos, con destinos separados y superpuestos, comodines, elementos vacíos y coincidencias repetidas. También coincidió la regla habilitada en dos pasadas sobre 150 originales de AREANDINA. En esos mismos originales se ejecutaron el transformador Standard distribuido y los validadores 1 y 5 con el JSON recuperado de la base de desarrollo. Coincidieron el XML publicado y las decisiones de cada regla.
+
+En la copia de desarrollo se comprobó además el transformador `dsaf`. Su JSON carga en ambas versiones. Al ejecutarlo, ambas devuelven la misma excepción porque su `FieldAddRule` carece de campo de destino.
+
 ### Traducción por prioridad
 
 Se compararon cinco transformadores en core-lib `d15f385` sobre el mismo XML con 2 y 32 ocurrencias de `dc.subject`. Con 32 ocurrencias, `FieldContentPriorityTranslateRule` empleó 1,55 ms por registro al encontrar la coincidencia en la última de 32 entradas. Le siguieron `AddRepoNameRule` (0,48 ms), `FieldAddRule` (0,37 ms), `FieldContentNormalizeRule` (0,07 ms) y `RemoveDuplicatePrefixedOccrs` (0,07 ms). Con dos ocurrencias se mantuvo ese orden entre los tres primeros. La comparación mide el coste de estas configuraciones por registro. El impacto en una instalación depende también de los diccionarios y de la frecuencia de uso.
