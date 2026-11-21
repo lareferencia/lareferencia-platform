@@ -1,0 +1,54 @@
+{
+  "format": "lareferencia-harvester-configuration",
+  "version": 1,
+  "kind": "validator",
+  "configuration": {
+    "name": "QA mixed validation",
+    "description": "Deterministic cases for the dashboard validation report.",
+    "rules": [
+      {
+        "typeId": "validator--content-length-field-content-validator-rule",
+        "name": "QA Title",
+        "description": "At least one nonempty title. Occurrence capture is disabled for this rule type.",
+        "mandatory": true,
+        "quantifier": "ONE_OR_MORE",
+        "configuration": {
+          "fieldname": "dc.title.*",
+          "minLength": 1,
+          "maxLength": 2147483647
+        },
+        "className": "org.lareferencia.core.worker.validation.validator.ContentLengthFieldContentValidatorRule"
+      },
+      {
+        "typeId": "validator--controlled-value-field-content-validator-rule",
+        "name": "QA Language",
+        "description": "At least one accepted language. Retain both accepted and rejected values.",
+        "mandatory": true,
+        "quantifier": "ONE_OR_MORE",
+        "configuration": {
+          "fieldname": "dc.language.*",
+          "controlledValues": [
+            "es",
+            "en"
+          ]
+        },
+        "className": "org.lareferencia.core.worker.validation.validator.ControlledValueFieldContentValidatorRule"
+      },
+      {
+        "typeId": "validator--controlled-value-field-content-validator-rule",
+        "name": "QA Type",
+        "description": "An unrecognized or missing resource type is an optional failure.",
+        "mandatory": false,
+        "quantifier": "ONE_OR_MORE",
+        "configuration": {
+          "fieldname": "dc.type.*",
+          "controlledValues": [
+            "article",
+            "dataset"
+          ]
+        },
+        "className": "org.lareferencia.core.worker.validation.validator.ControlledValueFieldContentValidatorRule"
+      }
+    ]
+  }
+}

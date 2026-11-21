@@ -17,7 +17,7 @@
       "name": "lareferencia-core-lib",
       "path": "lareferencia-core-lib",
       "url": "https://github.com/lareferencia/lareferencia-core-lib",
-      "commit": "fff429310ec9f84b0207eaf6f91d85aff26fa1de"
+      "commit": "474dc1455adf82283d6af74b40cf197823190c7f"
     },
     {
       "name": "lareferencia-entity-lib",
@@ -59,7 +59,7 @@
       "name": "lareferencia-lrharvester-app",
       "path": "lareferencia-lrharvester-app",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-app",
-      "commit": "8d5575d081c10c6fad2a3a8c9ef29f85e597e83e"
+      "commit": "e7d5a7a6bf364c02a75a1d9198b3db0ff45cf3bf"
     },
     {
       "name": "lareferencia-lrharvester-admin-web",
@@ -77,7 +77,7 @@
       "name": "lareferencia-repository-dashboard",
       "path": "lareferencia-repository-dashboard",
       "url": "https://github.com/lareferencia/lareferencia-repository-dashboard.git",
-      "commit": "249d2ded0089bd5c96f08015340c655c7272346f"
+      "commit": "6c385975ed41b008ec59190ead9d4bfc19c6558a"
     },
     {
       "name": "lareferencia-oai-pmh",
