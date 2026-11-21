@@ -59,7 +59,7 @@ sección con su versión y fecha, y conservar `Unreleased` para nuevos cambios.
 
 ### Cambios
 
-- El motor consulta los vocabularios grandes mediante un índice en memoria. Los perfiles conservan el CSV original y la coincidencia exacta de términos. [Medición con los vocabularios de Nodo Central](docs/VALIDACION_COMPATIBILIDAD.md#consultas-a-vocabularios-grandes)
+- El motor construye el índice de cada vocabulario grande en su primera consulta y lo reutiliza para todos los registros y páginas de esa ejecución. Cada ejecución simultánea mantiene su propio índice. En Java 21, los índices del perfil de Nodo Central añadieron unos 313 KiB en total (310,1 KiB para idiomas y 3,1 KiB para formatos), con el mismo tamaño tras 20.000 consultas. Los perfiles conservan el CSV original y la coincidencia exacta de términos. [Medición con los vocabularios de Nodo Central](docs/VALIDACION_COMPATIBILIDAD.md#consultas-a-vocabularios-grandes)
 
 - La guía de perfiles detalla cómo se evalúa cada cuantificador ante un campo ausente o con varios valores. Con `ALL`, una regla de contenido admite un campo ausente y una regla XPath requiere al menos una ocurrencia seleccionada. [Presencia y cardinalidad por familia de reglas](docs/VALIDACION_COMPATIBILIDAD.md#presencia-y-cardinalidad-por-familia-de-reglas)
 
