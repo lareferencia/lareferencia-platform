@@ -82,6 +82,18 @@ Se midió la llamada a `validate(String)` en Java 21 con los vocabularios del pe
 | Idiomas | 8.129 | 144,8 ms | 1,0 ms |
 | Formatos | 83 | 1,84 ms | 0,41 ms |
 
+### Asignaciones de memoria por registro en reglas de texto
+
+Se comparó la versión de core-lib `88f1c2b` con la versión optimizada en Java 21. Cada llamada procesó un XML XOAI con 32 valores de `dc.type`. La expresión regular del validador coincidía con todos. En las pruebas de transformación, ningún valor requería traducción ni limpieza. Se midieron los bytes asignados por el hilo, con siete rondas de 500 llamadas tras cuatro de calentamiento. La tabla muestra la mediana por llamada, redondeada a KiB.
+
+| Operación | Antes | Después |
+|---|---:|---:|
+| Validar una expresión con regex | 196 KiB | 149 KiB |
+| Traducir por regex | 302 KiB | 148 KiB |
+| Limpiar espacios | 158 KiB | 144 KiB |
+
+Estas cifras incluyen la consulta XPath y las asignaciones temporales de la regla. El consumo de toda la cosecha depende también de cuántas ocurrencias tenga cada registro y de cuántas cambien.
+
 ### Perfiles distribuidos sobre registros locales
 
 Se ejecutaron el motor de referencia del core (`fff4293`) y el actualizado sobre los mismos 150 originales locales. Se seleccionaron los primeros 50 registros activos por ID de los snapshots PA/4, UY/2 y AREANDINA/6. Cada conjunto se procesó con el perfil distribuido de Nodo Central, tanto con 16 como con 17 reglas, y con el par validador/transformador Standard. Esta comparación usa los perfiles distribuidos sobre las tres muestras. Las configuraciones particulares de cada instalación requieren su propio ensayo.
