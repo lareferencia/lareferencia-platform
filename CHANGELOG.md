@@ -54,6 +54,7 @@ The following changes are on the `codex/rc5-pre` development branch.
 - XOAI exports preserve the text of unnamed value fields. The classification profile includes all configured Dublin Core field variants and writes descriptions under the `descriptions` key.
 - XOAI export profiles can exclude values by prefix. Version 1.1 of the license profile uses this option to filter COAR and `info:eu-repo` values from JSON and JSONL exports. The shell includes Python tools for counting exported rights statements and normalizing license values. [License inventory workflow](lareferencia-shell/docs/LICENSE_METADATA_EXTRACTION.md)
 - The shell command `prepare-embedding-metadata --combine` produces one input per titled record for the batch embedding calculator. It puts English titles and abstracts first, appends keywords in source order and preserves uncertain description fallbacks. Add `--include-provenance` for export and occurrence references.
+- The batch embedding calculator reads packages prepared with `--combine` and produces one vector per record, preserving the network and catalog ID. [Calculator guide](https://github.com/LA-Referencia-IOI/lareferencia-embedding-service/blob/eb251cca4a3b694bb802261dbc496f1448bec6a5/scripts/python/README.md#calculate-vectors-from-prepared-texts)
 
 ## 5.0.0-rc4 — 2026-11-18
 
