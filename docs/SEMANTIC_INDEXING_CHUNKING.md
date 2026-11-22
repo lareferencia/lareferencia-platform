@@ -188,3 +188,32 @@ Therefore, `embedding.use.multivalued.vector` must be aligned with the Solr sche
 - With `embedding.use.multivalued.vector=true`, a record can generate more than one embedding: one for the standalone title and up to `embedding.max.chunks.size` chunk embeddings.
 - Titles with fewer words than `embedding.title.standalone.indexing.min.words` do not generate a standalone embedding, but they can still appear as context in abstract chunks.
 - Token estimation is independent from the model configured in `embedding.model.name`; if the model changes to a substantially different tokenizer, `CustomTokenCountEstimator` may need recalibration or replacement with a model-specific estimator.
+
+## Precomputed SQLite vectors
+
+Enable the legacy action `SQLITE_VECTOR_INDEXING_ACTION` in the action catalogue
+and run it manually for the network. It inherits the frontend crosswalk, filters
+and document identity and writes complete bibliographic documents. Configure a
+single writer for a shared core: a subsequent ordinary frontend indexing pass
+can replace documents including their vectors.
+
+Place the calculator's completed `manifest.json` and SQLite file together in
+`${store.basepath}/<sanitized-network>/embeddings/`, alongside the network's
+`enrichments/`. For AR the lookup uses the exact acronym `AR` and the catalog ID
+stored in the validation row. Missing vectors leave the bibliographic document
+searchable. The worker logs counts with and without a vector.
+
+| Installation property | Default |
+| --- | --- |
+| `indexing.embeddings.directory` | `embeddings`, relative to the network directory |
+| `indexing.embeddings.filename` | Database filename in the manifest |
+| `indexing.embeddings.solr-field` | `semantic_vector` |
+| `indexing.embeddings.solr-url` | `frontend.solr.url` |
+
+Provision an indexed, single-valued Solr `DenseVectorField` matching the
+manifest dimensions (512 for the AR Gemma package). The worker verifies the
+database checksum, package profile and Solr field before starting the full
+rebuild. Keep the published files immutable during a run. After recalculation,
+replace the package and select a full run manually. An incremental run follows
+the validation delta and therefore skips records whose metadata did not change. Record identity is stable across snapshots, so use
+a package prepared from the intended source data.

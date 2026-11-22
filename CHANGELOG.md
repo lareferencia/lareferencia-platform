@@ -42,6 +42,8 @@ The following changes are on the `codex/rc5-pre` development branch.
 
 ### Metadata exports and processing tools
 
+- The manual SQLite vector indexing action publishes frontend documents with precomputed embeddings from each network’s store. [Configuration and reindexing](docs/SEMANTIC_INDEXING_CHUNKING.md#precomputed-sqlite-vectors)
+
 - The platform lock includes the `lareferencia-metadata-tools` Python module for rights processing, SQLite enrichment and embeddings. The release workflow synchronizes its package version using Python's PEP 440 notation. For example, platform version `5.0.0-rc4` corresponds to Python package version `5.0.0rc4`. [Metadata tools](lareferencia-metadata-tools/README.md)
 - `run-rights-pipeline` starts from a network's latest valid snapshot (LGK) or a verified export and publishes a SQLite enrichment edition. The rights v7 producer generates two license facets and a separate copyright facet, where Spanish `Derechos de autor` declarations are classified as `NOTICE`. Independent producers can ingest results in batches and retrieve published values by catalog ID or OAI identifier. [Rights and enrichment package guide](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md)
 
