@@ -4,10 +4,6 @@
 
 The following changes are on the `codex/rc5-pre` development branch.
 
-### Funcionalidades
-
-- El harvester puede agregar al XML XOAI campos seleccionados de una edición SQLite por red. [Configuración](docs/VALIDACION_COMPATIBILIDAD.md#enriquecimientos-sqlite)
-
 ### Upgrading from 5.0.0-rc4
 
 - **Plan for one full validation per network.** The first validation after the upgrade processes the network's entire active catalog. Historical reports remain available. Networks with rules that depend on the current year also revalidate their catalogs after the year changes. [Upgrade details](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)
@@ -24,6 +20,8 @@ The following changes are on the `codex/rc5-pre` development branch.
 - Historical reports retain their rules and record counts when a validator is edited or replaced. New reports record whether each rule captured field values. For older reports, the dashboard checks for stored values before offering **View occurrences**. **No count** identifies an unavailable occurrence count, and passed and failed record totals remain available. [Historical report behavior](docs/HARVESTER_MANAGEMENT_API_V5.md)
 
 ### Validation and transformation
+
+- `ImportEnrichments` adds selected values from a published SQLite edition to XOAI during validation. In Admin, configure the SQLite filename for each network and map source fields and their JSON properties to qualified XOAI destinations. A mapping can select a producer. Existing values are preserved and duplicates are skipped. Installing, replacing or removing the edition triggers full validation on the next run. The form includes help in Spanish, English and Portuguese. [Configuration](docs/VALIDACION_COMPATIBILIDAD.md#enriquecimientos-sqlite)
 
 - Field translation and conditional addition now write all applicable changes to the published XML. A value in another field no longer blocks a translation into its destination. Cleanup also removes empty XML field elements. A regular-expression replacement counts an identifier as transformed only when its value changes. [Rule behavior](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)
 - Administrators can configure `FieldAddRule` to skip a fixed value already present in the field. Existing profiles continue adding it on each pass. Field-renaming rules can process every occurrence with `processAllOccurrences`. The default limit is 101. The new `ReduceRecordsBySizeRule` removes selected fields only when the XML exceeds a configured size in UTF-8 bytes. Existing `ReduceHeavyRecords` rules keep their original behavior. [Rule options](docs/VALIDACION_COMPATIBILIDAD.md)
