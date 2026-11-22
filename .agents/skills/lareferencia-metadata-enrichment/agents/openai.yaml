@@ -1,0 +1,4 @@
+interface:
+  display_name: "LA Referencia Metadata Enrichment"
+  short_description: "Run enrichment pipelines and build SQLite producers"
+  default_prompt: "Use $lareferencia-metadata-enrichment to implement a producer that writes item fields to an enrichment package."
