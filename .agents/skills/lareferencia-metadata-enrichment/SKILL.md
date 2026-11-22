@@ -44,4 +44,4 @@ Lookup returns identity, input hash and results grouped by producer, with execut
 
 For a new producer, verify duplicate input, correction, empty result, interrupted batch, conflicting input hash, coexistence with another producer and lookup of a published edition. The writer compares complete occurrence content; producers that require unique facet values must deduplicate by normalized value before writing.
 
-The current delivery ends at the queryable edition. Applying fields to XOAI through a Java transformer remains a subsequent integration.
+To apply a published original-variant edition to XOAI, install its SQLite file in the network data directory under `enrichments/` and configure the `ImportEnrichments` rule in the validation profile. See the platform guide `docs/VALIDACION_COMPATIBILIDAD.md#enriquecimientos-sqlite` for field mappings and incremental validation.

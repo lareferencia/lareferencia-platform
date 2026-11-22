@@ -4,6 +4,10 @@
 
 The following changes are on the `codex/rc5-pre` development branch.
 
+### Funcionalidades
+
+- El harvester puede agregar al XML XOAI campos seleccionados de una edición SQLite por red. [Configuración](docs/VALIDACION_COMPATIBILIDAD.md#enriquecimientos-sqlite)
+
 ### Upgrading from 5.0.0-rc4
 
 - **Plan for one full validation per network.** The first validation after the upgrade processes the network's entire active catalog. Historical reports remain available. Networks with rules that depend on the current year also revalidate their catalogs after the year changes. [Upgrade details](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)

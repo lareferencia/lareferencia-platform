@@ -247,3 +247,25 @@ python3 -m unittest discover -s testing/validation
 ```
 
 La prueba JPA guarda las definiciones de las 29 clases del catálogo anterior, cierra la transacción, ejecuta ambas cadenas sobre XML y vuelve a leer las filas para comparar el JSON literal. La prueba del worker comprueba el hash recuperando el XML del almacén de archivos y repitiendo la validación contra el resultado persistido en SQLite.
+
+## Enriquecimientos SQLite
+
+Instalar el archivo SQLite de una edición publicada de variante original en
+`{store.basepath}/{RED}/enrichments/facetas.sqlite`. Copiar primero con un nombre
+temporal en el mismo directorio y renombrar al destino una vez completa la copia.
+En el perfil del transformador, agregar `ImportEnrichments` e indicar
+`facetas.sqlite`. Cada mapeo selecciona un campo del paquete y una propiedad
+escalar del primer nivel de sus ocurrencias. Un productor vacío selecciona todos.
+
+| Origen | Productor | Propiedad | Destino |
+|---|---|---|---|
+| dc.rights.license_l2 | rights | value | dc.rights.license_l2 |
+| dc.rights.license_l2 | rights | jurisdiction | dc.rights.jurisdiction |
+| dc.subject.ods | | value | dc.subject.ods |
+
+El destino vacío reutiliza el origen. Usar esquema.elemento.calificador y
+`none` como calificador del campo simple. La regla agrega valores distintos
+por destino cuando coinciden el ID de catálogo y el hash original.
+Un archivo ausente se registra y la corrida continúa. Un archivo inválido
+falla al inicializar. Instalar, cambiar o retirar la edición invalida la
+reutilización incremental en la siguiente corrida.
