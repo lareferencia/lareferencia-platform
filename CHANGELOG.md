@@ -10,6 +10,7 @@ The following changes are on the `codex/rc5-pre` development branch.
 - **Existing validation and transformation profiles load without migration.** The engine, shell and v5 API recognize historical rule names, including validators embedded in transformers. An optional shell migration updates class references while preserving dictionary entries, expressions and descriptions. [Profile compatibility](docs/VALIDACION_COMPATIBILIDAD.md)
 - **Check rules that depend on how many field values match.** Field expressions now apply the quantifier saved in the profile. For example, with `ALL`, a content rule accepts an absent field, while an XPath rule requires at least one selected occurrence. The bundled Nodo Central profile now requires at least one nonempty title. Administrators can add the **Title — Presence** rule to an installed profile alongside its existing title-length check. [Quantifier behavior and title rule setup](docs/VALIDACION_COMPATIBILIDAD.md)
 - **Downgrading after adopting new rule options requires a profile change.** Before switching back to the previous engine, restore any profile that uses `ReduceRecordsBySizeRule` to its earlier configuration and remove the new `processAllOccurrences` property wherever it was saved. Run validation again after switching engines. [Rollback instructions](docs/VALIDACION_COMPATIBILIDAD.md#opciones-de-transformación-y-reversión)
+- **Update scripts that call the Python tools by file path.** Install `lareferencia-metadata-tools` from the pinned workspace with Python 3.12 or later and use its command-line entry points. This replaces the Python scripts previously run from the platform and shell directories. The Java `export-metadata` command and its JSON profiles remain in the shell. [Installation and command names](lareferencia-metadata-tools/README.md#installation)
 
 ### Repository dashboard
 
@@ -21,8 +22,7 @@ The following changes are on the `codex/rc5-pre` development branch.
 
 ### Validation and transformation
 
-- `ImportEnrichments` adds selected values from a published SQLite edition to XOAI during validation. In Admin, configure the SQLite filename for each network and map source fields and their JSON properties to qualified XOAI destinations. A mapping can select a producer. Existing values are preserved and duplicates are skipped. Installing, replacing or removing the edition triggers full validation on the next run. The form includes help in Spanish, English and Portuguese. [Configuration](docs/VALIDACION_COMPATIBILIDAD.md#enriquecimientos-sqlite)
-
+- `ImportEnrichments` adds selected values from a published SQLite edition to XOAI during validation. In Admin, configure the SQLite filename for each network and map source properties to qualified XOAI fields. A mapping can select a producer. The rule matches the catalog ID and original metadata hash, preserves existing values and skips duplicates. Validation continues when the edition is absent and stops at startup if the edition is invalid. Installing, replacing or removing the edition triggers a full validation on the next run. The form includes help in English, Spanish and Portuguese. [Configuration](docs/VALIDACION_COMPATIBILIDAD.md#enriquecimientos-sqlite)
 - Field translation and conditional addition now write all applicable changes to the published XML. A value in another field no longer blocks a translation into its destination. Cleanup also removes empty XML field elements. A regular-expression replacement counts an identifier as transformed only when its value changes. [Rule behavior](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)
 - Administrators can configure `FieldAddRule` to skip a fixed value already present in the field. Existing profiles continue adding it on each pass. Field-renaming rules can process every occurrence with `processAllOccurrences`. The default limit is 101. The new `ReduceRecordsBySizeRule` removes selected fields only when the XML exceeds a configured size in UTF-8 bytes. Existing `ReduceHeavyRecords` rules keep their original behavior. [Rule options](docs/VALIDACION_COMPATIBILIDAD.md)
 - The engine reuses large vocabulary lookups within a validation run and reduces repeated XML searches and writes during normalization, cleanup, renaming, translation and the addition of repository and provenance fields. Existing profiles retain their configured term matching, value order and translation priorities. In benchmarks, removing duplicate values was faster, while removing only invalid values was slower. [Compatibility tests and measurements](docs/VALIDACION_COMPATIBILIDAD.md)
@@ -42,27 +42,15 @@ The following changes are on the `codex/rc5-pre` development branch.
 
 ### Metadata exports and processing tools
 
-- The batch embedding calculator accepts `--format sqlite` to publish a vector database directly. GZIP JSONL remains the default.
-
-- The shell ships the Java LGK export commands and JSON profiles. Install the coordinated metadata tools package with Python 3.12 or later to run the processing workflows.
-
-- Metadata tools now follow the coordinated platform branch and release version. The Python package uses the equivalent PEP 440 version.
-
-- The Python workflows for rights, metadata enrichment and batch embeddings now ship in the `lareferencia-metadata-tools` workspace module. Batch Gemma supports 768, 512 and 256 dimensions with float32 L2 normalization.
-
-- Metadata tools convert calculated embeddings to compact SQLite editions and retrieve vectors by network and catalog ID. [Package guide](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md#pack-calculated-embeddings-in-sqlite)
-
-- Rights normalization recognizes Spanish `Derechos de autor` notices as `NOTICE` in the copyright facet.
-
-- Run the complete rights pipeline on the harvester server with a single Python command, from LGK or a verified export to a published enrichment edition. [Server workflow](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md)
-
-- Build incremental SQLite enrichment packages and look up fields by catalog or OAI identifier. The rights v7 producer generates two license facets and a separate copyright notice facet. [Package guide](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md)
+- The platform lock includes the `lareferencia-metadata-tools` Python module for rights processing, SQLite enrichment and embeddings. The release workflow synchronizes its package version using Python's PEP 440 notation. For example, platform version `5.0.0-rc4` corresponds to Python package version `5.0.0rc4`. [Metadata tools](lareferencia-metadata-tools/README.md)
+- `run-rights-pipeline` starts from a network's latest valid snapshot (LGK) or a verified export and publishes a SQLite enrichment edition. The rights v7 producer generates two license facets and a separate copyright facet, where Spanish `Derechos de autor` declarations are classified as `NOTICE`. Independent producers can ingest results in batches and retrieve published values by catalog ID or OAI identifier. [Rights and enrichment package guide](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md)
 
 - SQLite snapshot exports now tolerate an empty write-ahead log (WAL), including one SQLite removes during the check. This fixes a false “snapshot modified” error. A WAL that still contains data continues to block export until the snapshot is finalized. [Export fix](https://github.com/lareferencia/lareferencia-core-lib/commit/2beb753a1cfd03931ee5af41e2932578489f38c9)
 - XOAI exports preserve the text of unnamed value fields. The classification profile includes all configured Dublin Core field variants and writes descriptions under the `descriptions` key.
 - XOAI export profiles can exclude values by prefix. Version 1.1 of the license profile uses this option to filter COAR and `info:eu-repo` values from JSON and JSONL exports. Metadata tools include Python commands for counting exported rights statements and normalizing license values. [License inventory workflow](lareferencia-metadata-tools/docs/LICENSE_METADATA_EXTRACTION.md)
-- The Python command `prepare-embedding-metadata --combine` produces one input per titled record for the batch embedding calculator. It puts English titles and abstracts first, appends keywords in source order and preserves uncertain description fallbacks. Add `--include-provenance` for export and occurrence references.
-- The batch embedding calculator reads packages prepared with `--combine` and produces one vector per record, preserving the network and catalog ID. [Calculator guide](lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md)
+- `prepare-embedding-metadata --combine` produces one input per record with a usable title. It puts English titles and abstracts first, appends keywords in source order and preserves uncertain description fallbacks. The command defaults to an annotated metadata package with titles, abstracts and other bibliographic fields. Add `--include-provenance` for export and occurrence references. [Text preparation guide](lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md)
+- `compute-metadata-embeddings` accepts prepared texts and complete Java JSONL exports. It can publish vectors directly to SQLite with `--format sqlite`. GZIP JSONL remains the default and preserves the legacy `metadata-embeddings` v1 format for Java exports. EmbeddingGemma produces 768 dimensions by default and supports 512 or 256 dimensions with float32 L2 normalization. [Calculator options and compatibility](lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md#calculate-vectors)
+- `enrichments pack-vectors` converts existing vector packages to SQLite. `enrichments lookup-vector` retrieves a vector by network and catalog ID. [SQLite vector packages](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md#pack-calculated-embeddings-in-sqlite)
 
 ## 5.0.0-rc4 — 2026-11-18
 
