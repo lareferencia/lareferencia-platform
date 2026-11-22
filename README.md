@@ -374,6 +374,7 @@ python3 -m unittest discover -p 'test_*.py' # workspace/release tooling
 
 - [Metadata export for enrichment](docs/METADATA_EXPORT.md)
 - [Metadata exchange format](docs/METADATA_EXCHANGE_FORMAT.md)
+- [Python metadata tools](lareferencia-metadata-tools/README.md) for rights, enrichment and batch embeddings
 
 | Document | Topic |
 |---|---|

@@ -90,6 +90,12 @@
       "path": "lareferencia-dark-lib",
       "url": "https://github.com/lareferencia/lareferencia-dark-lib",
       "commit": "038b961461ef4f241969a4ba35ba0419502b9e73"
+    },
+    {
+      "name": "lareferencia-metadata-tools",
+      "path": "lareferencia-metadata-tools",
+      "url": "git@github.com:LA-Referencia-IOI/lareferencia-metadata-tools.git",
+      "commit": "bad5d91fe443c10d649222455736b3888d949be3"
     }
   ]
 }

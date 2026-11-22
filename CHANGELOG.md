@@ -44,17 +44,21 @@ The following changes are on the `codex/rc5-pre` development branch.
 
 ### Metadata exports and processing tools
 
-- The rights pipeline, normalizer, SQLite writer, tests and operational documentation now live in the shell repository under `tools/metadata-enrichment/` and `docs/`. Run Python commands from the shell checkout.
+- The Python workflows for rights, metadata enrichment and batch embeddings now ship in the `lareferencia-metadata-tools` workspace module. Batch Gemma supports 768, 512 and 256 dimensions with float32 L2 normalization.
 
-- Run the complete rights pipeline on the harvester server with a single Python command, from LGK or a verified export to a published enrichment edition. [Server workflow](lareferencia-shell/docs/METADATA_ENRICHMENT_PACKAGE.md)
+- Metadata tools convert calculated embeddings to compact SQLite editions and retrieve vectors by network and catalog ID. [Package guide](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md#pack-calculated-embeddings-in-sqlite)
 
-- Build incremental SQLite enrichment packages and look up fields by catalog or OAI identifier. The rights v7 producer generates two license facets and a separate copyright notice facet. [Package guide](lareferencia-shell/docs/METADATA_ENRICHMENT_PACKAGE.md)
+- Rights normalization recognizes Spanish `Derechos de autor` notices as `NOTICE` in the copyright facet.
+
+- Run the complete rights pipeline on the harvester server with a single Python command, from LGK or a verified export to a published enrichment edition. [Server workflow](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md)
+
+- Build incremental SQLite enrichment packages and look up fields by catalog or OAI identifier. The rights v7 producer generates two license facets and a separate copyright notice facet. [Package guide](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md)
 
 - SQLite snapshot exports now tolerate an empty write-ahead log (WAL), including one SQLite removes during the check. This fixes a false “snapshot modified” error. A WAL that still contains data continues to block export until the snapshot is finalized. [Export fix](https://github.com/lareferencia/lareferencia-core-lib/commit/2beb753a1cfd03931ee5af41e2932578489f38c9)
 - XOAI exports preserve the text of unnamed value fields. The classification profile includes all configured Dublin Core field variants and writes descriptions under the `descriptions` key.
-- XOAI export profiles can exclude values by prefix. Version 1.1 of the license profile uses this option to filter COAR and `info:eu-repo` values from JSON and JSONL exports. The shell includes Python tools for counting exported rights statements and normalizing license values. [License inventory workflow](lareferencia-shell/docs/LICENSE_METADATA_EXTRACTION.md)
-- The shell command `prepare-embedding-metadata --combine` produces one input per titled record for the batch embedding calculator. It puts English titles and abstracts first, appends keywords in source order and preserves uncertain description fallbacks. Add `--include-provenance` for export and occurrence references.
-- The batch embedding calculator reads packages prepared with `--combine` and produces one vector per record, preserving the network and catalog ID. [Calculator guide](https://github.com/LA-Referencia-IOI/lareferencia-embedding-service/blob/eb251cca4a3b694bb802261dbc496f1448bec6a5/scripts/python/README.md#calculate-vectors-from-prepared-texts)
+- XOAI export profiles can exclude values by prefix. Version 1.1 of the license profile uses this option to filter COAR and `info:eu-repo` values from JSON and JSONL exports. Metadata tools include Python commands for counting exported rights statements and normalizing license values. [License inventory workflow](lareferencia-metadata-tools/docs/LICENSE_METADATA_EXTRACTION.md)
+- The Python command `prepare-embedding-metadata --combine` produces one input per titled record for the batch embedding calculator. It puts English titles and abstracts first, appends keywords in source order and preserves uncertain description fallbacks. Add `--include-provenance` for export and occurrence references.
+- The batch embedding calculator reads packages prepared with `--combine` and produces one vector per record, preserving the network and catalog ID. [Calculator guide](lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md)
 
 ## 5.0.0-rc4 — 2026-11-18
 

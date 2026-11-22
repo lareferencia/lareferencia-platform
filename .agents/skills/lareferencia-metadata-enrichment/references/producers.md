@@ -1,6 +1,6 @@
 # Implement a producer for the SQLite package
 
-Read the maintained shell guide `docs/METADATA_ENRICHMENT_PACKAGE.md` alongside `enrichment_package/store.py`, `enrichments.py` and `enrichment_package/schema.sql` under `tools/metadata-enrichment/`. These files define the installed behavior.
+Read the metadata tools guide `docs/METADATA_ENRICHMENT_PACKAGE.md` alongside `enrichment_package/store.py`, `lareferencia_metadata_tools/enrichments.py` and `enrichment_package/schema.sql` under the module’s `src/`. These files define the installed behavior.
 
 ## Define the producer contract
 
@@ -10,13 +10,11 @@ One working database is scoped to a network, snapshot and input variant. Each it
 
 ## Python integration
 
-Make the tool directory importable from the producer's installation, then import `upsert_batch` from `enrichment_package`. For a standalone example executed from the shell checkout:
+Install the metadata tools package in the producer's environment and import `upsert_batch` from `enrichment_package`.
 
 ```python
 from pathlib import Path
-import sys
 
-sys.path.insert(0, str(Path("tools/metadata-enrichment").resolve()))
 from enrichment_package import upsert_batch
 
 run = {
@@ -59,9 +57,9 @@ Use the existing v2 return envelope. The run descriptor above can be saved as `r
 ```
 
 ```sh
-python3 tools/metadata-enrichment/enrichments.py ingest work.sqlite ods.jsonl --run run.json
-python3 tools/metadata-enrichment/enrichments.py publish work.sqlite edition-001
-python3 tools/metadata-enrichment/enrichments.py lookup edition-001/enrichments.sqlite --catalog-id item-001
+enrichments ingest work.sqlite ods.jsonl --run run.json
+enrichments publish work.sqlite edition-001
+enrichments lookup edition-001/enrichments.sqlite --catalog-id item-001
 ```
 
 The ingestion command checks the network, export ID, producer ID, run ID, type and schema version against the descriptor. Use timestamps with a timezone. JSONL.GZ is supported. Record input files and hashes in the descriptor so the basename-and-line source references remain resolvable.

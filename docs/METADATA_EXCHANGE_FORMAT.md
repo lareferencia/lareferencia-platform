@@ -444,7 +444,7 @@ versión del procesador, versión de su configuración, timestamps, el `exportId
 procesado, esquema del resultado, y referencias/versiones de modelo, prompt,
 vocabularios o recursos usados. Evitar incluir secretos o credenciales.
 
-El [escritor de paquetes incrementales](../lareferencia-shell/docs/METADATA_ENRICHMENT_PACKAGE.md) admite retornos v2 con campos en `enrichment.values.fields` y produce ediciones SQLite consultables por ítem.
+El [escritor de paquetes incrementales](../lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md) admite retornos v2 con campos en `enrichment.values.fields` y produce ediciones SQLite consultables por ítem.
 
 ### 8.1 Validación antes de incorporar resultados
 

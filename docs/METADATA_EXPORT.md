@@ -11,7 +11,7 @@ Esta guía cubre perfiles disponibles y comandos. El contrato minucioso de los
 archivos, JSON/XML, trazabilidad, manifiesto, índice SQLite y retorno de
 enriquecimientos está en [Formato de intercambio](METADATA_EXCHANGE_FORMAT.md).
 
-Para convertir un paquete JSONL en metadata bibliográfica lista para embeddings, consultar [Preparación del paquete anotado](../lareferencia-shell/docs/EMBEDDING_METADATA.md).
+Para convertir un paquete JSONL en metadata bibliográfica lista para embeddings, consultar [Preparación del paquete anotado](../lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md).
 
 ## Perfiles instalados
 

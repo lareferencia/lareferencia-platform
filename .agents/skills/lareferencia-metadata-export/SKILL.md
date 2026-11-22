@@ -19,7 +19,7 @@ export-metadata --network UY --variant original --format jsonl --mapping config/
 
 ## Preparar y consumir el paquete
 
-Usar la guía del checkout del shell `docs/EMBEDDING_METADATA.md` como contrato de la versión instalada. Ejecutar desde el sistema operativo y desde la raíz del shell. Para instalar, usar un entorno virtual de Python 3.12 y `python -m pip install ./tools/embedding-metadata` dentro de ese entorno. Localizar los modelos `lid.176.ftz` y `role.bin` de la ejecución deseada. Con las rutas de entrada, salida y modelos resueltas:
+Usar la guía de `lareferencia-metadata-tools` `docs/EMBEDDING_METADATA.md` como contrato de la versión instalada. Ejecutar desde el sistema operativo con el entorno virtual activo. Para instalar, usar un entorno virtual de Python 3.12 y `python -m pip install "./lareferencia-metadata-tools[bibliographic]"` desde la plataforma dentro de ese entorno. Localizar los modelos `lid.176.ftz` y `role.bin` de la ejecución deseada. Con las rutas de entrada, salida y modelos resueltas:
 
 ```sh
 .venv/bin/prepare-embedding-metadata --input "$EXPORT_DIR" --output "$OUTPUT_DIR" --models-dir "$MODELS_DIR"
@@ -30,7 +30,7 @@ El preparador verifica el padre JSONL `COMPLETE`. El código 0 entrega `COMPLETE
 Para obtener textos desde una carpeta anotada ya entregada, usar solo esa carpeta como datos de entrada:
 
 ```sh
-python3.12 tools/embedding-metadata/examples/build_inputs.py "$PACKAGE_DIR" > "$TEXTS_JSONL"
+build-embedding-inputs "$PACKAGE_DIR" > "$TEXTS_JSONL"
 ```
 
 `--classified-only` excluye los resúmenes de respaldo. Los candidatos de idioma `und` permanecen en el paquete. El consumidor mantiene separados los títulos y resúmenes indeterminados y agrega las keywords solo a un grupo de idioma conocido coincidente. El manifiesto cuenta **ocurrencias** de keywords; para preguntas por valores únicos o por registros, calcular el denominador solicitado. Para mostrar un ejemplo literal, cruzar las entradas emitidas y la fila anotada por `packageId` del manifiesto, `network` y `catalogId`; comprobar `fields` contra los arrays de la fila. Para remontar al export, consultar `records.sqlite`, las líneas desde 1 y los índices de ocurrencia desde 0.
@@ -39,4 +39,4 @@ python3.12 tools/embedding-metadata/examples/build_inputs.py "$PACKAGE_DIR" > "$
 
 Distinguir la prueba del paquete portátil, la generación de textos y una llamada efectiva al calculador. Para esta última, revisar el contrato del servicio elegido: la llamada de vectores consume los textos en `input`, con modelo/store, dimensiones y límites configurados. La importación de colecciones v2 tiene su propio formato. La referencia de UY en la guía permite contrastar el mismo export y la misma versión; usar el manifiesto de la corrida actual al informar resultados de otro snapshot.
 
-Los cambios al preparador, su perfil, pruebas y contrato pertenecen al shell. La plataforma conserva la documentación transversal y el lock. Para cambios coordinados usar `lareferencia-features`; para operar el harvester de producción usar `lareferencia-harvester-ops`.
+El preparador, sus pruebas y su contrato viven en `lareferencia-metadata-tools`. El perfil de extracción vive en el shell. La plataforma conserva la documentación transversal y el lock. Para cambios coordinados usar `lareferencia-features`; para operar el harvester de producción usar `lareferencia-harvester-ops`.

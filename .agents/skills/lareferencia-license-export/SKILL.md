@@ -5,7 +5,7 @@ description: Extraer y normalizar declaraciones de licencia de dc.rights en LA R
 
 # Exportación y normalización de licencias
 
-Para ejecutar el pipeline completo en el servidor, publicar SQLite o implementar otros productores de campos, usar [lareferencia-metadata-enrichment](../lareferencia-metadata-enrichment/SKILL.md). El código y la documentación viven en el repositorio del shell.
+Para ejecutar el pipeline completo en el servidor, publicar SQLite o implementar otros productores de campos, usar [lareferencia-metadata-enrichment](../lareferencia-metadata-enrichment/SKILL.md). El contador y el normalizador viven en `lareferencia-metadata-tools`. El perfil de extracción vive en el shell.
 
 ## Exportar y contar valores
 
@@ -15,20 +15,20 @@ La entrega por registro contiene `data.licenses`. Si ya hay un export, comprobar
 export-metadata --network UY --variant original --format jsonl --mapping config/exports/licenses-v1.json --compression gzip --output /srv/metadata-exports
 ```
 
-Respetar la variante y el alcance solicitados. Para un inventario por país, contar un paquete completo de una sola red por vez. Desde el checkout del shell:
+Respetar la variante y el alcance solicitados. Para un inventario por país, contar un paquete completo de una sola red por vez. Con el entorno virtual de metadata tools activo.
 
 ```sh
-python3 tools/metadata-enrichment/count_export_licenses.py "$EXPORT_DIR" --max-text-length 120 > "$LICENSES_JSONL"
+count-export-licenses "$EXPORT_DIR" --max-text-length 120 > "$LICENSES_JSONL"
 ```
 
-El inventario contiene una línea por valor con `value` y `recordCount`. Una repetición del mismo valor dentro del ítem cuenta una vez. El contador omite vacíos, COAR e `info:eu-repo`. Las URL HTTP(S) con host y sin espacios quedan exentas del límite de 120 caracteres del contador. Verificar también el límite del perfil del paquete. En la campaña, el perfil omitió todos los valores de más de 300 puntos de código, incluidas las URL. Consultar `lareferencia-shell/docs/LICENSE_METADATA_EXTRACTION.md` para el proceso de extracción.
+El inventario contiene una línea por valor con `value` y `recordCount`. Una repetición del mismo valor dentro del ítem cuenta una vez. El contador omite vacíos, COAR e `info:eu-repo`. Las URL HTTP(S) con host y sin espacios quedan exentas del límite de 120 caracteres del contador. Verificar también el límite del perfil del paquete. En la campaña, el perfil omitió todos los valores de más de 300 puntos de código, incluidas las URL. Consultar `lareferencia-metadata-tools/docs/LICENSE_METADATA_EXTRACTION.md` para el proceso de extracción.
 
 ## Normalizar el inventario
 
 Para varias redes, consolidar por igualdad exacta de `value` y conservar `recordCountByCountry` y su suma en `recordCount`. Reutilizar el diccionario versionado del corte cuando se pida reproducir un resultado. La taxonomía vigente es v7. Para el paquete de Externo usar `derechos-normalizados-v7.jsonl` y verificar `taxonomyVersion: 7` en las filas. Para generar un diccionario a partir del inventario, usar el normalizador del checkout que contiene las reglas correspondientes.
 
 ```sh
-python3 tools/metadata-enrichment/normalize_rights.py "$INVENTORY_JSONL" > "$NORMALIZED_JSONL"
+normalize-rights "$INVENTORY_JSONL" > "$NORMALIZED_JSONL"
 ```
 
 Conservar el valor original y la evidencia disponible. Para Creative Commons, priorizar la URL aplicable, luego el código válido y finalmente el nombre textual. Mantener familia, versión, jurisdicción y alcance según la evidencia. Dejar los conflictos sin resolver en revisión. Las nueve familias son CC, SOFTWARE, DATA, INSTITUTIONAL, EDITORIAL, PUBLIC-DOMAIN, RE, Copyright y OTHER-LICENSE. Informar el instrumento dentro de su familia. RE conserva el código canónico. CC0, CC-PDM y PDDL pertenecen a PUBLIC-DOMAIN.
