@@ -191,11 +191,25 @@ Therefore, `embedding.use.multivalued.vector` must be aligned with the Solr sche
 
 ## Precomputed SQLite vectors
 
-Enable the legacy action `SQLITE_VECTOR_INDEXING_ACTION` in the action catalogue
-and run it manually for the network. It inherits the frontend crosswalk, filters
-and document identity and writes complete bibliographic documents. Configure a
-single writer for a shared core: a subsequent ordinary frontend indexing pass
-can replace documents including their vectors.
+The new `SQLiteVectorIndexerWorker` publishes bibliographic documents with
+precomputed vectors. The harvester registers it as
+`SEMANTIC_DB_INDEXING_ACTION` in its `legacy` execution engine.
+
+### Run for AR from Harvester Admin
+
+1. Sign in with the **Admin** role. Open **Acciones** in the sidebar. On
+   **Acciones de la aplicación**, find `SEMANTIC_DB_INDEXING_ACTION` in the
+   **Clave** column and turn on **Habilitada**. If the row is missing after
+   deploying the updated harvester, use **Refrescar catálogo**. Installations that
+   enabled the previous key, `SQLITE_VECTOR_INDEXING_ACTION`, must enable the new
+   key in the catalogue.
+2. Open **Fuentes** and find **AR**. On that row, click **Ejecutar acción** (the
+   lightning icon), choose **Semantic Indexing (precomputed)**, and click
+   **Confirmar**. This menu entry runs a full reindex of AR.
+3. Check the job under **Runtime**.
+
+For a shared Solr core, use one writer per network. A subsequent ordinary
+frontend indexing pass can replace documents including their vectors.
 
 Place the calculator's completed `manifest.json` and SQLite file together in
 `${store.basepath}/<sanitized-network>/embeddings/`, alongside the network's
@@ -214,6 +228,5 @@ Provision an indexed, single-valued Solr `DenseVectorField` matching the
 manifest dimensions (512 for the AR Gemma package). The worker verifies the
 database checksum, package profile and Solr field before starting the full
 rebuild. Keep the published files immutable during a run. After recalculation,
-replace the package and select a full run manually. An incremental run follows
-the validation delta and therefore skips records whose metadata did not change. Record identity is stable across snapshots, so use
-a package prepared from the intended source data.
+replace the package and run the same action again from the AR row. Record identity
+is stable across snapshots, so use a package prepared from the intended source data.
