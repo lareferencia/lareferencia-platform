@@ -33,7 +33,7 @@ are tracked in [RELEASE_5.0.0_RC4.md](RELEASE_5.0.0_RC4.md).
 | [`METADATA_EXPORT.md`](METADATA_EXPORT.md) | Export LGK metadata for classification and external enrichment; profiles and commands |
 | [`EMBEDDING_METADATA.md`](../lareferencia-shell/docs/EMBEDDING_METADATA.md) | Prepare standalone annotated packages and embedding input texts; UY acceptance results |
 | [`METADATA_EXCHANGE_FORMAT.md`](METADATA_EXCHANGE_FORMAT.md) | Detailed package, record, mapping, provenance, SQLite index and enrichment return contracts |
-| [`LICENSE_METADATA_EXTRACTION.md`](LICENSE_METADATA_EXTRACTION.md) | Rights extraction, license value counts and consolidation across 17 countries |
+| [`LICENSE_METADATA_EXTRACTION.md`](../lareferencia-shell/docs/LICENSE_METADATA_EXTRACTION.md) | Rights extraction, license value counts and consolidation across 17 countries |
 | [`ENTITY_INDEXING_ARCHITECTURE.md`](ENTITY_INDEXING_ARCHITECTURE.md) | Current Elasticsearch/OpenSearch indexer model + real properties |
 | [`FLOWABLE_REFACTORING_STRATEGY.md`](FLOWABLE_REFACTORING_STRATEGY.md) | Workflow engines state (`legacy` / `flowable`) |
 | [`HARVESTER_ADMIN_WEB_V5_BACKLOG.md`](HARVESTER_ADMIN_WEB_V5_BACKLOG.md) | Admin Web + API v5 backlog (what is not done yet) |
