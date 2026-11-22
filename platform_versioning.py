@@ -1,10 +1,13 @@
-"""One platform version for active Maven modules and their npm metadata."""
+"""One platform version for Maven, npm and Python distributions."""
+from configparser import ConfigParser
 import json
 from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
 NS = '{http://maven.apache.org/POM/4.0.0}'
+PYTHON_MODULE = 'lareferencia-metadata-tools'
+PYTHON_RELEASE = re.compile(r'(\d+\.\d+\.\d+)(?:-rc\.?(\d+))?(-SNAPSHOT)?')
 BUILD_VERSION = re.compile(r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$')
 
 
@@ -41,6 +44,49 @@ def _replace_own_version(text, old_version, version):
         if count:
             return ''.join(chunks)
     raise RuntimeError('Could not update the parent project version.')
+
+
+def python_module(root):
+    manifest = ConfigParser(interpolation=None)
+    manifest.read(root / 'workspace.ini', encoding='utf-8')
+    section = f'module.{PYTHON_MODULE}'
+    if manifest.has_section(section):
+        name = manifest.get(section, 'path', fallback=PYTHON_MODULE)
+        path = Path(name)
+        if not path.parts or path.is_absolute() or '..' in path.parts:
+            raise RuntimeError(f'Invalid Python module path: {name}')
+        return name
+    return None
+
+
+def versioned_modules(root):
+    names = active_modules(root)
+    python = python_module(root)
+    return names + [python] if python is not None else names
+
+
+def python_distribution_version(version):
+    release = PYTHON_RELEASE.fullmatch(version)
+    if release is None:
+        raise RuntimeError('Python metadata tools require a stable, RC or SNAPSHOT platform version.')
+    base, candidate, snapshot = release.groups()
+    if candidate is not None:
+        base += f'rc{int(candidate)}'
+    return base + '.dev0' if snapshot else base
+
+
+def python_version_change(project, version):
+    if not project.is_file():
+        raise RuntimeError(f'Missing {project}; initialize the workspace first.')
+    text = project.read_text(encoding='utf-8')
+    section = re.search(r'^\[project\][ \t]*\n.*?(?=^\[|\Z)', text, re.M | re.S)
+    if section is None:
+        raise RuntimeError(f'{project}: missing [project] table.')
+    updated, count = re.subn(r"""^(version[ \t]*=[ \t]*)(['"])[^'"]*\2([ \t]*(?:\#.*)?)$""",
+                             lambda m: f'{m[1]}{m[2]}{version}{m[2]}{m[3]}', section[0], flags=re.M)
+    if count != 1:
+        raise RuntimeError(f'{project}: declare one literal [project] version.')
+    return text[:section.start()] + updated + text[section.end():]
 
 
 def version_changes(root, version):
@@ -105,6 +151,12 @@ def version_changes(root, version):
                 if package_root is not None:
                     package_root['version'] = version
                 changes[path] = json.dumps(data, indent=2, ensure_ascii=False) + '\n'
+    python = python_module(root)
+    if python is not None:
+        project = root / python / 'pyproject.toml'
+        updated = python_version_change(project, python_distribution_version(version))
+        if updated != project.read_text(encoding='utf-8'):
+            changes[project] = updated
     return changes
 
 

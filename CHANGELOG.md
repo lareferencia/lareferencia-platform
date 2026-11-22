@@ -44,6 +44,8 @@ The following changes are on the `codex/rc5-pre` development branch.
 
 ### Metadata exports and processing tools
 
+- Metadata tools now follow the coordinated platform branch and release version. The Python package uses the equivalent PEP 440 version.
+
 - The Python workflows for rights, metadata enrichment and batch embeddings now ship in the `lareferencia-metadata-tools` workspace module. Batch Gemma supports 768, 512 and 256 dimensions with float32 L2 normalization.
 
 - Metadata tools convert calculated embeddings to compact SQLite editions and retrieve vectors by network and catalog ID. [Package guide](lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md#pack-calculated-embeddings-in-sqlite)

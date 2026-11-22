@@ -195,7 +195,7 @@ def version_command(h, args):
             changes = version_changes(root, version)
             if changes:
                 raise RuntimeError("Version metadata differs from parent: " + ", ".join(str(p.relative_to(root)) for p in changes))
-            h.info(f"OK   active module and npm versions match {version}")
+            h.info(f"OK   workspace package versions match {version}")
         else:
             changes = set_platform_version(root, version)
             h.info(f"OK   platform version {version}: updated {len(changes)} files (legacy excluded)")

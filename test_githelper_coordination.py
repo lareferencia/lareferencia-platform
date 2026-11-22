@@ -6,7 +6,7 @@ import json
 import unittest
 from unittest.mock import patch
 import test_githelper_workflow as fixtures
-from test_githelper import githelper as h, git, run, GITHELPER
+from test_githelper import githelper as h, git, init_repo, run, GITHELPER
 from githelper_coordination import add, prepare, pull_requests
 from githelper_install import switch
 import sys
@@ -127,3 +127,34 @@ class CoordinationTests(unittest.TestCase):
         self.assertEqual(h.load_workspace(self.parent).branch_sets['codex/example'], {})
         self.assertEqual(self.lock('verify', merged=True), 0)
         self.assertEqual(git(['status', '--porcelain'], self.parent).stdout.strip(), '')
+
+    def test_prepare_creates_a_version_branch_for_python_tools(self):
+        name = 'lareferencia-metadata-tools'
+        remote = self.root / 'python-remote'
+        init_repo(remote)
+        (remote / 'pyproject.toml').write_text('[project]\nname = "lareferencia-metadata-tools"\nversion = "5.0.0rc3"\n')
+        git(['add', '.'], remote)
+        git(['commit', '-m', 'Python project'], remote)
+        manifest = self.parent / 'workspace.ini'
+        manifest.write_text(manifest.read_text() + f'\n[module.{name}]\nurl = {remote}\nbranch = main\n')
+        ignore = self.parent / '.gitignore'
+        ignore.write_text(ignore.read_text() + f'/{name}/\n')
+        (self.parent / 'pom.xml').write_text('<project xmlns="http://maven.apache.org/POM/4.0.0">'
+            '<groupId>test</groupId><artifactId>parent</artifactId><version>5.0.0-rc3</version></project>')
+        git(['clone', str(remote), name], self.parent)
+        tools = self.parent / name
+        git(['config', 'user.name', 'Test'], tools)
+        git(['config', 'user.email', 'test@example.com'], tools)
+        self.assertEqual(self.lock('capture'), 0)
+        git(['add', '.'], self.parent)
+        git(['commit', '-m', 'Register Python project'], self.parent)
+        git(['tag', '5.0.0-rc3'], self.parent)
+        git(['remote', 'add', 'origin', str(self.parent)], self.parent)
+        self.feature(False)
+        with patch('githelper_coordination.gh', return_value=''):
+            self.assertEqual(prepare(h, argparse.Namespace(bump='rc')), 0)
+        expected = 'codex/example-version-5.0.0-rc4'
+        self.assertEqual(h.get_current_branch(tools), expected)
+        self.assertEqual(h.load_workspace(self.parent).branch_sets['codex/example'][name], expected)
+        self.assertIn('version = "5.0.0rc4"', (tools / 'pyproject.toml').read_text())
+        self.assertEqual(self.lock('verify'), 0)

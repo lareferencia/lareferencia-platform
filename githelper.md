@@ -187,6 +187,12 @@ con Maven 3. Las operaciones de versión validan todo el reactor activo antes de
 escribir, incluidos frontends; excluyen legacy y VuFind. `release stamp` queda como
 herramienta de bajo nivel compatible, fuera del flujo de instalación/publicación.
 
+`lareferencia-metadata-tools` participa en las ramas coordinadas, en el lock y
+en las operaciones de versión. El paquete Python usa la representación PEP 440
+de la versión de plataforma. Por ejemplo, `5.0.0-rc4` se publica en el wheel
+como `5.0.0rc4`, y `5.0.1-SNAPSHOT` se escribe como `5.0.1.dev0`.
+Las versiones estables usan los mismos tres componentes en ambos formatos.
+
 Para compilar OAI por separado, instala antes el POM padre correspondiente. Su
 Dockerfile recibe el contexto `platform-parent`. Su CI busca el padre ya commiteado
 en el tag de la versión, main o un único PR coordinador compatible; nunca inventa
