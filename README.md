@@ -374,7 +374,7 @@ python3 -m unittest discover -p 'test_*.py' # workspace/release tooling
 
 - [Metadata export for enrichment](docs/METADATA_EXPORT.md)
 - [Metadata exchange format](docs/METADATA_EXCHANGE_FORMAT.md)
-- [Python metadata tools](lareferencia-metadata-tools/README.md) for rights, enrichment and batch embeddings
+- [Python metadata tools](lareferencia-metadata-tools/README.md) for rights, enrichment and batch embeddings. The release ZIP includes the pinned sources. Install the tools with Python 3.12 or later.
 
 | Document | Topic |
 |---|---|
