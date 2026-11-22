@@ -10,10 +10,13 @@ an IDE. Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the component map and
 
 The outer repository holds the parent Maven POM, documentation and orchestration.
 Each component is a nested independent Git repository. `workspace.ini` identifies
-15 platform repositories; `workspace.lock` freezes their exact commits:
+16 platform repositories; `workspace.lock` freezes their exact commits:
 
 - 10 active Java modules and two frontend modules inherit `lareferencia-parent`.
 - `lareferencia-solr-cores` supplies configuration and has no Maven artifact.
+- `lareferencia-metadata-tools` provides the Python workflows for rights,
+  enrichment and embeddings. Install it with Python 3.12 or later for
+  [metadata processing](METADATA_EXPORT.md#procesar-un-export-completo).
 - `lareferencia-contrib-ibict` and `lareferencia-contrib-rcaap` are legacy modules,
   excluded from the reactor and retained at 4.2.6.
 - VuFind is external and excluded from the manifest, lock and platform release.

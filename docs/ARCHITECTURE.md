@@ -103,7 +103,8 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 | `lareferencia-lrharvester-app` | Spring Boot app | Harvester workers and v5 API; serves Admin at `/admin/` and Dashboard at `/dashboard/` |
 | `lareferencia-lrharvester-admin-web` | React / Node 22 | Admin Web source; built into the harvester's `admin-static/` |
 | `lareferencia-repository-dashboard` | React + Vite / Node 22 | Read-only Dashboard source; built into the harvester's `dashboard-static/` |
-| `lareferencia-shell` | Spring Shell CLI | Administration commands (DB migrate, indexing, Excel network loads, …) |
+| `lareferencia-shell` | Spring Shell CLI | Administration commands and export of LGK snapshots with JSON profiles |
+| `lareferencia-metadata-tools` | Python CLI | Processes completed exports for licenses, enrichment and embeddings |
 | `lareferencia-shell-entity-plugin` | plugin | Entity-specific shell commands |
 | `lareferencia-entity-rest` | Spring Boot app | Legacy REST surface: `GET /search/entity/{type}` (8094, Springfox `/swagger`) |
 | `lareferencia-oai-pmh` | Spring Boot app | OAI-PMH provider over Solr (8096) |
@@ -119,8 +120,8 @@ React Repository Dashboard is a separate frontend using the Harvester v5 read-on
 adapter; browser/gateway acceptance checks still pending are listed in its migration guide. Libraries come transitively through core-lib (e.g. oclc-harvester,
 indexing-filters-lib).
 
-The manifest locks 15 repositories: 12 active Maven modules (10 Java plus two
-frontends), solr-cores and two legacy contrib modules. The parent adds the thirteenth
+The manifest locks 16 repositories including 12 active Maven modules (10 Java
+and two frontends), solr-cores, metadata tools and two legacy contrib modules. The parent adds the thirteenth
 reactor project. Active versions and internal dependency versions come from
 `lareferencia-parent`; npm manifests follow that version. See [githelper](../githelper.md).
 

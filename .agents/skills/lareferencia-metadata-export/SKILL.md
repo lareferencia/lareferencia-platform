@@ -22,7 +22,7 @@ export-metadata --network UY --variant original --format jsonl --mapping config/
 Usar la guía de `lareferencia-metadata-tools` `docs/EMBEDDING_METADATA.md` como contrato de la versión instalada. Ejecutar desde el sistema operativo con el entorno virtual activo. Para instalar, usar un entorno virtual de Python 3.12 y `python -m pip install "./lareferencia-metadata-tools[bibliographic]"` desde la plataforma dentro de ese entorno. Localizar los modelos `lid.176.ftz` y `role.bin` de la ejecución deseada. Con las rutas de entrada, salida y modelos resueltas:
 
 ```sh
-.venv/bin/prepare-embedding-metadata --input "$EXPORT_DIR" --output "$OUTPUT_DIR" --models-dir "$MODELS_DIR"
+prepare-embedding-metadata --input "$EXPORT_DIR" --output "$OUTPUT_DIR" --models-dir "$MODELS_DIR"
 ```
 
 El preparador verifica el padre JSONL `COMPLETE`. El código 0 entrega `COMPLETE`, 2 señala `PARTIAL` y 1 señala fallo. Para una entrega completa, comprobar estado, conteos, redes, snapshot, variante y hash del manifiesto padre. Si hay errores de registro, revisar `errors.jsonl` y el índice. Un reintento genera un nuevo ID.
@@ -33,7 +33,18 @@ Para obtener textos desde una carpeta anotada ya entregada, usar solo esa carpet
 build-embedding-inputs "$PACKAGE_DIR" > "$TEXTS_JSONL"
 ```
 
-`--classified-only` excluye los resúmenes de respaldo. Los candidatos de idioma `und` permanecen en el paquete. El consumidor mantiene separados los títulos y resúmenes indeterminados y agrega las keywords solo a un grupo de idioma conocido coincidente. El manifiesto cuenta **ocurrencias** de keywords; para preguntas por valores únicos o por registros, calcular el denominador solicitado. Para mostrar un ejemplo literal, cruzar las entradas emitidas y la fila anotada por `packageId` del manifiesto, `network` y `catalogId`; comprobar `fields` contra los arrays de la fila. Para remontar al export, consultar `records.sqlite`, las líneas desde 1 y los índices de ocurrencia desde 0.
+`--classified-only` excluye los resúmenes de respaldo. Los candidatos de idioma `und` permanecen en el paquete. El consumidor mantiene separados los títulos y resúmenes indeterminados. Lee las asignaciones de keywords de los paquetes históricos v1. Los paquetes anotados actuales conservan las keywords en la metadata. El manifiesto cuenta **ocurrencias** de keywords; para preguntas por valores únicos o por registros, calcular el denominador solicitado. Para mostrar un ejemplo literal, cruzar las entradas emitidas y la fila anotada por `packageId` del manifiesto, `network` y `catalogId`; comprobar `fields` contra los arrays de la fila. Para remontar al export, consultar `records.sqlite`, las líneas desde 1 y los índices de ocurrencia desde 0.
+
+## Calcular y empaquetar vectores
+
+Para un vector por ítem con título, agregá `--combine` al preparador.
+Usá el directorio `embedding-inputs` completo en el host de inferencia, con
+la misma revisión de metadata tools instalada mediante el extra `inference`.
+
+```sh
+compute-metadata-embeddings "$PREPARED_DIR" "$VECTOR_DIR" --revision "$MODEL_REVISION"
+enrichments pack-vectors "$VECTOR_DIR" "$SQLITE_EDITION_DIR"
+```
 
 ## Alcance de la comprobación
 

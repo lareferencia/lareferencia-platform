@@ -30,7 +30,7 @@ are tracked in [RELEASE_5.0.0_RC4.md](RELEASE_5.0.0_RC4.md).
 | [`DOCKER_DEV.md`](DOCKER_DEV.md) | Isolated developer Docker workflow (`docker-dev.sh`) |
 | [`../Docker/README.md`](../Docker/README.md) | Normal Docker wizard, endpoints, destructive commands |
 | [`ENTITY_DELETED_INDEXING.md`](ENTITY_DELETED_INDEXING.md) | Entity `deleted` flag workflow + shell commands |
-| [`METADATA_EXPORT.md`](METADATA_EXPORT.md) | Export LGK metadata for classification and external enrichment; profiles and commands |
+| [`METADATA_EXPORT.md`](METADATA_EXPORT.md) | Java export commands, profiles and installation of the Python processing workflows |
 | [`EMBEDDING_METADATA.md`](../lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md) | Prepare standalone annotated packages and embedding input texts; UY acceptance results |
 | [`METADATA_EXCHANGE_FORMAT.md`](METADATA_EXCHANGE_FORMAT.md) | Detailed package, record, mapping, provenance, SQLite index and enrichment return contracts |
 | [`LICENSE_METADATA_EXTRACTION.md`](../lareferencia-metadata-tools/docs/LICENSE_METADATA_EXTRACTION.md) | Rights extraction, license value counts and consolidation across 17 countries |

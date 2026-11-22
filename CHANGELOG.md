@@ -44,6 +44,8 @@ The following changes are on the `codex/rc5-pre` development branch.
 
 ### Metadata exports and processing tools
 
+- The shell ships the Java LGK export commands and JSON profiles. Install the coordinated metadata tools package with Python 3.12 or later to run the processing workflows.
+
 - Metadata tools now follow the coordinated platform branch and release version. The Python package uses the equivalent PEP 440 version.
 
 - The Python workflows for rights, metadata enrichment and batch embeddings now ship in the `lareferencia-metadata-tools` workspace module. Batch Gemma supports 768, 512 and 256 dimensions with float32 L2 normalization.

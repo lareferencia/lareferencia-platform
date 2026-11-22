@@ -53,7 +53,7 @@
       "name": "lareferencia-shell",
       "path": "lareferencia-shell",
       "url": "https://github.com/lareferencia/lareferencia-shell",
-      "commit": "dc73be1eb140919bd1a60354495faf66305cbb68"
+      "commit": "192695680852142d95cf87f5979ae6b88e4f0153"
     },
     {
       "name": "lareferencia-lrharvester-app",
@@ -95,7 +95,7 @@
       "name": "lareferencia-metadata-tools",
       "path": "lareferencia-metadata-tools",
       "url": "https://github.com/LA-Referencia-IOI/lareferencia-metadata-tools.git",
-      "commit": "001bd97d0fe8c8d82a81a6027d48587734367104"
+      "commit": "8b684caae34bf7e9e0c93e0882daeaffbef9fd5a"
     }
   ]
 }

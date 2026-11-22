@@ -15,7 +15,10 @@ La entrega por registro contiene `data.licenses`. Si ya hay un export, comprobar
 export-metadata --network UY --variant original --format jsonl --mapping config/exports/licenses-v1.json --compression gzip --output /srv/metadata-exports
 ```
 
-Respetar la variante y el alcance solicitados. Para un inventario por país, contar un paquete completo de una sola red por vez. Con el entorno virtual de metadata tools activo.
+Respetar la variante y el alcance solicitados. Para un inventario por país, contar un paquete completo de una sola red por vez. Desde la raíz de la plataforma, instalá `./lareferencia-metadata-tools`
+con `python -m pip install ./lareferencia-metadata-tools` en un entorno
+virtual de Python 3.12 o posterior. Con el entorno activo, pasá el directorio
+`exp-…` completo como `EXPORT_DIR`.
 
 ```sh
 count-export-licenses "$EXPORT_DIR" --max-text-length 120 > "$LICENSES_JSONL"
@@ -25,7 +28,7 @@ El inventario contiene una línea por valor con `value` y `recordCount`. Una rep
 
 ## Normalizar el inventario
 
-Para varias redes, consolidar por igualdad exacta de `value` y conservar `recordCountByCountry` y su suma en `recordCount`. Reutilizar el diccionario versionado del corte cuando se pida reproducir un resultado. La taxonomía vigente es v7. Para el paquete de Externo usar `derechos-normalizados-v7.jsonl` y verificar `taxonomyVersion: 7` en las filas. Para generar un diccionario a partir del inventario, usar el normalizador del checkout que contiene las reglas correspondientes.
+Para varias redes, consolidar por igualdad exacta de `value` y conservar `recordCountByCountry` y su suma en `recordCount`. Reutilizar el diccionario versionado del corte cuando se pida reproducir un resultado. La taxonomía vigente es v7. Para el paquete de Externo usar `derechos-normalizados-v7.jsonl` y verificar `taxonomyVersion: 7` en las filas. Para generar un diccionario a partir del inventario, instalar la revisión de metadata tools que contiene las reglas correspondientes.
 
 ```sh
 normalize-rights "$INVENTORY_JSONL" > "$NORMALIZED_JSONL"

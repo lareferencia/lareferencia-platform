@@ -73,7 +73,8 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | `lareferencia-repository-dashboard` | Web app (React + Vite) | Read-only repository dashboard consuming dashboard endpoints in v5; built into `dashboard-static/` |
 | `lareferencia-entity-rest` | Web app | REST API for entity data (`/api/v2`, in transition after Solr indexing removal) |
 | `lareferencia-oai-pmh` | Web app | Standalone OAI-PMH 2.0 provider over the Solr publication index (XOAI 3.4, Spring Boot 3.5) |
-| `lareferencia-shell` | CLI | Spring Shell console: harvesting, database, maintenance, entity and dark commands |
+| `lareferencia-shell` | CLI | Spring Shell console for administration and LGK export with JSON profiles |
+| `lareferencia-metadata-tools` | Python CLI | Rights inventories, SQLite enrichment, bibliographic preparation, batch embeddings and vector packaging |
 | `lareferencia-shell-entity-plugin` | CLI plugin | Entity loading/indexing/cleanup commands for the shell |
 | `lareferencia-contrib-ibict` / `-rcaap` | Library (legacy) | Deprecated, not compiled |
 
