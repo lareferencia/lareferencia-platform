@@ -44,6 +44,8 @@ The following changes are on the `codex/rc5-pre` development branch.
 
 ### Metadata exports and processing tools
 
+- The batch embedding calculator accepts `--format sqlite` to publish a vector database directly. GZIP JSONL remains the default.
+
 - The shell ships the Java LGK export commands and JSON profiles. Install the coordinated metadata tools package with Python 3.12 or later to run the processing workflows.
 
 - Metadata tools now follow the coordinated platform branch and release version. The Python package uses the equivalent PEP 440 version.

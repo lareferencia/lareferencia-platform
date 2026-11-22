@@ -127,6 +127,8 @@ python -m pip install ./lareferencia-metadata-tools
   extra `./lareferencia-metadata-tools[bibliographic]` para ejecutar
   `prepare-embedding-metadata --combine`. En la máquina de cálculo, instalá el
   extra `inference` de la misma revisión y ejecutá
-  `compute-metadata-embeddings`. El comando `enrichments pack-vectors`
-  publica `embeddings.sqlite` a partir de ese paquete de vectores.
+  `compute-metadata-embeddings --format sqlite` para publicar
+  `embeddings.sqlite`, o `--format jsonl` para obtener las partes JSONL
+  comprimidas. `enrichments pack-vectors` permite obtener ambos formatos
+  a partir de un único cálculo en JSONL sobre textos preparados.
   [Guía de embeddings](https://github.com/LA-Referencia-IOI/lareferencia-metadata-tools/blob/main/docs/EMBEDDING_METADATA.md)

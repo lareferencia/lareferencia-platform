@@ -42,9 +42,14 @@ Usá el directorio `embedding-inputs` completo en el host de inferencia, con
 la misma revisión de metadata tools instalada mediante el extra `inference`.
 
 ```sh
-compute-metadata-embeddings "$PREPARED_DIR" "$VECTOR_DIR" --revision "$MODEL_REVISION"
-enrichments pack-vectors "$VECTOR_DIR" "$SQLITE_EDITION_DIR"
+compute-metadata-embeddings "$PREPARED_DIR" "$SQLITE_EDITION_DIR" \
+  --revision "$MODEL_REVISION" --format sqlite
 ```
+
+Para obtener el paquete JSONL GZIP, usá `--format jsonl` y una carpeta de
+salida nueva. Para conservar ambos formatos en una sola corrida, generá
+JSONL y ejecutá `enrichments pack-vectors` sobre ese paquete. Consultá el
+contrato SQLite para resolver la parte y línea de origen de cada edición.
 
 ## Alcance de la comprobación
 
