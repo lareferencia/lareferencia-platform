@@ -31,11 +31,14 @@ Defined in `lareferencia-core-lib` and persisted by migration
 | `network_action` | `NetworkActionConfiguration` | Per-network config: `enabled`, `scheduleEnabled`, JSONB `configuration`, `updatedBy` |
 | `application_worker_configuration` | — | Worker-level parameterization exposed in the Admin UI |
 
-On first creation, the legacy catalogue applies the order and enabled states from
-`V5.0.0.12__Set_Default_Legacy_Action_Order_And_Enabled.sql`, even when migrations ran
-before the action rows existed. Additional legacy actions start disabled after the
-known actions. Later discoveries append disabled in action-key order; reconciliation
-preserves existing order, enabled states and configuration. Missing actions remain
+On first creation, the legacy catalogue uses `LegacyActionCatalogDefaults`. It
+places `SEMANTIC_DB_INDEXING_ACTION` immediately after `SEMANTIC_INDEXING_ACTION`
+and `SEMANTIC_DB_DELETE_ACTION` immediately after `SEMANTIC_DELETE_ACTION`. All four
+start disabled. Unknown actions start disabled after the known actions.
+
+For an existing catalogue with a saved order, reconciliation preserves the order,
+enabled states and configuration. Newly discovered actions append disabled in
+action-key order. Missing actions remain
 unavailable in their original positions and recover their policy when rediscovered.
 
 - Workers read options from `NetworkRunningContext.getBooleanActionOption(...)` — e.g. `HarvestingWorker`

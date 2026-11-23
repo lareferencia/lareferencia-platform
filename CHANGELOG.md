@@ -6,6 +6,8 @@ This section covers the changes staged for 5.0.0-rc5 on `codex/rc5-pre`.
 
 ### Upgrading from 5.0.0-rc4
 
+- **Update the database before starting the upgraded harvester.** Run `database_migrate` from the updated `lareferencia-shell` to apply pending Flyway migrations. The harvester applies the action catalogue defaults when it creates the catalogue. Existing catalogues retain their saved settings. [Database migration](docs/AUTHENTICATION.md)
+
 - **Plan for one full validation per network.** The first validation after the upgrade processes the network's entire active catalog. Historical reports remain available. Networks with rules that depend on the current year also revalidate their catalogs after the year changes. [Upgrade details](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)
 - **Existing validation and transformation profiles load without migration.** The engine, shell and v5 API recognize historical rule names, including validators embedded in transformers. An optional shell migration updates class references while preserving dictionary entries, expressions and descriptions. [Profile compatibility](docs/VALIDACION_COMPATIBILIDAD.md)
 - **Check rules that depend on how many field values match.** Field expressions now apply the quantifier saved in the profile. For example, with `ALL`, a content rule accepts an absent field, while an XPath rule requires at least one selected occurrence. The bundled Nodo Central profile now requires at least one nonempty title. Administrators can add the **Title — Presence** rule to an installed profile alongside its existing title-length check. [Quantifier behavior and title rule setup](docs/VALIDACION_COMPATIBILIDAD.md)
@@ -29,6 +31,8 @@ This section covers the changes staged for 5.0.0-rc5 on `codex/rc5-pre`.
 - URL validation has configurable connection and read timeouts. The defaults are 5 seconds to connect and 10 seconds to read. [Timeout settings](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)
 
 ### Harvester administration and API
+
+- VuFind indexers now default to the `vufind5` profile, including frontend, thesis and both semantic indexers. OpenAIRE sources use their dedicated DataCite and OpenAIRE mapping with that profile. Run a full reindex to apply the profile across existing documents.
 
 - Batch actions return a result for every source, including the reason a source could not run the action. The cancellation confirmation has an accessible name.
 - Reloading an admin link with a valid session preserves the destination. Administrators can browse snapshot history, retry loading a report table and view the published XML for a record in its original network. Identifier searches run when the user selects Search or presses Enter.
@@ -58,6 +62,7 @@ This section covers the changes staged for 5.0.0-rc5 on `codex/rc5-pre`.
 - **Semantic Indexing (precomputed)** publishes complete bibliographic documents with vectors from the network’s SQLite edition. In Harvester Admin, enable `SEMANTIC_DB_INDEXING_ACTION` under **Actions**, then run it from the network’s **Run action** menu. The final key replaces `SQLITE_VECTOR_INDEXING_ACTION` from earlier development builds. Enable the new key if you had enabled the previous one. New snapshot indexing results use the worker key `semanticDbIndexerWorker`. [Admin steps for AR](docs/SEMANTIC_INDEXING_CHUNKING.md#run-for-ar-from-harvester-admin)
 - Place the manifest and SQLite file in `${store.basepath}/<network>/embeddings/`, alongside `enrichments/`. The worker verifies the package and Solr field dimension before deleting existing documents. It matches vectors by network and catalog ID and retains the bibliographic documents that have no vector. After replacing an edition, run the action again to rebuild the network. [Configuration and reindexing](docs/SEMANTIC_INDEXING_CHUNKING.md#precomputed-sqlite-vectors)
 - **Remove Semantic Index (precomputed)** adds the manual `SEMANTIC_DB_DELETE_ACTION`. It deletes the selected network’s documents from the same Solr destination as the precomputed indexer and checks that none remain after commit. [Removal from Harvester Admin](docs/SEMANTIC_INDEXING_CHUNKING.md#remove-a-network-from-the-precomputed-index)
+- New legacy catalogues place the precomputed actions after their respective semantic indexing and deletion actions. All four start disabled. Existing catalogues retain their saved order, enablement and configuration. [Action catalogue defaults](docs/WORKFLOW_ACTIONS.md)
 - A local Docker test launched from the Admin indexed all 24 records in an AR sample into VuFind’s `biblio` core on Solr 9.11. A kNN query recovered the same 24 IDs as the 512-dimensional SQLite edition. A separate check rejected a 1024-dimensional destination field before deleting any documents.
 
 ## 5.0.0-rc4 — 2026-11-18
