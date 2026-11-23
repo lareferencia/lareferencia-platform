@@ -52,20 +52,19 @@ class CoordinationTests(unittest.TestCase):
         self.assertEqual(git(['rev-parse', 'HEAD'], self.module).stdout.strip(), self.base)
         self.assertIsNone(h.get_current_branch(self.module))
 
-    def test_switch_tag_aligns_modules_and_dirty_preflight_preserves_parent(self):
+    def test_switch_tag_preserves_local_changes(self):
         self.assertEqual(self.lock('capture'), 0)
         git(['add', '.'], self.parent)
         git(['commit', '-m', 'lock'], self.parent)
         git(['tag', '5.0.0-rc3'], self.parent)
         git(['remote', 'add', 'origin', str(self.parent)], self.parent)
-        (self.module / 'file').write_text('dirty')
-        with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(switch(h, argparse.Namespace(branch='5.0.0-rc3', modules=None)), 1)
-        self.assertEqual(h.get_current_branch(self.parent), 'main')
-        git(['checkout', '--', 'file'], self.module)
+        (self.parent / 'local-cache').write_text('generated')
+        (self.module / 'file').write_text('local configuration')
         self.assertEqual(switch(h, argparse.Namespace(branch='5.0.0-rc3', modules=None)), 0)
         self.assertIsNone(h.get_current_branch(self.parent))
-        self.assertEqual(self.lock('verify'), 0)
+        self.assertEqual(git(['rev-parse', 'HEAD'], self.module).stdout.strip(), self.base)
+        self.assertEqual((self.parent / 'local-cache').read_text(), 'generated')
+        self.assertEqual((self.module / 'file').read_text(), 'local configuration')
 
     def test_pr_rejects_dirty_module_before_any_github_mutation(self):
         self.assertEqual(self.lock('capture'), 0)

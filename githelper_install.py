@@ -2,7 +2,7 @@
 import argparse
 import json
 from pathlib import Path
-from githelper_workflow import checked, clean, read_lock, lock_command
+from githelper_workflow import checked, require_repository, read_lock, lock_command
 
 
 def initialize_feature(h, root, args, mapping):
@@ -12,7 +12,7 @@ def initialize_feature(h, root, args, mapping):
         entries = {e['name']: e for e in read_lock(h, root)}
         for m in selected:
             if (root / m.path).exists():
-                clean(h, root / m.path)
+                require_repository(h, root / m.path)
                 origin = checked(h, root / m.path, 'remote', 'get-url', 'origin')
                 if (h.url_to_https(origin) or origin).removesuffix('.git') != (h.url_to_https(m.url) or m.url).removesuffix('.git'):
                     raise RuntimeError(f'{m.name}: origin differs from manifest.')
@@ -40,7 +40,7 @@ def initialize_feature(h, root, args, mapping):
 def switch(h, args):
     try:
         root = h.get_repo_root()
-        clean(h, root)
+        require_repository(h, root)
         checked(h, root, 'fetch', 'origin')
         target = args.branch
         checked(h, root, 'check-ref-format', '--branch', target)
@@ -59,9 +59,9 @@ def switch(h, args):
             h.validate_module_path(path)
             repo = root / path
             if repo.exists():
-                clean(h, repo)
+                require_repository(h, repo)
         if h.run_git(['rev-parse', '--verify', 'refs/tags/' + target], root).returncode == 0:
-            checked(h, root, 'checkout', '--detach', 'refs/tags/' + target)
+            checked(h, root, 'checkout', '--no-overwrite-ignore', '--detach', 'refs/tags/' + target)
         else:
             result = h.switch_to_branch(root, target)
             if result.returncode:

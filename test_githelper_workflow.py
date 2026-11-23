@@ -124,7 +124,16 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.lock('capture', from_main=True), 0)
         self.assertEqual(read_lock(h, self.parent)[0]['commit'], self.base)
         self.assertEqual((self.module / 'file').read_text(), 'local')
+        self.assertEqual(self.lock('checkout'), 0)
+        self.assertEqual((self.module / 'file').read_text(), 'local')
+
+    def test_checkout_blocks_overwriting_local_changes(self):
+        self.assertEqual(self.lock('capture'), 0)
+        (self.module / 'file').write_text('different commit')
+        git(['commit', '-am', 'change file'], self.module)
+        (self.module / 'file').write_text('local configuration')
         self.assertEqual(self.lock('checkout'), 1)
+        self.assertEqual((self.module / 'file').read_text(), 'local configuration')
 
     def test_malformed_lock_rejected(self):
         self.assertEqual(self.lock('capture'), 0)

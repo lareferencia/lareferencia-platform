@@ -15,6 +15,11 @@ def checked(h, repo, *args):
     return result.stdout
 
 
+def require_repository(h, repo):
+    if not h.is_git_repository(repo):
+        raise RuntimeError(f"{repo}: expected a Git repository at this path.")
+
+
 def clean(h, repo):
     if not h.is_git_repository(repo) or h.working_tree_status(repo) != "clean":
         raise RuntimeError(f"{repo}: repository must exist and be clean.")
@@ -114,7 +119,9 @@ def lock_command(h, args):
             for e in entries:
                 repo = root / e["path"]
                 if repo.exists():
-                    clean(h, repo)
+                    require_repository(h, repo)
+                    if args.lock_action == "verify":
+                        clean(h, repo)
                     origin = checked(h, repo, "remote", "get-url", "origin")
                     if (h.url_to_https(origin) or origin).removesuffix(".git") != (h.url_to_https(e["url"]) or e["url"]).removesuffix(".git"):
                         raise RuntimeError(f"{e['name']}: origin differs from lock URL.")
@@ -126,7 +133,7 @@ def lock_command(h, args):
                     if not repo.exists():
                         checked(h, root, "clone", "--filter=blob:none", "--no-checkout", "--", e["url"], e["path"])
                     checked(h, repo, "fetch", "origin", e["commit"])
-                    checked(h, repo, "checkout", "--detach", e["commit"])
+                    checked(h, repo, "checkout", "--no-overwrite-ignore", "--detach", e["commit"])
                 actual = checked(h, repo, "rev-parse", "HEAD")
                 if actual != e["commit"]:
                     raise RuntimeError(f"{e['name']}: HEAD differs from lock; use lock checkout.")
