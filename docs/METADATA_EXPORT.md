@@ -24,6 +24,7 @@ Los perfiles mantenidos están en
   Incluye descripciones sin calificar; en UY pueden ser notas, afiliaciones u
   otros textos además de resúmenes.
 - `bibliographic-roles-v1.json`: títulos, descripciones, keywords, tipos, afiliaciones y financiadores.
+- `subjects-ford-v1.json`: selecciona registros con URI FORD de Argentina (BECyT) o Perú en sus materias y exporta todas las ocurrencias de títulos, descripciones y subjects.
 - `licenses-v1.json`: valores de `dc.rights.*` de hasta 300 puntos de código
   Unicode. La versión 1.1 recorta espacios exteriores, excluye los prefijos de
   `info:eu-repo` y de los vocabularios COAR y deduplica por registro.
@@ -132,3 +133,10 @@ python -m pip install ./lareferencia-metadata-tools
   comprimidas. `enrichments pack-vectors` permite obtener ambos formatos
   a partir de un único cálculo en JSONL sobre textos preparados.
   [Guía de embeddings](https://github.com/LA-Referencia-IOI/lareferencia-metadata-tools/blob/main/docs/EMBEDDING_METADATA.md)
+- **Anotaciones FORD.** Con un export `subjects-ford-v1.json`, ejecutá
+  `prepare-embedding-metadata --input "$EXPORT_DIR" --output "$OUTPUT_DIR" --models-dir "$MODELS_DIR" --annotation-profile ford-level2 --include-provenance`.
+  Conserva títulos e idiomas, resúmenes y otras descripciones, todos los
+  `subjects` originales y los códigos BECyT de segundo nivel en `subjectTerms`.
+  `auto` elige este perfil para `subjects-ford`; los perfiles anteriores siguen
+  usando la vista `bibliographic`. Esta vista FORD no se combina con `--combine`.
+  [Contrato de perfiles de anotación](../lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md#annotation-profiles-and-ford-subjects)

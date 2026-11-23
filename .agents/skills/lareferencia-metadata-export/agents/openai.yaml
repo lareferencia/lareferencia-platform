@@ -1,4 +1,4 @@
 interface:
   display_name: "Textos para embeddings de LA Referencia"
-  short_description: "Exportar y preparar textos bibliográficos por idioma"
-  default_prompt: "Usa $lareferencia-metadata-export para preparar y verificar los textos bibliográficos para embeddings."
+  short_description: "Preparar metadata, embeddings y datasets FORD"
+  default_prompt: "Usa $lareferencia-metadata-export para preparar y verificar los datos bibliográficos o los vectores para clasificación FORD."

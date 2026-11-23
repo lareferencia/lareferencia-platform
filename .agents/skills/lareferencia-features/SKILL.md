@@ -70,7 +70,7 @@ Para compilar, usar los scripts oficiales según el alcance:
 
 `build.sh` y `build-java.sh` omiten las pruebas. La compilación completa sin Docker no implica que las pruebas de integración con Testcontainers puedan ejecutarse sin Docker. No instalar Node global ni sustituir estos scripts por comandos ad hoc cuando el usuario solicita el build oficial.
 
-El preparador Python y sus pruebas viven en `lareferencia-metadata-tools`. El perfil de extracción Java vive en `lareferencia-shell/config/exports/`. Instalar el módulo con el extra `bibliographic` y ejecutar `python -m unittest discover -s tests` desde su raíz. Usar `lareferencia-metadata-export` para verificar el recorrido con un export real.
+La anotación, el preparador de clasificación, el calculador y sus pruebas viven en `lareferencia-metadata-tools`. Los perfiles de extracción Java viven en `lareferencia-shell/config/exports/`. Instalar el módulo con el extra `bibliographic` y ejecutar `python -m unittest discover -s tests` desde su raíz. Para una prueba de inferencia con el modelo real, instalar también `inference` en el entorno de cálculo y seguir `lareferencia-metadata-export`. Si el cambio afecta las etiquetas de clasificación, verificar su conservación en la escritura directa y en la conversión de JSONL a SQLite.
 
 ## Commits y PR
 

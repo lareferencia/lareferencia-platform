@@ -6,6 +6,13 @@
 
 - Githelper allows local configuration and generated files during workspace checkout when Git can preserve them. Git reports any files that block the change.
 
+### Metadata export
+
+- `prepare-classification-dataset` creates one plain or EmbeddingGemma classification text per annotated record. Prediction retains available FORD labels and can reuse the training text recipe.
+- `compute-metadata-embeddings` accepts classification datasets and carries their reference labels into JSONL and SQLite vector packages.
+- XOAI mappings support record selection by value prefix. The FORD profile exports all titles, descriptions and subjects of matching records.
+- Metadata tools adds selectable annotation profiles. FORD annotations preserve original subjects and extract deduplicated second-level BECyT codes with occurrence provenance; existing bibliographic and combined preparation retain their behavior.
+
 ### Repository dashboard
 
 - Opening or closing the harvest comparison preserves dates entered in the history filter until the user applies or resets them.

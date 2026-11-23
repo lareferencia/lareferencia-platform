@@ -215,6 +215,23 @@ Además del JSON Schema, el runtime comprueba selectores, propiedades
 desconocidas, tipos y restricciones entre `occurrenceStart` y selectores
 relativos. Validar perfiles con `export-mapping-validate` antes de usarlos.
 
+### Selección por prefijos del valor
+
+El bloque opcional `recordFilter` se evalúa en el XML de la variante elegida,
+después del filtro de validez y antes de proyectar los campos. Por ejemplo:
+
+```json
+{"recordFilter":{"select":["dc.subject","dc.subject.*"],"startsWithAny":["https://purl.org/becyt/ford/"]}}
+```
+
+Ambas listas son obligatorias y no vacías. Se incluye el registro una vez si
+algún valor de los selectores, tras recortar espacios exteriores, empieza por
+algún prefijo literal. La comparación distingue mayúsculas. La proyección
+conserva las ocurrencias y sus literales. La ausencia de coincidencias deja
+la fila como `FILTERED` en el índice. El manifiesto desglosa `counts.filtered`
+en `filteredBy.recordFilter` y `filteredBy.validOnly`. Preview usa el mismo
+filtro y mantiene su límite sobre registros intentados.
+
 ### 5.1 Campos simples
 
 Una regla simple usa `select` y `type`:

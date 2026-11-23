@@ -33,7 +33,7 @@ For rights, L1 is a deduplicated overview, L2 adds known instrument details, and
 
 Read [the producer integration guide](references/producers.md). Reuse the generic writer through Python or v2 JSONL ingestion. Keep domain decisions in the producer. Define target fields, occurrence semantics and a stable producer ID; the ID owns the complete set of fields contributed to an item. Preserve item identity and the actual input metadata hash.
 
-The current rights producer demonstrates this interface. ODS is a possible new producer. The bibliographic preparation workflow produces bibliographic packages and JSONL; integrating it with this SQLite writer requires an adapter.
+The current rights producer demonstrates this interface. ODS is a possible new producer. The embedding calculator publishes its own vector edition as `embeddings.sqlite`. Classification editions also carry FORD reference labels. Use `lareferencia-metadata-export` for the preparation, `enrichments pack-vectors` for JSONL conversion and `enrichments lookup-vector` for per-item inspection. Publishing predicted classes as XOAI enrichments requires a producer that writes to the `enrichments.sqlite` contract.
 
 ## Query and verify results
 
