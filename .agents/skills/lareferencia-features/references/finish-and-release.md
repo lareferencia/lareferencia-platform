@@ -13,7 +13,13 @@ Con repositorios limpios, en la rama coordinadora:
 
 Elegir el incremento según el pedido y las opciones vigentes. La numeración debe partir de los tags remotos, no de una suposición sobre la siguiente RC. `prepare` actualiza y commitea versiones del reactor activo y metadatos npm, y registra ramas de versión para módulos que lo necesitan. Los legacy conservan su versión independiente; VuFind queda excluido.
 
-Actualizar `CHANGELOG.md` como parte del PR coordinador: mover sólo las entradas incluidas en la release desde `Unreleased` a una sección con la versión preparada y la fecha prevista de publicación; conservar `Unreleased` y las entradas que no se publicarán. Comprobar enlaces a PR y usar esas entradas para las notas de GitHub Release. Si cambia la versión o la fecha antes de publicar, corregir la sección. Este paso es editorial; no asumir que githelper lo realiza automáticamente.
+Actualizar `CHANGELOG.md` en el PR coordinador. Mover las entradas incluidas en la release de `Unreleased` a una sección única `## <versión>`, con la fecha si está confirmada. Conservar `Unreleased`, las entradas pendientes y las secciones históricas. Colocar primero las instrucciones de actualización y revisar los enlaces a PR y documentación. Este paso es editorial.
+
+El workflow toma las notas de GitHub Release de esa sección. Los enlaces a archivos de plataforma apuntan al tag. Los enlaces a módulos usan sus commits en `workspace.lock`. El CI del coordinador muestra una vista previa cuando cambia `VERSION`. Para verla en local, ejecutar desde la plataforma:
+
+```bash
+python3 scripts/coordinator_release.py notes "$(cat VERSION)" lareferencia/lareferencia-platform
+```
 
 `prepare` no abre PR: ejecutar después `pr`. Puede haber PR de módulos que sólo cambian versión. Revisar el alcance y el diff del lock. Si una rama de versión ya existe, inspeccionar su contenido y registro antes de reintentar; no asumir idempotencia ilimitada ni forzar su eliminación.
 

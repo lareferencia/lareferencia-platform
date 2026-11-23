@@ -6,8 +6,11 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
+from urllib.parse import quote, urlsplit, urlunsplit
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -124,6 +127,41 @@ def labels():
             '-f', f'description=Automatic platform release: {bump}')
 
 
+def release_notes(version, repository):
+    """Render the version section with permanent links to the published sources."""
+    changelog = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
+    sections = re.split(r'^##[ \t]+(.+)[ \t]*$', changelog, flags=re.M)
+    matches = [body.strip() for heading, body in zip(sections[1::2], sections[2::2])
+               if re.fullmatch(re.escape(version) + r'(?:\s+[—–-]\s+.+)?', heading.strip())]
+    if len(matches) != 1 or not matches[0]:
+        raise RuntimeError(f'Expected one nonempty CHANGELOG.md section for {version}.')
+    modules = {entry['path']: entry for entry in read_lock(h, ROOT)}
+
+    def resolve(target):
+        url = urlsplit(target)
+        if url.scheme or url.netloc:
+            return target
+        path = url.path.removeprefix('./') or 'CHANGELOG.md'
+        root, _, relative = path.partition('/')
+        if root in modules:
+            module = modules[root]
+            origin = h.url_to_https(module['url']) or module['url']
+            base = origin.removesuffix('.git') + '/blob/' + module['commit']
+        else:
+            base = f'https://github.com/{repository}/blob/{version}'
+            relative = path.lstrip('/')
+        link = urlsplit(base + '/' + quote(relative, safe='/%'))
+        return urlunsplit(link._replace(query=url.query, fragment=url.fragment))
+
+    return re.sub(r'(\]\()(<[^>]+>|[^\s)]+)(?=[\s)])',
+                  lambda match: match[1] + resolve(match[2].strip('<>')),
+                  matches[0]) + '\n'
+
+
+def preview_notes(version, repository):
+    print(release_notes(version, repository), end='')
+
+
 def publish(version):
     sha = run('git', 'rev-parse', 'HEAD')
     # CLI authenticates tag creation through the API; checkout credentials stay
@@ -135,11 +173,9 @@ def publish(version):
         ref = json.loads(lookup.stdout)
         if ref['object']['sha'] != sha:
             raise RuntimeError('Existing release tag points at a different commit.')
-    elif '404' in lookup.stderr:
-        run('gh', 'api', '--method', 'POST', f'repos/{repo}/git/refs',
-            '-f', f'ref=refs/tags/{version}', '-f', f'sha={sha}')
-    else:
+    elif '404' not in lookup.stderr:
         raise RuntimeError(lookup.stderr)
+    tag_missing = lookup.returncode != 0
     lookup = subprocess.run(['gh', 'api', f'repos/{repo}/releases/tags/{version}'],
                             cwd=ROOT, text=True, capture_output=True)
     if lookup.returncode == 0:
@@ -150,17 +186,25 @@ def publish(version):
         raise RuntimeError('Existing draft must be inspected before retrying; no assets overwritten.')
     if '404' not in lookup.stderr:
         raise RuntimeError(lookup.stderr)
-    args = ['gh', 'release', 'create', version, '--verify-tag', '--draft',
-            '--title', f'Release {version}', '--generate-notes',
-            f'lareferencia-platform-{version}.zip', 'SHA256SUMS', 'release.json', 'workspace.lock']
-    if '-rc' in version:
-        args.append('--prerelease')
-    run(*args)
+    notes = release_notes(version, repo)
+    if tag_missing:
+        run('gh', 'api', '--method', 'POST', f'repos/{repo}/git/refs',
+            '-f', f'ref=refs/tags/{version}', '-f', f'sha={sha}')
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / 'release-notes.md'
+        path.write_text(notes, encoding='utf-8')
+        args = ['gh', 'release', 'create', version, '--verify-tag', '--draft',
+                '--title', f'Release {version}', '--notes-file', str(path),
+                f'lareferencia-platform-{version}.zip', 'SHA256SUMS', 'release.json', 'workspace.lock']
+        if '-rc' in version:
+            args.append('--prerelease')
+        run(*args)
     run('gh', 'release', 'edit', version, '--draft=false')
 
 
 if __name__ == '__main__':
     try:
-        {'plan': plan, 'metadata': metadata, 'package': package, 'publish': publish, 'labels': labels}[sys.argv[1]](*sys.argv[2:])
+        {'plan': plan, 'metadata': metadata, 'package': package, 'publish': publish,
+         'labels': labels, 'notes': preview_notes}[sys.argv[1]](*sys.argv[2:])
     except (RuntimeError, OSError, subprocess.CalledProcessError, ValueError, KeyError, TypeError) as exc:
         sys.exit(str(exc))
