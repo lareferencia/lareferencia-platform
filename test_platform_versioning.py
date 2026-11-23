@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
-from platform_versioning import active_modules, read_version, set_platform_version, version_changes
+from platform_versioning import active_modules, read_version, set_platform_version, version_changes, versioned_modules
 from githelper_workflow import stamp
 
 NS = '{http://maven.apache.org/POM/4.0.0}'
@@ -50,6 +50,17 @@ class InheritedVersionTests(unittest.TestCase):
                 file.write_text('original legacy or external content')
                 self.excluded.append(file)
 
+    def test_stamp_updates_react_dashboard_package_and_lock(self):
+        frontend = self.root / 'web/web'
+        frontend.mkdir()
+        for name in ('package.json', 'package-lock.json'):
+            (frontend / name).write_bytes((self.npm / name).read_bytes())
+        stamp(self.root, '5.0.0-rc5', [])
+        self.assertEqual(json.loads((frontend / 'package.json').read_text())['version'], '5.0.0-rc5')
+        lock = json.loads((frontend / 'package-lock.json').read_text())
+        self.assertEqual(lock['version'], lock['packages']['']['version'])
+        self.assertEqual(lock['version'], '5.0.0-rc5')
+
     def test_release_stamp_updates_only_inherited_platform_version_and_npm(self):
         old_excluded = {p:p.read_bytes() for p in self.excluded}
         stamp(self.root, '5.0.0-rc4', [{'path':'lareferencia-contrib-rcaap'}, {'path':'vufind'}])
@@ -79,6 +90,30 @@ class InheritedVersionTests(unittest.TestCase):
 
     def test_active_set_includes_frontends_but_excludes_legacy_and_vufind(self):
         self.assertEqual(active_modules(self.root), ['core','web'])
+
+    def test_python_version_tracks_the_platform_release_outside_maven(self):
+        (self.root / 'workspace.ini').write_text('[module.lareferencia-metadata-tools]\npath = tools\n')
+        tools = self.root / 'tools'
+        tools.mkdir()
+        project = tools / 'pyproject.toml'
+        project.write_text('[project]\nname = "tools"\ndependencies = ["example"]\nversion = "1.0.0" # wheel\n'
+                           '[tool.example]\nversion = "9.0"\n')
+        self.assertEqual(active_modules(self.root), ['core', 'web'])
+        self.assertEqual(versioned_modules(self.root), ['core', 'web', 'tools'])
+        for platform, python in [('5.0.0-rc.4', '5.0.0rc4'), ('5.0.0', '5.0.0'),
+                                 ('5.0.1-SNAPSHOT', '5.0.1.dev0'), ('5.0.1-rc1-SNAPSHOT', '5.0.1rc1.dev0')]:
+            with self.subTest(platform=platform):
+                set_platform_version(self.root, platform)
+                self.assertIn(f'version = "{python}" # wheel', project.read_text())
+                self.assertIn('[tool.example]\nversion = "9.0"', project.read_text())
+                self.assertEqual(version_changes(self.root, platform), {})
+
+    def test_missing_python_project_prevents_platform_version_changes(self):
+        (self.root / 'workspace.ini').write_text('[module.lareferencia-metadata-tools]\n')
+        before = self.parent.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, r'Missing .*pyproject\.toml'):
+            set_platform_version(self.root, '5.0.0-rc4')
+        self.assertEqual(before, self.parent.read_bytes())
 
     def test_missing_module_fails_before_changing_any_version(self):
         self.poms[-1].unlink()

@@ -1,9 +1,9 @@
 # Architecture Overview
 
-**Status:** current · **Last verified:** 2026-11-16
+**Status:** current · **Last verified:** 2026-11-23
 
 High-level map of the LA Referencia platform: modules, ports and the main data flows.
-Verified against the code and build files on 2026-11-16. Configuration details live in
+Configuration details live in
 [`CONFIGURATION_PROPERTIES.md`](CONFIGURATION_PROPERTIES.md); terminology in
 [`GLOSSARY.md`](GLOSSARY.md); the full document index in
 [`DOCUMENTATION_INDEX.md`](DOCUMENTATION_INDEX.md).
@@ -39,7 +39,7 @@ flowchart LR
         OAIP["oai-pmh · 8096"]
     end
 
-    RDB["Repository Dashboard (Angular, read-only)"]
+    RDB["Repository Dashboard (React, read-only)"]
 
     SRC -->|"OAI-PMH ListRecords"| HW
     ESI -->|"entities"| ES
@@ -70,14 +70,16 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
    validation SQLite store with fingerprint + manifest reuse; the multithread pipeline
    was replaced by the incremental model.
 3. **Transformation.** Crosswalk/mapping beans (`config/beans/*.xml`) transform source
-   metadata into the target schema; results go to the **metadata store** (filesystem by
+   metadata into the target schema. The optional `ImportEnrichments` transformer adds
+   fields from a published SQLite edition for the network. Results go to the **metadata store** (filesystem by
    default; H2/SQLite per-network variants —
    [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](ALMACENAMIENTO_REFERENCIA_RAPIDA.md)).
 4. **Entities & indexing.** Entity extraction derives entities and relations; dirty
    entities are merged (`merge_dirty_entities_and_relations`) and indexed to
    Elasticsearch by the threaded indexer
    ([ENTITY_INDEXING_ARCHITECTURE.md](ENTITY_INDEXING_ARCHITECTURE.md)); frontend and
-   semantic (embeddings) Solr indexes are fed in parallel
+   semantic Solr indexes are published by their configured workers. The precomputed
+   semantic worker reads a published SQLite vector edition
    ([SEMANTIC_INDEXING_CHUNKING.md](SEMANTIC_INDEXING_CHUNKING.md)).
 5. **Persistent identifiers.** The dARK stage worker reserves and stages ARKs through
    `lareferencia-dark-lib` against the external minter; the NAAN is configured per
@@ -87,10 +89,10 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 6. **Publication.** `lareferencia-oai-pmh` is an independently deployable Spring Boot app
    that inherits the platform parent and version (no direct LA Referencia module dependency): it reads the Solr `oai` core and serves the
    OAI-PMH protocol on port 8096, so external harvesters can harvest LA Referencia.
-7. **Consumption.** VuFind searches Solr. The Angular Repository Dashboard uses local v5
+7. **Consumption.** VuFind searches Solr. The React Repository Dashboard uses local v5
    sessions and read-only `/api/v5/dashboard` routes. Its public proxy host is allowlisted
    to auth/session endpoints and GET dashboard requests; it cannot reach admin APIs.
-   See [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md). `entity-rest` keeps the
+   See [Docker Dev](DOCKER_DEV.md#harvester-admin-web). `entity-rest` keeps the
    legacy `GET /search/entity/{type}` over Elasticsearch; React Admin Web uses v5 admin
    routes on its separate host.
 
@@ -102,8 +104,9 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 | `lareferencia-entity-lib` | Java library | Entity model + Elasticsearch/OpenSearch indexer (`JSONElasticEntityIndexerThreadedImpl`) |
 | `lareferencia-lrharvester-app` | Spring Boot app | Harvester workers and v5 API; serves Admin at `/admin/` and Dashboard at `/dashboard/` |
 | `lareferencia-lrharvester-admin-web` | React / Node 22 | Admin Web source; built into the harvester's `admin-static/` |
-| `lareferencia-repository-dashboard` | Angular / Node 18 | Read-only Dashboard source; built into the harvester's `dashboard-static/` |
-| `lareferencia-shell` | Spring Shell CLI | Administration commands (DB migrate, indexing, Excel network loads, …) |
+| `lareferencia-repository-dashboard` | React + Vite / Node 22 | Read-only Dashboard source; built into the harvester's `dashboard-static/` |
+| `lareferencia-shell` | Spring Shell CLI | Administration commands and export of LGK snapshots with JSON profiles |
+| `lareferencia-metadata-tools` | Python CLI | Processes completed exports for licenses, enrichment and embeddings |
 | `lareferencia-shell-entity-plugin` | plugin | Entity-specific shell commands |
 | `lareferencia-entity-rest` | Spring Boot app | Legacy REST surface: `GET /search/entity/{type}` (8094, Springfox `/swagger`) |
 | `lareferencia-oai-pmh` | Spring Boot app | OAI-PMH provider over Solr (8096) |
@@ -115,12 +118,12 @@ The Admin Web and Repository Dashboard are built independently into `admin-stati
 
 Dependency sketch (from the poms): `lrharvester-app` → core-lib + dark-lib (+ entity-lib
 per profile); `entity-rest` → core-lib + entity-lib; `oai-pmh` → standalone. The
-Angular Repository Dashboard is a separate frontend using the Harvester v5 read-only
-adapter; browser/gateway acceptance checks still pending are listed in its migration guide. Libraries come transitively through core-lib (e.g. oclc-harvester,
+React Repository Dashboard is a separate frontend using the Harvester v5 read-only
+adapter. Libraries come transitively through core-lib (e.g. oclc-harvester,
 indexing-filters-lib).
 
-The manifest locks 15 repositories: 12 active Maven modules (10 Java plus two
-frontends), solr-cores and two legacy contrib modules. The parent adds the thirteenth
+The manifest locks 16 repositories including 12 active Maven modules (10 Java
+and two frontends), solr-cores, metadata tools and two legacy contrib modules. The parent adds the thirteenth
 reactor project. Active versions and internal dependency versions come from
 `lareferencia-parent`; npm manifests follow that version. See [githelper](../githelper.md).
 

@@ -188,3 +188,58 @@ Therefore, `embedding.use.multivalued.vector` must be aligned with the Solr sche
 - With `embedding.use.multivalued.vector=true`, a record can generate more than one embedding: one for the standalone title and up to `embedding.max.chunks.size` chunk embeddings.
 - Titles with fewer words than `embedding.title.standalone.indexing.min.words` do not generate a standalone embedding, but they can still appear as context in abstract chunks.
 - Token estimation is independent from the model configured in `embedding.model.name`; if the model changes to a substantially different tokenizer, `CustomTokenCountEstimator` may need recalibration or replacement with a model-specific estimator.
+
+## Precomputed SQLite vectors
+
+The new `SemanticDbIndexerWorker` publishes bibliographic documents with
+precomputed vectors. The harvester registers it as
+`SEMANTIC_DB_INDEXING_ACTION` in its `legacy` execution engine. The worker bean is
+`semanticDbIndexerWorker`, which also identifies new results in the snapshot
+indexing history.
+
+### Run for AR from Harvester Admin
+
+1. Sign in with the **Admin** role. Open **Acciones** in the sidebar. On
+   **Acciones de la aplicación**, find `SEMANTIC_DB_INDEXING_ACTION` in the
+   **Clave** column and turn on **Habilitada**. If the row is missing after
+   deploying the updated harvester, use **Refrescar catálogo**. The action starts
+   disabled when added to the catalogue.
+2. Open **Fuentes** and find **AR**. On that row, click **Ejecutar acción** (the
+   lightning icon), choose **Indexación semántica (precalculada)**, and click
+   **Confirmar**. This menu entry runs a full reindex of AR.
+3. Check the job under **Runtime**.
+
+For a shared Solr core, use one writer per network. A subsequent ordinary
+frontend indexing pass can replace documents including their vectors.
+
+Place the calculator's completed `manifest.json` and SQLite file together in
+`${store.basepath}/<sanitized-network>/embeddings/`, alongside the network's
+`enrichments/`. For AR the lookup uses the exact acronym `AR` and the catalog ID
+stored in the validation row. Missing vectors leave the bibliographic document
+searchable. The worker logs counts with and without a vector.
+
+| Installation property | Default |
+| --- | --- |
+| `indexing.embeddings.directory` | `embeddings`, relative to the network directory |
+| `indexing.embeddings.filename` | Database filename in the manifest |
+| `indexing.embeddings.solr-field` | `semantic_vector` |
+| `indexing.embeddings.solr-url` | `frontend.solr.url` |
+
+Provision an indexed, single-valued Solr `DenseVectorField` matching the
+manifest dimensions (512 for the AR Gemma package). The worker verifies the
+database checksum, package profile and Solr field before starting the full
+rebuild. Keep the published files immutable during a run. After recalculation,
+replace the package and run the same action again from the AR row. Record identity
+is stable across snapshots, so use a package prepared from the intended source data.
+
+### Remove a network from the precomputed index
+
+In **Acciones**, enable `SEMANTIC_DB_DELETE_ACTION`. For AR, open **Fuentes**,
+click **Ejecutar acción** on the AR row, select **Eliminar del índice semántico (precalculado)** and confirm. The worker `semanticDbDeleteWorker` uses the same
+Solr URL as precomputed indexing. It commits the deletion and checks that zero
+documents remain for the selected network.
+
+The action deletes the network’s complete Solr documents, including metadata
+and vectors. If the semantic and ordinary frontend share a Solr core, these
+documents also disappear from ordinary search. The SQLite edition remains
+available for reindexing.

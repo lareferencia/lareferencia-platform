@@ -102,6 +102,20 @@
         }
       },
       {
+        "typeId": "validator--content-length-field-content-validator-rule",
+        "className": "org.lareferencia.core.worker.validation.validator.ContentLengthFieldContentValidatorRule",
+        "name": "Title — Presence",
+        "description": "Exige al menos un título con contenido",
+        "mandatory": true,
+        "quantifier": "ONE_OR_MORE",
+        "runOrder": null,
+        "configuration": {
+          "fieldname": "dc.title.*",
+          "minLength": 1,
+          "maxLength": 2147483647
+        }
+      },
+      {
         "typeId": "validator--field-expression-validator-rule",
         "className": "org.lareferencia.core.worker.validation.validator.FieldExpressionValidatorRule",
         "name": "Embargo End Date (MA)",

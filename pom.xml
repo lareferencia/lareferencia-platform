@@ -25,7 +25,7 @@
 
 	<groupId>org.lareferencia</groupId>
   	<artifactId>lareferencia-parent</artifactId>
-	<version>5.0.0-rc4</version>
+	<version>5.0.0-rc5</version>
 	<packaging>pom</packaging>
 
 	<name>LA Referencia Platform</name>
@@ -263,7 +263,7 @@
 			<modules>
 				<!-- Generates the React SPA into lrharvester-app/admin-static before packaging the harvester. -->
 				<module>lareferencia-lrharvester-admin-web</module>
-				<!-- Generates the Angular dashboard into lrharvester-app/dashboard-static. -->
+				<!-- Generates the React dashboard into lrharvester-app/dashboard-static. -->
 				<module>lareferencia-repository-dashboard</module>
 			</modules>
 		</profile>

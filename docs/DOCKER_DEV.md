@@ -1,6 +1,6 @@
 # Developer Docker Mode
 
-**Status:** current · **Last verified:** 2026-11-16
+**Status:** current · **Last verified:** 2026-11-23
 
 `Docker/docker-dev.sh` provides an isolated development workflow for the LA Referencia platform. It uses its own wizard/settings and a Compose overlay on top of the normal Docker stack. Both flows share the current base service definitions; the developer overlay selects isolated ports, volumes and source mounts.
 
@@ -50,7 +50,7 @@ The developer wizard follows the normal wizard's defaults. By default it enables
 - VuFind
 - OAI-PMH
 
-Entity REST, Shell, Elasticsearch, and the VuFind SCSS watcher are disabled by default. Select modules from the wizard's **Manage Modules (on/off)** action. The selection is persisted in `Docker/.env.dev`. With Harvester selected, both Harvester and the local Nginx gateway are available on loopback: Harvester directly serves compiled Admin and Dashboard at `/admin/` and `/dashboard/`; the gateway offers host-separated access, routing `admin.localhost` to Vite and the full v5 API, and `dashboard.localhost` only to the compiled Dashboard and allowlisted auth/read APIs. Vite itself has no host port. Add the gateway names to `/etc/hosts` if `.localhost` does not resolve automatically. See [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md).
+Entity REST, Shell, Elasticsearch, and the VuFind SCSS watcher are disabled by default. Select modules from the wizard's **Manage Modules (on/off)** action. The selection is persisted in `Docker/.env.dev`. With Harvester selected, both Harvester and the local Nginx gateway are available on loopback. Harvester directly serves compiled Admin and Dashboard at `/admin/` and `/dashboard/`. The gateway routes `admin.localhost` to Vite and the full v5 API, and `dashboard.localhost` to the compiled Dashboard and allowlisted auth/read APIs. Vite itself has no host port. Add the gateway names to `/etc/hosts` if `.localhost` does not resolve automatically. See the [Dashboard configuration guide](../lareferencia-repository-dashboard/docs/CONFIGURATION.md).
 
 When Harvester is enabled, it is published on loopback port `8190` in isolated
 mode (or `LR_PORT_HARVESTER` in normal mode). The compiled UIs are available
@@ -60,7 +60,7 @@ directly at `http://localhost:8190/admin/` and
 `http://dashboard.localhost:8188/dashboard/es/` (isolated mode; normal mode
 defaults to 8088). The gateway's Admin host routes to `admin-web-dev`, which
 provides Vite hot-module replacement; Vite itself is not published to the host.
-Dashboard Angular is served as a compiled SPA from Harvester; after changing it, run
+Dashboard React is served as a compiled SPA from Harvester; after changing it, run
 `./Docker/docker-dev.sh rebuild dashboard` to rebuild its assets and restart
 Harvester. Direct loopback access skips the gateway's host allowlist, but all API
 authentication and authorization are still enforced by Harvester.
@@ -100,7 +100,7 @@ Rebuild one application and restart only its container:
 
 ## Harvester admin web
 
-The React Admin Web and Angular Dashboard are published independently into `admin-static/` and `dashboard-static/`. A frontend-only change does not recompile Harvester Java:
+The React Admin Web and React Dashboard are published independently into `admin-static/` and `dashboard-static/`. A frontend-only change does not recompile Harvester Java:
 
 ```bash
 ./Docker/docker-dev.sh rebuild frontend
@@ -121,7 +121,7 @@ Harvester Java changes use the normal Java cycle:
 ./Docker/docker-dev.sh rebuild harvester
 ```
 
-`watch harvester` distinguishes these paths automatically. React or Angular changes rebuild only that SPA and restart Harvester; Harvester Java or Maven changes rebuild the JAR and recreate the container.
+`watch harvester` distinguishes these paths automatically. Changes to either React frontend rebuild only that SPA and restart Harvester; Harvester Java or Maven changes rebuild the JAR and recreate the container.
 
 ## Developer Harvester account
 

@@ -1,6 +1,6 @@
 # Autenticación y autorización local de Harvester API v5
 
-**Status:** current · **Last verified:** 2026-09-30
+**Status:** current · **Last verified:** 2026-11-23
 
 Esta guía describe el modelo local desplegado para las interfaces de Harvester y `/api/v5`. Sustituye por completo la autenticación v5 basada en fichero, HTTP Basic y OIDC/Keycloak. No hay importación de cuentas, grupos o contraseñas: las instalaciones deben crear explícitamente su primer administrador.
 
@@ -145,11 +145,11 @@ La interfaz oculta acciones no permitidas por comodidad, pero el control efectiv
 
 ## Superficies retiradas y ausencia de compatibilidad
 
-La seguridad de Harvester ya no acepta `security.api-v5.auth-mode`, usuarios en `config/users.properties`, HTTP Basic ni OIDC/Keycloak. `users.properties`, `users.properties.default`, `add-user.py`, los modos `file`/`oidc`/`hybrid` y las antiguas rutas de login no crean identidades v5. No se migran ni importan usuarios o contraseñas. La actualización requiere aplicar Flyway y crear el admin local antes de usar la interfaz.
+La seguridad de Harvester usa las identidades locales de PostgreSQL. Si vienes del esquema anterior basado en ficheros, HTTP Basic u OIDC, aplica las migraciones Flyway pendientes y crea el primer admin local. Las configuraciones y credenciales de esos sistemas requieren gestionar las cuentas en el modelo local. Si ya usas identidades locales en RC4, conserva la base de datos para mantener tus cuentas y comprueba el estado de Flyway antes de arrancar RC5.
 
-Las SPAs se sirven en rutas separadas: Admin React en `/admin/` y Dashboard Angular en `/dashboard/`; no existe fallback AngularJS `/legacy`. Las rutas fuera de `/api/v5` que no sean esos recursos estáticos explícitos se deniegan por seguridad; no se debe usar `/rest`, `/public` o `/private` como API de administración. OpenAPI y Swagger están en `/api/v5/openapi` y `/api/v5/docs`.
+El Harvester sirve las dos aplicaciones React en rutas separadas. Admin usa `/admin/` y Dashboard usa `/dashboard/`. Las rutas fuera de `/api/v5` que no sean esos recursos estáticos explícitos se deniegan por seguridad. OpenAPI y Swagger están en `/api/v5/openapi` y `/api/v5/docs`.
 
-El dashboard Angular registrado en `lareferencia-repository-dashboard` usa la sesión local v5 y endpoints de lectura `/api/v5/dashboard/**`; no usa Keycloak ni API v2. En Docker Dev, el gateway separa `admin.localhost` (API v5 completa) de `dashboard.localhost` (solo autenticación y lecturas del dashboard). El despliegue real debe reproducir esa allowlist en su proxy y servir ambos hosts bajo HTTPS.
+El Dashboard React usa la sesión local v5 y las rutas de lectura `/api/v5/dashboard/**`. En Docker Dev, el gateway separa `admin.localhost` (API v5 completa) de `dashboard.localhost` (solo autenticación y lecturas del Dashboard). Para un despliegue con hosts separados, reproduce esa allowlist en el proxy y sirve ambos hosts bajo HTTPS. [Configuración de Docker Dev](DOCKER_DEV.md#harvester-admin-web)
 
 La migración Flyway `V5.0.0.14` habilita `DASHBOARD`; no convierte automáticamente usuarios `READER`. El administrador debe revisar cuáles necesitan Dashboard y cambiarles el rol. Al cambiar rol, estado o contraseña se invalidan las sesiones JDBC de ese usuario.
 

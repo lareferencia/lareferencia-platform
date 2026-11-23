@@ -1,6 +1,8 @@
 # Harvester TaskManager Operations Guide
 
-Updated: 2026-10-03. Audience: administrators deploying and operating the Harvester with `workflow.engine=legacy`.
+**Status:** current · **Last verified:** 2026-11-23
+
+For administrators deploying and operating the Harvester with `workflow.engine=legacy`.
 
 This guide covers deployment, database migration, runtime configuration, queue monitoring, and restoring previous settings. TaskManager coordinates workers inside one Harvester process. Its limits and monitoring panel are available to users with the `ADMIN` role on the Admin **Runtime** page.
 
@@ -8,14 +10,15 @@ Settings saved through Admin survive restarts. Pending tasks and execution histo
 
 ## Deploy the updated components
 
-Deploy matching versions of core-lib, the Harvester application, the shell, and Admin. An older shell artifact will not contain the new migration; an older Admin bundle will not contain the configuration and queue panels.
+Deploy core-lib, Harvester, Shell and Admin from the same platform lock. Both RC4
+and RC5 include the TaskManager schema migration and the Admin runtime panel.
 
 Use this sequence:
 
 1. Record the current configuration and identify any active or queued work.
 2. Build the updated shell with its core-lib dependency and migration resources.
 3. Point the shell at the same database used by the Harvester and inspect migration status.
-4. Apply the pending migrations and confirm that version `5.0.0.15` succeeded.
+4. Apply any pending migrations and confirm that `5.0.0.15` has succeeded.
 5. Deploy or rebuild the updated Harvester and Admin.
 6. Sign in as an administrator and open **Runtime**. Confirm that the configuration and capacity panels load.
 

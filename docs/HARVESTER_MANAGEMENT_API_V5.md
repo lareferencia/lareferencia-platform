@@ -12,7 +12,7 @@ La API usa los repositorios JPA, el sistema de diagnóstico y `NetworkActionkMan
 La superficie soportada es `/api/v5/**`. Las rutas fuera de v5 no forman parte del
 contrato público de Harvester y la cadena de seguridad deniega rutas desconocidas.
 
-### Compatibilidad de lectura para el dashboard anterior
+### API de lectura del dashboard
 
 La ruta separada `/api/v5/dashboard` ofrece las consultas de cosecha y validación del
 dashboard v2 sin alterar los endpoints nativos de v5. Conserva los parámetros y
@@ -22,20 +22,26 @@ la estructura paginada de Spring Data (`content`, `totalElements`, `number`,
 
 | Método | Ruta relativa a `/api/v5/dashboard` | Resultado |
 |---|---|---|
-| GET | `/harvesting/source/list` | Redes visibles, filtradas antes de paginar. |
+| GET | `/harvesting/source/list` | Redes autorizadas y paginadas. `search` busca por nombre o acrónimo y `id` recupera una selección anterior dentro de los permisos del usuario. |
 | GET | `/harvesting/source/{acronym}` | Datos de una red. |
-| GET | `/harvesting/source/{acronym}/history` | Snapshots válidos. |
+| GET | `/harvesting/source/{acronym}/history` | Cosechas validadas. `availableOnly=true` limita el selector a las que conservan diagnóstico. |
 | GET | `/harvesting/source/{acronym}/history/{startDate}/{endDate}` | Historial válido entre fechas. |
+| GET | `/harvesting/source/{acronym}/harvest/{snapshotId}` | Una cosecha validada de la red, con límites opcionales `from` y `to` inclusivos sobre la fecha de finalización. Una cosecha eliminada sigue disponible para comparar los totales históricos. |
 | GET | `/harvesting/source/{acronym}/lkg` | Último snapshot válido. |
 | GET | `/validation/source/{acronym}/{snapshotId}` | Resumen de validación. |
 | GET | `/validation/source/stats/{acronym}/{snapshotId}/query` | Observaciones con `filters`, `pageNumber`, `pageSize`. |
 | GET | `/validation/source/{acronym}/{snapshotId}/records` | Registros con filtros v2 (`is_valid`, `is_transformed`, `valid_rules`, `invalid_rules`, `oai_identifier`). |
+| GET | `/validation/source/{acronym}/{snapshotId}/frequencies/{ruleId}/{group}` | Una página de valores del grupo `valid` o `invalid`. Devuelve `content`, `totalElements` (valores distintos) y `totalOccurrences` (suma del grupo). Acepta `pageNumber` desde cero y `pageSize` (10 por defecto). |
 | GET | `/validation/source/{acronym}/{snapshotId}/valid_occrs/{ruleId}` | Ocurrencias válidas por regla. |
 | GET | `/validation/source/{acronym}/{snapshotId}/invalid_occrs/{ruleId}` | Ocurrencias inválidas por regla. |
+| GET | `/validation/source/{acronym}/{snapshotId}/metadata?identifier={idOai}` | XML histórico publicado, en JSON `{"xml":"…"}`. |
 
-Se exige la autenticación local de v5 (sesión o token técnico) y el permiso de
-lectura sobre la red; para una consulta por snapshot también se comprueba su
-propietario antes de leer estadísticas. Una red o snapshot ajeno devuelve `403`.
+El resumen, los registros y las frecuencias aceptan los mismos filtros opcionales. `valid_rules` e `invalid_rules` admiten parámetros repetidos. Los criterios se combinan por intersección. `oai_identifier` busca por contenido. Las frecuencias cuentan cada ocurrencia de los registros seleccionados y abarcan todas las páginas. Sin filtros se obtiene el informe global.
+
+Las rutas de diagnóstico devuelven 404 para snapshots eliminados. El detalle de frecuencias ordena por cantidad descendente y luego por valor. Las rutas `valid_occrs` e `invalid_occrs` devuelven el grupo completo para CSV.
+
+El XML requiere sesión, acceso a la red propietaria y coincidencia exacta del identificador activo en el snapshot. El servidor resuelve el hash publicado en ese snapshot y lee el archivo histórico de la red. Un identificador omitido o vacío devuelve 400. Una sesión ausente devuelve 401, una red sin permiso devuelve 403 y un acrónimo distinto del propietario de un snapshot autorizado devuelve 404. También devuelve 404 si el snapshot fue eliminado o falta el registro o su XML.
+
 No se reproducen los endpoints de broker, usuarios/Keycloak ni la autenticación
 de v2. Tampoco se habilita la ruta antigua `/api/v2`.
 
@@ -286,6 +292,14 @@ Las variantes `POST .../query` aceptan filtros tipados y los traducen al formato
 
 Los campos disponibles en esta iteración son `IDENTIFIER`, `VALID`, `TRANSFORMED`, `RULE_VALID` y `RULE_INVALID`. Summary, records y occurrences poseen DTOs explícitos en OpenAPI; ya no se publican como un `JsonNode` opaco. La variante de metadata devuelve `application/xml`.
 
+Para `IDENTIFIER`, `EQ` (predeterminado) compara el valor completo y distingue mayúsculas. `CONTAINS` busca una subcadena literal con la comparación de mayúsculas ASCII de SQLite LIKE. Los filtros se combinan con AND sobre registros activos. Las frecuencias cuentan los valores de esos registros y pueden incluir varios valores por registro.
+
+Las reglas del resumen corresponden al snapshot consultado. El campo nullable
+`occurrenceCaptureEnabled` indica la política efectiva de captura por regla en
+las nuevas validaciones. Un valor nulo identifica evidencia histórica insuficiente.
+Los antiguos snapshots sin definición archivada pueden devolver una etiqueta
+numérica y metadatos de regla nulos. [Semántica y pruebas históricas](DASHBOARD_ETAPA_2_EVIDENCIAS.md).
+
 ### Identidad y perfiles de atributos
 
 - `GET /api/v5/me` devuelve usuario, roles normalizados, IDs de redes legibles y si la identidad es una cuenta técnica.
@@ -322,7 +336,7 @@ Los tipos disponibles son:
 - `CANCEL_ALL`: detiene y limpia la cola de la red.
 - `RESCHEDULE`: vuelve a programar la red según su cron.
 
-Los comandos devuelven `202 Accepted` y un recibo con `requestId`, red, hora, resultado, mensaje y ruta de runtime. Los lotes devuelven un recibo padre y un resultado hijo por red, por lo que pueden reflejar aceptación parcial.
+Los comandos devuelven `202 Accepted` y un recibo con `requestId`, red, hora, resultado, mensaje y ruta de runtime. Los lotes devuelven un recibo padre y un resultado hijo por red en el orden solicitado. Si una red tiene la acción deshabilitada, su hijo indica `REJECTED` y explica el motivo. Se conservan los resultados del resto de redes. En el motor legacy, el `requestId` de cada hijo admitido para `RUN_ACTION` identifica el grupo de workers en `GET /api/v5/runtime/executions`. [Verificación desde el admin](ADMIN_UI_OPERACIONES.md)
 
 El runtime declara `engineType` y `cancellationScope`. En legacy el alcance de cancelación es la red; en Flowable puede ser un proceso.
 
@@ -395,5 +409,5 @@ sesiones, CSRF, grants y tokens, consultar la matriz de verificación de
 - No hay tabla ni historial persistente de comandos: los recibos representan aceptación HTTP, no una ejecución durable.
 - No se modificaron `INetworkActionExecutor`, TaskManager, Flowable ni los workers.
 - No se añadió CRUD masivo de registros, bitstreams o metadata; la API ofrece diagnóstico y lectura XML puntual.
-- Admin React se sirve desde `admin-static/` bajo `/admin/`; Dashboard Angular desde `dashboard-static/` bajo `/dashboard/`. No existe fallback AngularJS `/legacy`.
+- Admin React se sirve desde `admin-static/` bajo `/admin/`; Dashboard React desde `dashboard-static/` bajo `/dashboard/`. No existe fallback AngularJS `/legacy`.
 - Las superficies `/rest`, `/public` y `/private` no son interfaces soportadas ni deben utilizarse como alternativa a v5.

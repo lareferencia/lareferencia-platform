@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Frontend builds (React admin web, Angular dashboard) and the ownership guard:
+# Frontend builds (React admin web, React dashboard) and the ownership guard:
 # files left by a container that ran as root must not break the next build.
 
 load ../helpers/sandbox
@@ -10,7 +10,7 @@ setup() {
   # Real build scripts instead of the recorders, with minimal Node projects.
   cp "${PROJECT_DIR}/build-admin-web.sh" "${PROJECT_DIR}/build-dashboard.sh" "${SANDBOX_ROOT}/"
   local d
-  for d in lareferencia-lrharvester-admin-web lareferencia-repository-dashboard/angular; do
+  for d in lareferencia-lrharvester-admin-web lareferencia-repository-dashboard/web; do
     mkdir -p "${SANDBOX_ROOT}/${d}"
     echo '{}' > "${SANDBOX_ROOT}/${d}/package.json"
     echo '{}' > "${SANDBOX_ROOT}/${d}/package-lock.json"
@@ -57,7 +57,7 @@ run_script() { run _sandbox::run_env "${SANDBOX_ROOT}/$1"; }
   run_script build-dashboard.sh
   assert_success
   assert_called "alpine chown -R 4242:4242 -- dashboard-static"
-  assert_called "node:18-bookworm-slim"
+  assert_called "node:22-bookworm-slim"
 }
 
 @test "running as root: nothing to fix" {

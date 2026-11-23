@@ -1,4 +1,4 @@
-> **[ARCHIVED 2026-09-23]** Unmaintained since 2024-01 (last entry 4.2.3). The changelog is now **GitHub Releases + git tags** (workflow `.github/workflows/maven.yml`). Kept for historical reference.
+> **[ARCHIVED 2026-09-23]** Historical changelog through version 4.2.3. Current entries are in the [platform changelog](../../CHANGELOG.md).
 
 LA Referencia Platform - Changelog
 ----------

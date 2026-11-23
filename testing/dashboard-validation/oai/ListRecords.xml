@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+  <responseDate>2026-01-02T00:00:00Z</responseDate>
+  <request verb="ListRecords" metadataPrefix="oai_dc">http://fixture-oai/oai</request>
+  <ListRecords>
+    <record>
+      <header><identifier>oai:qa-mixed:clean</identifier><datestamp>2026-01-01T00:00:00Z</datestamp></header>
+      <metadata><oai_dc:dc>
+        <dc:identifier>oai:qa-mixed:clean</dc:identifier>
+        <dc:title>Complete record</dc:title>
+        <dc:language>es</dc:language>
+        <dc:type>article</dc:type>
+      </oai_dc:dc></metadata>
+    </record>
+    <record>
+      <header><identifier>oai:qa-mixed:optional-only</identifier><datestamp>2026-01-01T00:00:00Z</datestamp></header>
+      <metadata><oai_dc:dc>
+        <dc:identifier>oai:qa-mixed:optional-only</dc:identifier>
+        <dc:title>Optional type failure</dc:title>
+        <dc:language>en</dc:language>
+        <dc:type>poster</dc:type>
+      </oai_dc:dc></metadata>
+    </record>
+    <record>
+      <header><identifier>oai:qa-mixed:missing-title</identifier><datestamp>2026-01-01T00:00:00Z</datestamp></header>
+      <metadata><oai_dc:dc>
+        <dc:identifier>oai:qa-mixed:missing-title</dc:identifier>
+        <dc:language>es</dc:language>
+        <dc:type>dataset</dc:type>
+      </oai_dc:dc></metadata>
+    </record>
+    <record>
+      <header><identifier>oai:qa-mixed:wrong-language</identifier><datestamp>2026-01-01T00:00:00Z</datestamp></header>
+      <metadata><oai_dc:dc>
+        <dc:identifier>oai:qa-mixed:wrong-language</dc:identifier>
+        <dc:title>Unsupported language</dc:title>
+        <dc:language>xx</dc:language>
+        <dc:type>article</dc:type>
+      </oai_dc:dc></metadata>
+    </record>
+    <record>
+      <header><identifier>oai:qa-mixed:missing-fields</identifier><datestamp>2026-01-01T00:00:00Z</datestamp></header>
+      <metadata><oai_dc:dc>
+        <dc:identifier>oai:qa-mixed:missing-fields</dc:identifier>
+      </oai_dc:dc></metadata>
+    </record>
+    <record>
+      <header><identifier>oai:qa-mixed:mixed-values</identifier><datestamp>2026-01-01T00:00:00Z</datestamp></header>
+      <metadata><oai_dc:dc>
+        <dc:identifier>oai:qa-mixed:mixed-values</dc:identifier>
+        <dc:title>Two language values</dc:title>
+        <dc:language>en</dc:language>
+        <dc:language>zz</dc:language>
+        <dc:type>article</dc:type>
+      </oai_dc:dc></metadata>
+    </record>
+  </ListRecords>
+</OAI-PMH>

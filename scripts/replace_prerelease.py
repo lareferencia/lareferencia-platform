@@ -47,10 +47,7 @@ def replace(version, expected_sha):
     expected = {name: (release.ROOT / name).stat().st_size for name in files}
     checksums = {name: digest(release.ROOT / name) for name in files}
     staging_tag = f'replacement-{version}-{sha[:12]}'
-    note = (f'Complete {version} integration. Replaces the earlier publication at {expected_sha}.\n\n'
-            'Includes metadata exchange documentation, immutable SQLite export reads, export profile listing, '
-            'batch outcome codes, reviewed component guides and corrected Admin build destination. '
-            'Exact source commits and provenance are in workspace.lock and release.json.')
+    note = release.release_notes(version, repo)
     release.run('gh', 'release', 'create', staging_tag, '--draft', '--prerelease', '--target', sha,
                 '--title', f'Staged replacement {version}', '--notes', note, *files)
     # Drafts may not have a Git tag yet, so GitHub's published-by-tag endpoint

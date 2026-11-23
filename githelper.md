@@ -7,14 +7,17 @@ versión independiente y no reciben cambios de numeración.
 
 ## Descargar una versión y compilar
 
-Para descargar una versión publicada:
+Para descargar rc5 cuando su tag esté en [GitHub Releases](https://github.com/lareferencia/lareferencia-platform/releases):
 
 ```bash
-git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
+git clone --branch 5.0.0-rc5 https://github.com/lareferencia/lareferencia-platform.git
 cd lareferencia-platform
 ./githelper init
 ./build.sh lareferencia
 ```
+
+Para probar rc5 antes de publicarla, usa el
+[checkout de la candidata](docs/ONBOARDING.md#test-the-rc5-candidate).
 
 `init` descarga exactamente los commits del lock de esa versión. Los POM y los
 archivos npm ya tienen la versión correcta en Git: no hay que ejecutar un stamp,
@@ -141,8 +144,8 @@ verifica CI, marca el PR listo y mergea:
 
 | Preparación | Etiqueta | Ejemplo |
 |---|---|---|
-| `--bump rc` | `release:rc` | 5.0.0-rc3 → 5.0.0-rc4 |
-| `--bump stable` | `release:stable` | 5.0.0-rc4 → 5.0.0 |
+| `--bump rc` | `release:rc` | 5.0.0-rc4 → 5.0.0-rc5 |
+| `--bump stable` | `release:stable` | 5.0.0-rc5 → 5.0.0 |
 | `--bump patch` | `release:patch` | 5.0.0 → 5.0.1 |
 | `--bump minor` | `release:minor` | 5.0.1 → 5.1.0 |
 | `--bump major` | `release:major` | 5.1.0 → 6.0.0 |
@@ -156,6 +159,10 @@ CI prueba herramientas, lock y versiones, descarga otra copia limpia, ejecuta
 `githelper init` y compila con Maven. El job de publicación exige que los commits
 del lock estén integrados en main, vuelve a comprobar la versión y publica tag,
 ZIP, checksum, lock y `release.json`. El tag identifica el merge del coordinador.
+Las notas de GitHub Release salen de la sección de esa versión en
+[CHANGELOG.md](CHANGELOG.md). El resumen del CI del coordinador muestra la vista
+previa cuando cambia `VERSION`. Los enlaces de la plataforma apuntan al tag y
+los de módulos al SHA que fija el lock.
 Las dependencias externas y timestamps no están congelados: no se promete un ZIP
 idéntico byte a byte.
 
@@ -176,8 +183,8 @@ URLs, rutas, SHA completos y limpieza. Los comandos de bajo nivel siguen disponi
 ./githelper lock capture             # capturar los HEAD limpios actuales
 ./githelper lock capture --from-main # actualizar desde main sin cambiar checkouts
 ./githelper lock checkout            # ignorar branch-set y restaurar el lock exacto
-./githelper version set 5.0.0-rc4     # editar metadatos, sin commits automáticos
-./change-version.sh 5.0.0-rc4        # equivalente compatible
+./githelper version set 5.0.0-rc5     # editar metadatos, sin commits automáticos
+./change-version.sh 5.0.0-rc5        # equivalente compatible
 ./githelper url rewrite --to https
 ```
 
@@ -186,6 +193,12 @@ Los hijos heredan versión, con referencia explícita al padre por compatibilida
 con Maven 3. Las operaciones de versión validan todo el reactor activo antes de
 escribir, incluidos frontends; excluyen legacy y VuFind. `release stamp` queda como
 herramienta de bajo nivel compatible, fuera del flujo de instalación/publicación.
+
+`lareferencia-metadata-tools` participa en las ramas coordinadas, en el lock y
+en las operaciones de versión. El paquete Python usa la representación PEP 440
+de la versión de plataforma. Por ejemplo, `5.0.0-rc5` se escribe
+como `5.0.0rc5`, y `5.0.1-SNAPSHOT` se escribe como `5.0.1.dev0`.
+Las versiones estables usan los mismos tres componentes en ambos formatos.
 
 Para compilar OAI por separado, instala antes el POM padre correspondiente. Su
 Dockerfile recibe el contexto `platform-parent`. Su CI busca el padre ya commiteado

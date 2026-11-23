@@ -12,7 +12,7 @@ Each file carries a banner explaining why it was archived and what replaced it.
 | `ANALISIS_REDUNDANCIA_VALIDACION.md` | Its central claim ("no incremental state machine") was superseded on 2026-09-04 | `docs/ISSUE_INCREMENTAL_RECORD_PROCESSING.md` |
 | `ANALISIS_OPTIMIZACION_TRANSACCIONAL_READONLY.md` | Proposal already implemented in code (read-only `REQUIRES_NEW` transactions) | `docs/REFACTORING_TRANSACCIONAL.md` |
 | `HARVESTER_ADMIN_WEB_V5_TECHNICAL_PLAN.md` | Plan executed: React admin web + `/api/v5` merged to `main` (2026-08→09) | `docs/HARVESTER_ADMIN_WEB_V5_BACKLOG.md` |
-| `changelog.md` | Unmaintained since 2024-01; changelog moved to GitHub Releases + tags | [GitHub Releases](https://github.com/lareferencia/lareferencia-platform/releases) |
+| `changelog.md` | Historical changelog through version 4.2.3 | [Platform changelog](../../CHANGELOG.md) |
 | `PACKAGE_MIGRATION_GUIDE.md` | Content merged into `REFACTORING_PACKAGE_STRUCTURE.md` (package list verified against `core-lib`) on 2026-09-23 | `docs/REFACTORING_PACKAGE_STRUCTURE.md` |
 
 Do not add new content here without a banner explaining the archiving reason.

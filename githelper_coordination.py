@@ -118,7 +118,7 @@ def pull_requests(h, args):
 
 
 def prepare(h, args):
-    from platform_versioning import active_modules, version_changes
+    from platform_versioning import version_changes, versioned_modules
     root, ws, branch, mapping = context(h)
     clean(h, root)
     for m in ws.modules:
@@ -146,8 +146,9 @@ def prepare(h, args):
                 targets[m.name] = None
                 continue
         targets[m.name] = main
+    active = set(versioned_modules(root))
     for m in ws.modules:
-        if targets[m.name] and m.path in active_modules(root):
+        if targets[m.name] and m.path in active:
             head = branch + '-version-' + version
             # Existing unused version branches need explicit inspection, never reset.
             if h.local_branch_exists(root / m.path, head) and m.name not in mapping:
@@ -158,7 +159,6 @@ def prepare(h, args):
             checked(h, root / m.path, 'checkout', '--detach', targets[m.name])
             mapping.pop(m.name, None)
     changes = version_changes(root, version)
-    active = set(active_modules(root))
     for m in ws.modules:
         paths = [p for p in changes if p.is_relative_to(root / m.path)]
         if not paths or m.path not in active:

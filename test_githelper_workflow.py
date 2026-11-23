@@ -260,7 +260,11 @@ class ReleaseArtifactTests(unittest.TestCase):
     def test_new_candidate_is_uploaded_before_publication(self):
         from types import SimpleNamespace
         response = SimpleNamespace(returncode=1, stdout='', stderr='HTTP 404')
-        with patch.dict('os.environ', {'GH_REPO': 'org/repo'}), patch.object(self.release, 'run', return_value='a'*40) as run_mock, patch.object(self.release.subprocess, 'run', return_value=response):
+        def command(*args):
+            if args[:3] == ('gh', 'release', 'create'):
+                self.assertEqual(Path(args[args.index('--notes-file') + 1]).read_text(), 'Prepared notes.\n')
+            return 'a' * 40
+        with patch.dict('os.environ', {'GH_REPO': 'org/repo'}), patch.object(self.release, 'run', side_effect=command) as run_mock, patch.object(self.release.subprocess, 'run', return_value=response), patch.object(self.release, 'release_notes', return_value='Prepared notes.\n'):
             self.release.publish('5.0.0-rc4')
         calls = [call.args for call in run_mock.call_args_list]
         self.assertIn('--prerelease', calls[-2])

@@ -1,6 +1,10 @@
 # 5.0.0-rc4: alcance de fuentes y estado de integración
 
-**Status:** current · **Last verified:** 2026-11-16
+**Status:** historical · **Scope:** RC4 integration review, 2026-11-16
+
+The [published RC4 notes](https://github.com/lareferencia/lareferencia-platform/releases/tag/5.0.0-rc4)
+identify the final consolidated RC4 snapshot. For RC5, see the
+[changelog](../CHANGELOG.md#500-rc5).
 
 ## Contenido consolidado
 

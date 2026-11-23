@@ -23,9 +23,10 @@ Los perfiles mantenidos están en
 - `classification-embeddings-v1.json`: títulos, posibles resúmenes y keywords.
   Incluye descripciones sin calificar; en UY pueden ser notas, afiliaciones u
   otros textos además de resúmenes.
+- `bibliographic-roles-v1.json`: títulos, descripciones, keywords, tipos, afiliaciones y financiadores.
 - `licenses-v1.json`: valores de `dc.rights.*` de hasta 300 puntos de código
-  Unicode; recorta espacios exteriores, deduplica y omite valores largos sin
-  truncarlos.
+  Unicode. La versión 1.1 recorta espacios exteriores, excluye los prefijos de
+  `info:eu-repo` y de los vocabularios COAR y deduplica por registro.
 
 Para listar los JSON disponibles en el directorio de configuración:
 
@@ -51,10 +52,10 @@ exportación conjunta de UY y AREANDINA para clasificación y embeddings:
 export-metadata --networks UY,AREANDINA --variant processed --format jsonl --mapping /config/exports/classification-embeddings-v1.json --partition-by network --max-records 10000 --max-bytes 128MiB --compression gzip --output /exports
 ```
 
-Ejemplo de licencias de UY:
+Ejemplo de licencias de UY para el pipeline de derechos:
 
 ```text
-export-metadata --network UY --variant processed --format jsonl --mapping /config/exports/licenses-v1.json --compression gzip --output /exports
+export-metadata --network UY --variant original --format jsonl --mapping /config/exports/licenses-v1.json --compression gzip --output /exports
 ```
 
 Los formatos disponibles son XML, JSON y JSONL. JSON/JSONL requieren `--mapping`;
@@ -99,3 +100,35 @@ almacén de metadata del snapshot. No se requieren migraciones PostgreSQL.
 En Docker, configura `store.basepath` al almacén montado que contiene catálogos,
 validaciones y metadata, y asegúrate de que los perfiles estén disponibles bajo
 `<config>/exports`.
+
+## Procesar un export completo
+
+Tomá el directorio `exp-…` informado por el shell y comprobá que su manifiesto
+indique `COMPLETE`. Conservá el paquete íntegro para que el procesador pueda
+verificar los archivos y remontar los resultados al catálogo.
+
+Desde la raíz de un checkout preparado con `githelper init` o del ZIP de
+plataforma, instalá la versión incluida del módulo en un entorno virtual.
+Usá Python 3.12 o posterior.
+
+```sh
+python3.12 -m venv .venv-metadata
+. .venv-metadata/bin/activate
+python -m pip install ./lareferencia-metadata-tools
+```
+
+- **Licencias.** Exportá metadata `original` con `licenses-v1.json`. Ejecutá
+  `count-export-licenses "$EXPORT_DIR" --max-text-length 120` para obtener el
+  inventario, o `run-rights-pipeline --network UY --export-dir "$EXPORT_DIR"`
+  para publicar `enrichments.sqlite`. Para exportar y procesar en una sola
+  operación, usá `run-rights-pipeline --network UY --shell-dir "$SHELL_DIR"`.
+  [Guía de enriquecimientos](https://github.com/LA-Referencia-IOI/lareferencia-metadata-tools/blob/main/docs/METADATA_ENRICHMENT_PACKAGE.md)
+- **Embeddings.** Exportá con `bibliographic-roles-v1.json` e instalá el
+  extra `./lareferencia-metadata-tools[bibliographic]` para ejecutar
+  `prepare-embedding-metadata --combine`. En la máquina de cálculo, instalá el
+  extra `inference` de la misma revisión y ejecutá
+  `compute-metadata-embeddings --format sqlite` para publicar
+  `embeddings.sqlite`, o `--format jsonl` para obtener las partes JSONL
+  comprimidas. `enrichments pack-vectors` permite obtener ambos formatos
+  a partir de un único cálculo en JSONL sobre textos preparados.
+  [Guía de embeddings](https://github.com/LA-Referencia-IOI/lareferencia-metadata-tools/blob/main/docs/EMBEDDING_METADATA.md)

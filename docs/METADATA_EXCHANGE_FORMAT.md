@@ -191,7 +191,7 @@ Una especificación v1 tiene la forma:
 ```json
 {
   "specVersion": 1,
-  "name": "licenses",
+  "name": "ejemplo-derechos",
   "version": "1.0",
   "inputSchema": "xoai",
   "fields": {
@@ -201,7 +201,9 @@ Una especificación v1 tiene la forma:
       "many": true,
       "normalize": ["trim"],
       "unique": true,
-      "maxLength": 300
+      "maxLength": 300,
+      "excludePrefixes": ["info:eu-repo", "https://purl.org/coar"],
+      "prefixDelimiters": "/?#"
     }
   }
 }
@@ -243,6 +245,16 @@ signo y precisión arbitraria. `boolean` acepta únicamente las cadenas exactas
   mide en puntos de código Unicode, después de las normalizaciones. La
   ocurrencia completa que exceda el máximo se omite; no se trunca. Este filtro
   elimina valores del campo y no incrementa el contador de registros `filtered`.
+- `excludePrefixes` acepta una lista no vacía de prefijos literales en campos
+  `string`. Se compara el comienzo de cada valor después de aplicar `normalize`,
+  sin distinguir mayúsculas, y se descartan las coincidencias antes de aplicar
+  `unique` y resolver la cardinalidad. Un registro con todas sus licencias
+  excluidas se exporta con `"licenses": []`.
+- `prefixDelimiters` es opcional y requiere `excludePrefixes`. Si se especifica,
+  el prefijo debe ocupar todo el valor o estar seguido de uno de los caracteres
+  indicados. Con `"/?#"`, el ejemplo excluye `https://purl.org/coar/access_right/c_abf2`
+  y conserva `https://purl.org/coauthor`. Sin delimitadores, basta con que el
+  valor empiece por el prefijo.
 
 ### 5.2 Selectores y comodines
 
@@ -431,6 +443,8 @@ El manifiesto de una ejecución externa debería registrar como mínimo: nombre 
 versión del procesador, versión de su configuración, timestamps, el `exportId`
 procesado, esquema del resultado, y referencias/versiones de modelo, prompt,
 vocabularios o recursos usados. Evitar incluir secretos o credenciales.
+
+El [escritor de paquetes incrementales](../lareferencia-metadata-tools/docs/METADATA_ENRICHMENT_PACKAGE.md) admite retornos v2 con campos en `enrichment.values.fields` y produce ediciones SQLite consultables por ítem.
 
 ### 8.1 Validación antes de incorporar resultados
 

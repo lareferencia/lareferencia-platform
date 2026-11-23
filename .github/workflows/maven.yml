@@ -68,6 +68,7 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           LABELS_JSON: ${{ toJSON(github.event.pull_request.labels) }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           if python3 -c 'import json,os,sys; sys.exit(not any(x["name"].startswith("release:") for x in json.loads(os.environ["LABELS_JSON"])))'; then
             ./githelper lock verify --merged
@@ -75,6 +76,11 @@ jobs:
             python3 scripts/coordinator_release.py plan /tmp/coordinator-labels.json >> "$GITHUB_STEP_SUMMARY"
           else
             ./githelper lock verify
+          fi
+          version="$(cat VERSION)"
+          if [[ "$version" != "$(git show "$BASE_SHA:VERSION")" ]]; then
+            echo "## Release notes preview for $version" >> "$GITHUB_STEP_SUMMARY"
+            python3 scripts/coordinator_release.py notes "$version" "$GITHUB_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Prepare a fresh source download
         run: |

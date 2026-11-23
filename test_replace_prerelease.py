@@ -21,6 +21,7 @@ class ReplacementTests(unittest.TestCase):
         self.version = '5.0.0-rc4';self.old = 'a' * 40;self.new = 'b' * 40
         (self.root / 'pom.xml').write_text('<project xmlns="http://maven.apache.org/POM/4.0.0"><version>5.0.0-rc4</version></project>')
         (self.root / 'VERSION').write_text(self.version + '\n')
+        (self.root / 'CHANGELOG.md').write_text('## 5.0.0-rc4\n\n- Replacement notes.\n')
         self.names = ['lareferencia-platform-5.0.0-rc4.zip', 'SHA256SUMS', 'release.json', 'workspace.lock']
         for name in self.names:(self.root / name).write_bytes(b'new verified content')
         self.assets = [{'name':n,'size':20,'state':'uploaded','digest':'sha256:'+hashlib.sha256(b'new verified content').hexdigest()} for n in self.names]
@@ -28,6 +29,7 @@ class ReplacementTests(unittest.TestCase):
         for obj, name, value in [(release, 'ROOT', self.root)]:
             p=patch.object(obj,name,value);p.start();self.addCleanup(p.stop)
         p=patch.dict(os.environ,{'GH_REPO':'test/repo','REPLACE_VERSION':'','EXPECTED_TAG_SHA':''});p.start();self.addCleanup(p.stop)
+        p=patch.object(release,'read_lock',return_value=[]);p.start();self.addCleanup(p.stop)
 
     def command(self,*args):
         self.calls.append(args)

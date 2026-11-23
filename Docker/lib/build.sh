@@ -4,7 +4,7 @@
 #
 # Build pipeline (build::all):
 #   1. solr::stage                 Solr cores/jars staging
-#   2. build::components           React admin + Angular dashboard + Java (Maven)
+#   2. build::components           React admin + React dashboard + Java (Maven)
 #   3. docker compose build        multi-stage Dockerfiles
 #   4. images::cleanup_after_build old images of this installation
 #
@@ -185,7 +185,7 @@ _build::components_parallel() {
 # Sequential is the default: it avoids CPU saturation and server freezes.
 _build::components_sequential() {
   local components=("$@")
-  echo -e "\n${C_CYAN}--- Building Components Sequentially (React Admin Web, Angular Dashboard, Java Backend) ---${C_RESET}"
+  echo -e "\n${C_CYAN}--- Building Components Sequentially (React Admin Web, React Dashboard, Java Backend) ---${C_RESET}"
 
   local i name fn log
   for i in "${!components[@]}"; do
@@ -206,7 +206,7 @@ build::components() {
   mkdir -p "${BUILD_LOG_DIR}"
 
   local admin="React Admin Web|_build::admin_web|${BUILD_LOG_DIR}/build-admin.log"
-  local dashboard="Angular Dashboard|_build::dashboard|${BUILD_LOG_DIR}/build-dashboard.log"
+  local dashboard="React Dashboard|_build::dashboard|${BUILD_LOG_DIR}/build-dashboard.log"
   local java="Java Backend|build::java|${BUILD_LOG_DIR}/build-java.log"
 
   if [ "$(config::get BUILD_PARALLEL false)" = "true" ]; then
