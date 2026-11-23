@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Repository dashboard
+
+- Opening or closing the harvest comparison preserves dates entered in the history filter until the user applies or resets them.
+- The dashboard's TypeScript record type matches historical validation responses. Rule IDs can be strings or numbers, and metadata, outcomes and occurrence fields can be absent or null.
+- The production build now type-checks the dashboard tests in CI. The history tests cover applying draft dates, resetting them and retrying a failed read. [Review and verification](https://github.com/lareferencia/lareferencia-repository-dashboard/blob/ea9bcbfca418442f37172709201096411d2c6e41/docs/CODE_REVIEW.md#rc6-follow-up)
+
 ## 5.0.0-rc5
 
 ### Upgrading from 5.0.0-rc4
