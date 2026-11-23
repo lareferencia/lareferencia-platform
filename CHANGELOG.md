@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Githelper allows local configuration and generated files during workspace checkout when Git can preserve them. Git reports any files that block the change.
+
 ## 5.0.0-rc5
 
 ### Upgrading from 5.0.0-rc4
