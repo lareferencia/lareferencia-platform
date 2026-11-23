@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-This section covers the changes staged for 5.0.0-rc5 on `codex/rc5-pre`.
+## 5.0.0-rc5
 
 ### Upgrading from 5.0.0-rc4
 
-- **Update the database before starting the upgraded harvester.** Run `database_migrate` from the updated `lareferencia-shell` to apply pending Flyway migrations. The harvester applies the action catalogue defaults when it creates the catalogue. Existing catalogues retain their saved settings. [Database migration](docs/AUTHENTICATION.md)
+- **Check the database before starting the upgraded harvester.** Run `database_info` from the updated `lareferencia-shell` and apply any pending Flyway migrations with `database_migrate`. The harvester applies the action catalogue defaults when it creates the catalogue. Existing catalogues retain their saved settings. [Database migration](docs/AUTHENTICATION.md)
 
 - **Plan for one full validation per network.** The first validation after the upgrade processes the network's entire active catalog. Historical reports remain available. Networks with rules that depend on the current year also revalidate their catalogs after the year changes. [Upgrade details](docs/VALIDACION_COMPATIBILIDAD.md#efectos-al-actualizar)
 - **Existing validation and transformation profiles load without migration.** The engine, shell and v5 API recognize historical rule names, including validators embedded in transformers. An optional shell migration updates class references while preserving dictionary entries, expressions and descriptions. [Profile compatibility](docs/VALIDACION_COMPATIBILIDAD.md)
@@ -61,7 +61,7 @@ This section covers the changes staged for 5.0.0-rc5 on `codex/rc5-pre`.
 
 ### Indexing precomputed vectors in Solr
 
-- **Semantic Indexing (precomputed)** publishes complete bibliographic documents with vectors from the network’s SQLite edition. In Harvester Admin, enable `SEMANTIC_DB_INDEXING_ACTION` under **Actions**, then run it from the network’s **Run action** menu. The final key replaces `SQLITE_VECTOR_INDEXING_ACTION` from earlier development builds. Enable the new key if you had enabled the previous one. New snapshot indexing results use the worker key `semanticDbIndexerWorker`. [Admin steps for AR](docs/SEMANTIC_INDEXING_CHUNKING.md#run-for-ar-from-harvester-admin)
+- **Semantic Indexing (precomputed)** publishes complete bibliographic documents with vectors from the network’s SQLite edition. In Harvester Admin, enable `SEMANTIC_DB_INDEXING_ACTION` under **Actions**, then run it from the network’s **Run action** menu. New snapshot indexing results use the worker key `semanticDbIndexerWorker`. [Admin steps for AR](docs/SEMANTIC_INDEXING_CHUNKING.md#run-for-ar-from-harvester-admin)
 - Place the manifest and SQLite file in `${store.basepath}/<network>/embeddings/`, alongside `enrichments/`. The worker verifies the package and Solr field dimension before deleting existing documents. It matches vectors by network and catalog ID and retains the bibliographic documents that have no vector. After replacing an edition, run the action again to rebuild the network. [Configuration and reindexing](docs/SEMANTIC_INDEXING_CHUNKING.md#precomputed-sqlite-vectors)
 - **Remove Semantic Index (precomputed)** adds the manual `SEMANTIC_DB_DELETE_ACTION`. It deletes the selected network’s documents from the same Solr destination as the precomputed indexer and checks that none remain after commit. [Removal from Harvester Admin](docs/SEMANTIC_INDEXING_CHUNKING.md#remove-a-network-from-the-precomputed-index)
 - New legacy catalogues place the precomputed actions after their respective semantic indexing and deletion actions. All four start disabled. Existing catalogues retain their saved order, enablement and configuration. [Action catalogue defaults](docs/WORKFLOW_ACTIONS.md)
