@@ -191,9 +191,11 @@ Therefore, `embedding.use.multivalued.vector` must be aligned with the Solr sche
 
 ## Precomputed SQLite vectors
 
-The new `SQLiteVectorIndexerWorker` publishes bibliographic documents with
+The new `SemanticDbIndexerWorker` publishes bibliographic documents with
 precomputed vectors. The harvester registers it as
-`SEMANTIC_DB_INDEXING_ACTION` in its `legacy` execution engine.
+`SEMANTIC_DB_INDEXING_ACTION` in its `legacy` execution engine. The worker bean is
+`semanticDbIndexerWorker`, which also identifies new results in the snapshot
+indexing history.
 
 ### Run for AR from Harvester Admin
 
@@ -230,3 +232,16 @@ database checksum, package profile and Solr field before starting the full
 rebuild. Keep the published files immutable during a run. After recalculation,
 replace the package and run the same action again from the AR row. Record identity
 is stable across snapshots, so use a package prepared from the intended source data.
+
+### Remove a network from the precomputed index
+
+In **Acciones**, enable `SEMANTIC_DB_DELETE_ACTION`. For AR, open **Fuentes**,
+click **Ejecutar acción** on the AR row, select **Remove Semantic Index
+(precomputed)** and confirm. The worker `semanticDbDeleteWorker` uses the same
+Solr URL as precomputed indexing. It commits the deletion and checks that zero
+documents remain for the selected network.
+
+The action deletes the network’s complete Solr documents, including metadata
+and vectors. If the semantic and ordinary frontend share a Solr core, these
+documents also disappear from ordinary search. The SQLite edition remains
+available for reindexing.
