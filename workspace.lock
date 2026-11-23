@@ -59,13 +59,13 @@
       "name": "lareferencia-lrharvester-app",
       "path": "lareferencia-lrharvester-app",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-app",
-      "commit": "abc6df9861a3d0eb573f6fd2cecf3839f0caf594"
+      "commit": "d9cab4f91ee954a396516ccb371d53c6be19a7fe"
     },
     {
       "name": "lareferencia-lrharvester-admin-web",
       "path": "lareferencia-lrharvester-admin-web",
       "url": "https://github.com/lareferencia/lareferencia-lrharvester-admin-web",
-      "commit": "5dacfdb94b4dbc2a1fb37c1a988f2ee14b114bf8"
+      "commit": "7f0dbdd1f24dea0622fe5987db3aed8712de427c"
     },
     {
       "name": "lareferencia-entity-rest",

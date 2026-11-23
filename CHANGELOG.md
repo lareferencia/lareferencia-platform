@@ -32,6 +32,8 @@ This section covers the changes staged for 5.0.0-rc5 on `codex/rc5-pre`.
 
 ### Harvester administration and API
 
+- The Admin labels the dARK identifier minting step **Minting dARK**, with Spanish and Portuguese translations.
+
 - VuFind indexers now default to the `vufind5` profile, including frontend, thesis and both semantic indexers. OpenAIRE sources use their dedicated DataCite and OpenAIRE mapping with that profile. Run a full reindex to apply the profile across existing documents.
 
 - Batch actions return a result for every source, including the reason a source could not run the action. The cancellation confirmation has an accessible name.
@@ -63,6 +65,7 @@ This section covers the changes staged for 5.0.0-rc5 on `codex/rc5-pre`.
 - Place the manifest and SQLite file in `${store.basepath}/<network>/embeddings/`, alongside `enrichments/`. The worker verifies the package and Solr field dimension before deleting existing documents. It matches vectors by network and catalog ID and retains the bibliographic documents that have no vector. After replacing an edition, run the action again to rebuild the network. [Configuration and reindexing](docs/SEMANTIC_INDEXING_CHUNKING.md#precomputed-sqlite-vectors)
 - **Remove Semantic Index (precomputed)** adds the manual `SEMANTIC_DB_DELETE_ACTION`. It deletes the selected network’s documents from the same Solr destination as the precomputed indexer and checks that none remain after commit. [Removal from Harvester Admin](docs/SEMANTIC_INDEXING_CHUNKING.md#remove-a-network-from-the-precomputed-index)
 - New legacy catalogues place the precomputed actions after their respective semantic indexing and deletion actions. All four start disabled. Existing catalogues retain their saved order, enablement and configuration. [Action catalogue defaults](docs/WORKFLOW_ACTIONS.md)
+- Harvester Admin displays the precomputed indexing and removal labels in English, Spanish and Portuguese.
 - A local Docker test launched from the Admin indexed all 24 records in an AR sample into VuFind’s `biblio` core on Solr 9.11. A kNN query recovered the same 24 IDs as the 512-dimensional SQLite edition. A separate check rejected a 1024-dimensional destination field before deleting any documents.
 
 ## 5.0.0-rc4 — 2026-11-18

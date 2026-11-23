@@ -206,7 +206,7 @@ indexing history.
    enabled the previous key, `SQLITE_VECTOR_INDEXING_ACTION`, must enable the new
    key in the catalogue.
 2. Open **Fuentes** and find **AR**. On that row, click **Ejecutar acción** (the
-   lightning icon), choose **Semantic Indexing (precomputed)**, and click
+   lightning icon), choose **Indexación semántica (precalculada)**, and click
    **Confirmar**. This menu entry runs a full reindex of AR.
 3. Check the job under **Runtime**.
 
@@ -236,8 +236,7 @@ is stable across snapshots, so use a package prepared from the intended source d
 ### Remove a network from the precomputed index
 
 In **Acciones**, enable `SEMANTIC_DB_DELETE_ACTION`. For AR, open **Fuentes**,
-click **Ejecutar acción** on the AR row, select **Remove Semantic Index
-(precomputed)** and confirm. The worker `semanticDbDeleteWorker` uses the same
+click **Ejecutar acción** on the AR row, select **Eliminar del índice semántico (precalculado)** and confirm. The worker `semanticDbDeleteWorker` uses the same
 Solr URL as precomputed indexing. It commits the deletion and checks that zero
 documents remain for the selected network.
 
