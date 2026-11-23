@@ -452,10 +452,10 @@ def switch_to_branch(repo: Path, branch: str) -> CommandResult:
         return CommandResult(0, f"Already on '{branch}'", "")
 
     if local_branch_exists(repo, branch):
-        return run_git(["switch", branch], repo)
+        return run_git(["switch", "--no-overwrite-ignore", branch], repo)
 
     if remote_branch_exists(repo, branch):
-        return run_git(["switch", "-c", branch, "--track", f"origin/{branch}"], repo)
+        return run_git(["switch", "--no-overwrite-ignore", "-c", branch, "--track", f"origin/{branch}"], repo)
 
     return CommandResult(2, "", f"Branch '{branch}' not found locally or in origin")
 

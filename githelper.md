@@ -43,9 +43,10 @@ Para cambiar un workspace existente a otra versión:
 ./githelper switch 5.0.0-rc5
 ```
 
-Se comprueban los cambios locales antes de cambiar el padre. Un tag deja los
-repositorios en detached HEAD; es normal para una instalación congelada. Si una
-descarga falla, corrige la conexión y repite `init`; no se borran cambios locales.
+Git conserva los cambios locales compatibles con el destino y avisa si el cambio
+sobrescribiría archivos locales. Si falla un módulo, el padre y los módulos
+anteriores pueden haber cambiado. Resuelve el conflicto y repite el comando.
+Un tag deja los repositorios en detached HEAD para fijar la versión instalada.
 Las versiones históricas sin lock conservan su mecanismo de instalación anterior.
 
 ## Desarrollar una feature

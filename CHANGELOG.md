@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Githelper allows local configuration and generated files during workspace checkout when Git can preserve them. Git reports any files that block the change.
+
 ### Repository dashboard
 
 - Opening or closing the harvest comparison preserves dates entered in the history filter until the user applies or resets them.
