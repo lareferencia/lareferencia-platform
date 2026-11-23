@@ -202,9 +202,8 @@ indexing history.
 1. Sign in with the **Admin** role. Open **Acciones** in the sidebar. On
    **Acciones de la aplicación**, find `SEMANTIC_DB_INDEXING_ACTION` in the
    **Clave** column and turn on **Habilitada**. If the row is missing after
-   deploying the updated harvester, use **Refrescar catálogo**. Installations that
-   enabled the previous key, `SQLITE_VECTOR_INDEXING_ACTION`, must enable the new
-   key in the catalogue.
+   deploying the updated harvester, use **Refrescar catálogo**. The action starts
+   disabled when added to the catalogue.
 2. Open **Fuentes** and find **AR**. On that row, click **Ejecutar acción** (the
    lightning icon), choose **Indexación semántica (precalculada)**, and click
    **Confirmar**. This menu entry runs a full reindex of AR.

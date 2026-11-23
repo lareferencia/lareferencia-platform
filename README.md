@@ -1,31 +1,29 @@
 # LA Referencia Platform
 
-LA Referencia is a platform for harvesting, processing, and indexing scholarly metadata from institutional and thematic repositories across Latin America. It provides entity-based metadata management, validation and transformation pipelines, persistent identifier (dARK/ARK) tracking, and search through Solr, Elasticsearch/OpenSearch and VuFind.
+LA Referencia is a platform for harvesting, processing, and indexing scholarly metadata from institutional and thematic repositories across Latin America. It provides entity-based metadata management, validation and transformation pipelines, persistent identifier (dARK/ARK) tracking, and publication indexing in Solr and discovery through VuFind.
 
 ## 🚀 Current Status
 
-**Current development version: 5.0.0-rc4** (branch `main`).
-
-The exact source combination is recorded in `workspace.lock`. This consolidated
-rc4 includes the metadata-export and documentation improvements described in
-[the rc4 release notes](docs/RELEASE_5.0.0_RC4.md).
+**Version documented here: 5.0.0-rc5.** The workspace lock records the exact
+revisions of its 16 modules. See the
+[RC5 changelog](CHANGELOG.md#500-rc5) for changes and
+[upgrade instructions from RC4](CHANGELOG.md#upgrading-from-500-rc4).
 
 - Full OAI-PMH harvesting and a modernized standalone OAI-PMH data provider
 - Entity-based metadata processing with filesystem + SQLite storage
 - Incremental validation and indexing (record-level deltas)
-- Elasticsearch/OpenSearch entity indexing and Solr publication indexing
+- Solr publication indexing
 - React-based administration UI with a full management API (`/api/v5`)
 
 ### Major Upgrades
 
 - **Spring Boot 3.5** and **Jakarta EE** (javax → jakarta) across all modules
-- **Java 17** runtime (CI matrix also builds with Java 21)
+- **Java 17** runtime. Platform CI uses Java 21 and OAI-PMH CI verifies Java 17 and 21.
 - All core dependencies updated (XOAI 3.4, SolrJ 9.5, Jena 4.10, langchain4j)
 
 ### Deprecated Features
 
 - **Spring Data Solr**: removed (discontinued upstream)
-- **Solr entity indexing**: disabled in code (`EntityIndexerSolrImpl` kept as `.java.disabled`); Elasticsearch is the entity indexing engine. Solr remains in use for the publication index (VuFind discovery, OAI-PMH provider)
 - **`lareferencia-contrib-ibict` and `lareferencia-contrib-rcaap`**: legacy Solr-based entity service modules, no longer compiled (excluded from the default build)
 
 ### Highlights of v5
@@ -33,13 +31,12 @@ rc4 includes the metadata-export and documentation improvements described in
 - **Hybrid storage**: original metadata XML on the filesystem (GZIP, hash-partitioned) + SQLite per-snapshot databases for the record catalog, validation results and statistics
 - **Incremental processing**: catalogs track record changes (`N`/`U`/`D`), validation state is reused across snapshots via fingerprints and manifests, and indexers consume record-level deltas
 - **File-based snapshot logging** under `{basePath}/{NETWORK}/snapshots/snapshot_{id}/snapshot.log` (no database tables)
-- **Harvester Management API v5**, the React Admin Web, and the read-only React Repository Dashboard
-- **Repository Dashboard** (React, read-only) published separately from the Admin Web
+- **Harvester Management API v5**, with separate React builds for administration and the read-only Repository Dashboard
 - **Action configuration model**: per-network action configuration (JSONB), scheduled actions and worker parameterization
-- **Entity `deleted` flag workflow**: soft-delete entities and remove them (and their relations) from indexes
 - **dARK**: ARK persistent identifier minting, staging/reconciliation workers and legacy ARK CSV import
 - **Dynamic validation/transformation forms** generated from Java annotations, localized in English, Spanish and Portuguese
 - **Metadata export for enrichment**: immutable LGK reads, XOAI → JSON profiles, traceable packages, and batch outcome codes; see [the export guide](docs/METADATA_EXPORT.md)
+- **SQLite enrichment and vectors**: import selected fields into XOAI at validation time, or index precomputed vectors in Solr. [Enrichment configuration](docs/VALIDACION_COMPATIBILIDAD.md#enriquecimientos-sqlite) · [Semantic indexing](docs/SEMANTIC_INDEXING_CHUNKING.md#precomputed-sqlite-vectors)
 - **Backup/restore wizard** and an isolated developer Docker workflow
 
 ## 📋 System Requirements
@@ -48,7 +45,6 @@ rc4 includes the metadata-export and documentation improvements described in
 - **Maven**: 3.9.x
 - **Workspace tooling**: Git and Python 3.9+
 - **PostgreSQL**: Compose defaults to `postgres:17-alpine3.23`; configurable with `LR_POSTGRES_IMAGE`. Existing PostgreSQL 14 data needs the [documented migration](Docker/README.md#-postgresql-14--17).
-- **Elasticsearch**: 7.x (compose bundles 7.12.0; accessed through an OpenSearch-compatible REST client)
 - **Solr**: Compose builds from `solr:9.11.0`; SolrJ client 9.5. OAI integration tests use Solr 9.8.
 - **Memory**: 4GB minimum (8GB+ recommended)
 
@@ -63,7 +59,7 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | Module | Type | Purpose |
 |---|---|---|
 | `lareferencia-core-lib` | Library | Domain models, OAI-PMH harvesting, validation/transformation engine, workers, SQLite catalog/validation stores |
-| `lareferencia-entity-lib` | Library | Entity model (generic entities, relations, semantic identifiers), Elasticsearch indexing, VIVO/RDF triple store indexing |
+| `lareferencia-entity-lib` | Library | Entity model (generic entities, relations, semantic identifiers) |
 | `lareferencia-dark-lib` | Library | dARK ARK persistent identifiers: minting, staging, reconciliation, legacy import |
 | `lareferencia-oclc-harvester` | Library | Low-level OAI-PMH protocol (OCLC Harvester2 fork) |
 | `lareferencia-indexing-filters-lib` | Library | Field occurrence filters for indexing pipelines |
@@ -71,27 +67,26 @@ The platform is a multi-repo workspace managed by `githelper` (each component is
 | `lareferencia-lrharvester-app` | Web app | Main harvester: networks, harvesting, validation and publication; serves separate Admin/Dashboard SPAs and `/api/v5` |
 | `lareferencia-lrharvester-admin-web` | Web app (React 19/Vite) | Administration UI consuming the v5 API; built into `admin-static/` |
 | `lareferencia-repository-dashboard` | Web app (React + Vite) | Read-only repository dashboard consuming dashboard endpoints in v5; built into `dashboard-static/` |
-| `lareferencia-entity-rest` | Web app | REST API for entity data (`/api/v2`, in transition after Solr indexing removal) |
+| `lareferencia-entity-rest` | Web app | REST API for entity data (`/api/v2`) |
 | `lareferencia-oai-pmh` | Web app | Standalone OAI-PMH 2.0 provider over the Solr publication index (XOAI 3.4, Spring Boot 3.5) |
 | `lareferencia-shell` | CLI | Spring Shell console for administration and LGK export with JSON profiles |
 | `lareferencia-metadata-tools` | Python CLI | Rights inventories, SQLite enrichment, bibliographic preparation, batch embeddings and vector packaging |
-| `lareferencia-shell-entity-plugin` | CLI plugin | Entity loading/indexing/cleanup commands for the shell |
+| `lareferencia-shell-entity-plugin` | CLI plugin | Entity loading and maintenance commands for the shell |
 | `lareferencia-contrib-ibict` / `-rcaap` | Library (legacy) | Deprecated, not compiled |
 
 ### Services and Ports
 
-| Service | URL | Notes |
+| Service | Standalone default | Standard Docker Compose |
 |---|---|---|
-| Harvester + Admin Web (React) | `http://localhost:8190/admin/` or `http://admin.localhost:8188/admin/` | Direct loopback or gateway (isolated); gateway normal mode defaults to 8088 |
-| Repository Dashboard (React) | `http://localhost:8190/dashboard/es/` or `http://dashboard.localhost:8188/dashboard/es/` | Direct loopback or gateway; gateway host allows only dashboard read APIs and auth |
-| Harvester Management API v5 | `http://localhost:8190/api/v5` in isolated Docker Dev | Direct loopback access; v5 authentication/authorization remains enforced. Gateway admin host exposes the full API; dashboard host is allowlisted to read endpoints |
-| Entity REST | `http://localhost:8094/api/v2/…` | Swagger UI `http://localhost:8094/swagger` |
-| OAI-PMH provider | `http://localhost:8096/` | OAI endpoint at `/request`; container port 8092 |
-| External VuFind | `http://localhost:8080` | Separately managed discovery front-end |
-| Solr | `http://localhost:8983` | `biblio`, `oai` and other cores |
-| Elasticsearch | `http://localhost:9200` | Entity indexing |
+| Harvester | Admin `http://localhost:8090/admin/` · Dashboard `http://localhost:8090/dashboard/` | Admin `http://localhost:8090/admin/` · Dashboard `http://localhost:8090/dashboard/` |
+| OAI-PMH provider | `http://localhost:8092/request` | `http://localhost:8096/request` |
 
-In the **isolated developer workflow** (`docker-compose.dev.yml`), Harvester is available directly on loopback at `http://localhost:8190/admin/` and `/dashboard/es/`, as well as through the host-separated gateway at `http://admin.localhost:8188/admin/` and `http://dashboard.localhost:8188/dashboard/es/`. Vite itself has no host port. Add `127.0.0.1 admin.localhost dashboard.localhost` to `/etc/hosts` for gateway testing. Direct access skips only the proxy host allowlist; API authentication/authorization remains active. Docker Dev uses non-Secure cookies only for local HTTP; production keeps Secure cookies. See [docs/DASHBOARD_V5_MIGRATION.md](docs/DASHBOARD_V5_MIGRATION.md) for build/proxy details.
+Harvester redirects `/dashboard/` to `/dashboard/es/` by default. English and
+Portuguese are available at `/dashboard/en/` and `/dashboard/pt/`.
+
+Standard Compose binds Harvester to loopback by default and maps host port 8096 to
+the OAI-PMH container's port 8092. See the [Docker guide](Docker/README.md) for
+deployment configuration.
 
 ### Storage Architecture (v5.0)
 
@@ -138,15 +133,6 @@ Since 5.0.0 the catalog and validation databases track record-level state:
 
 Full manual: [ISSUE_INCREMENTAL_RECORD_PROCESSING.md](docs/ISSUE_INCREMENTAL_RECORD_PROCESSING.md). Test harness: [testing/oai-incremental](testing/oai-incremental/README.md).
 
-### Entity Lifecycle: deleted Flag
-
-Entities can be soft-deleted (`entity.deleted`) and later removed from indexes together with their relations:
-
-- Shell commands: `mark_entities_deleted`, `set_entities_deleted`, `remove_deleted_entities_from_index` (with `--relationFields`, `--pageSize`, `--timeoutSeconds`)
-- Requires migration `V5.0.0.7` (`entity.deleted` column)
-
-Guide: [ENTITY_DELETED_INDEXING.md](docs/ENTITY_DELETED_INDEXING.md)
-
 ### Actions & Workflow Engines
 
 - Actions (harvesting, validation, indexing, publishing, dARK stage/reconcile, metadata cleanup, …) are configured per network: manual and scheduled execution with JSONB configuration
@@ -155,25 +141,10 @@ Guide: [ENTITY_DELETED_INDEXING.md](docs/ENTITY_DELETED_INDEXING.md)
 
 Reference: [WORKFLOW_ACTIONS.md](docs/WORKFLOW_ACTIONS.md) (new) · analysis: [WORKERS_TASKS_ACTIONS_ANALYSIS.md](docs/WORKERS_TASKS_ACTIONS_ANALYSIS.md)
 
-### Elasticsearch / OpenSearch Indexing
-
-- Multi-threaded direct indexer: fixed pool + semaphore backpressure + `Phaser`, per-document transactions with read-only semantics (`REQUIRES_NEW`)
-- Circuit breaker and retry controls:
-
-```properties
-elastic.host=localhost
-elastic.port=9200
-elastic.indexer.max.concurrent.tasks=16
-elastic.indexer.circuit.breaker.max.failures=10
-```
-
-- Semantic vector indexing with chunking (langchain4j): [SEMANTIC_INDEXING_CHUNKING.md](docs/SEMANTIC_INDEXING_CHUNKING.md)
-- Architecture reference: [ENTITY_INDEXING_ARCHITECTURE.md](docs/ENTITY_INDEXING_ARCHITECTURE.md) (new)
-
 ### Harvester Management API v5 & Admin Web
 
 - `org.lareferencia.backend.api.v5`: typed DTO REST API under `/api/v5` (networks, snapshots, actions, workers, validators/transformers, diagnostics, users, dARK, network transfers, attribute profiles) with Problem Details errors and OpenAPI at `/api/v5/openapi`
-- Authentication: local PostgreSQL users and JDBC sessions for the React web UI; revocable scoped Bearer tokens for integrations. Roles are global `ADMIN` and repository-scoped read-only `READER`.
+- Authentication uses local PostgreSQL identities, JDBC web sessions and revocable scoped bearer tokens. `ADMIN` has global access, `READER` has read-only access to assigned repositories through the native v5 API, and `DASHBOARD` can use the Dashboard for assigned repositories.
 - The first administrator is created interactively from `lareferencia-shell` after Flyway migration (`security-create-admin <username>`). No default user or Keycloak migration exists.
 - Admin Web: React + Vite, built into the Harvester `admin-static/` and served at `/admin/`. The read-only React Dashboard is built into `dashboard-static/` and served at `/dashboard/`. `/legacy`, `/rest`, `/public` and `/private` are not exposed as legacy application APIs.
 - Full setup, cookie/CSRF behavior, token lifecycle and authorization matrix: [Authentication and authorization](docs/AUTHENTICATION.md).
@@ -213,32 +184,37 @@ Note: dependent projects migrate `org.lareferencia.backend.*` → `org.lareferen
 
 ### Building the Platform
 
+Use the tag once it is listed on [GitHub Releases](https://github.com/lareferencia/lareferencia-platform/releases). To test the candidate before the tag exists, follow the [candidate checkout instructions](docs/ONBOARDING.md#test-the-rc5-candidate).
+
 ```bash
-git clone https://github.com/lareferencia/lareferencia-platform.git
+git clone --branch 5.0.0-rc5 https://github.com/lareferencia/lareferencia-platform.git
 cd lareferencia-platform
 
 # Prepare the exact module commits frozen in workspace.lock
 ./githelper init
 
-# Build the standard implementation (Java modules + both web UIs)
 ./build.sh lareferencia
-
-# Java modules only
-./build-java.sh lareferencia
-
-# Admin web only (Node 22, output copied into admin-static/)
-./build-admin-web.sh
-
-# Dashboard only (Node 22 in Docker, output copied into dashboard-static/)
-./build-dashboard.sh
-
-# Other build profiles: lite | rcaap | ibict
-# ./build.sh ibict
-
-# Build/test only the OAI-PMH provider from the reactor
-mvn -pl lareferencia-oai-pmh package
-mvn -pl lareferencia-oai-pmh test
 ```
+
+For a full build, `./build.sh lareferencia` runs Maven on the host with the JDK
+and builds the Java modules, Admin Web and Repository Dashboard. Maven downloads
+the pinned Node 22 and npm versions for both frontends. This build works without
+Docker or a global Node installation.
+
+Use the individual scripts when rebuilding just one part of the platform:
+
+| Command | What it builds | Build tools |
+|---|---|---|
+| `./build-java.sh lareferencia` | Java modules only | Host JDK and Maven |
+| `./build-admin-web.sh` | Admin Web only. Copies the output to `lareferencia-lrharvester-app/admin-static/`. | Docker with Node 22 |
+| `./build-dashboard.sh` | Dashboard only. Copies the output to `lareferencia-lrharvester-app/dashboard-static/`. | Docker with Node 22 |
+
+The frontend scripts run npm in a temporary Docker container and publish the
+static files without recompiling Java. The build scripts skip tests. Run the
+test commands in the Testing section separately.
+
+Other platform build profiles are `lite`, `rcaap` and `ibict`. To package just the
+OAI-PMH provider through Maven, run `mvn -pl lareferencia-oai-pmh package`.
 
 ### Running with Docker
 
@@ -284,7 +260,8 @@ For coordinated development and releases:
 ```
 
 Active modules inherit the parent version; internal dependency versions are
-centralized and npm metadata follows the same version. Preparation commits these
+centralized and npm metadata follows the same version. The Python distribution
+uses `5.0.0rc5` for platform version `5.0.0-rc5`. Preparation commits these
 versions before publication. Legacy contributions retain their independent versions.
 Apply exactly one matching `release:*` label once all module PRs are merged and the
 coordinator lock is refreshed. Its merge publishes the prepared version after CI.
@@ -307,10 +284,10 @@ are included in the same directory; no personal filesystem paths are required.
 
 ### Download a Published Version
 
-For the published 5.0.0-rc4 release:
+Once the `5.0.0-rc5` tag is published:
 
 ```bash
-git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
+git clone --branch 5.0.0-rc5 https://github.com/lareferencia/lareferencia-platform.git
 cd lareferencia-platform
 ./githelper init
 ./build.sh lareferencia
@@ -373,54 +350,40 @@ python3 -m unittest discover -p 'test_*.py' # workspace/release tooling
 
 ## 📚 Documentation Map
 
-- [Metadata export for enrichment](docs/METADATA_EXPORT.md)
-- [Metadata exchange format](docs/METADATA_EXCHANGE_FORMAT.md)
-- [Python metadata tools](lareferencia-metadata-tools/README.md) for rights, enrichment and batch embeddings. The release ZIP includes the pinned sources. Install the tools with Python 3.12 or later.
-
-| Document | Topic |
+| I want to… | Start here |
 |---|---|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) * | Component map, data flows, modules, ports |
-| [ONBOARDING.md](docs/ONBOARDING.md) * | New developer setup (githelper, build, profiles, run modes) |
-| [GLOSSARY.md](docs/GLOSSARY.md) * | Platform vocabulary (network, dARK, crosswalk, lane, …) |
-| [DOCKER_DEV.md](docs/DOCKER_DEV.md) | Isolated Docker developer workflow |
-| [BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) * | Backup & restore (wizard, cron/systemd, `restore.sh`) |
-| [CONFIG_DIRECTORY.md](docs/CONFIG_DIRECTORY.md) | Configuration directory resolution |
-| [CONFIGURATION_PROPERTIES.md](docs/CONFIGURATION_PROPERTIES.md) * | `application.properties.d` fragments per file (harvester and shell) |
-| [ALMACENAMIENTO_REFERENCIA_RAPIDA.md](docs/ALMACENAMIENTO_REFERENCIA_RAPIDA.md) (ES) | Storage quick reference (FS/H2/SQLite, metadata stores) |
-| [AUTHENTICATION.md](docs/AUTHENTICATION.md) * | Local users, first admin, sessions/CSRF, scoped tokens and permissions |
-| [WORKFLOW_ACTIONS.md](docs/WORKFLOW_ACTIONS.md) * | Action catalog, scheduling, worker configuration, engines |
-| [FLOWABLE_REFACTORING_STRATEGY.md](docs/FLOWABLE_REFACTORING_STRATEGY.md) | Workflow engines state (legacy / flowable) |
-| [ISSUE_INCREMENTAL_RECORD_PROCESSING.md](docs/ISSUE_INCREMENTAL_RECORD_PROCESSING.md) | Incremental validation & indexing manual |
-| [ENTITY_DELETED_INDEXING.md](docs/ENTITY_DELETED_INDEXING.md) | Soft-deleted entities and index cleanup |
-| [ENTITY_INDEXING_ARCHITECTURE.md](docs/ENTITY_INDEXING_ARCHITECTURE.md) * | Current Elasticsearch entity indexing model |
-| [INDEXING-CONFIGURATION.md](docs/INDEXING-CONFIGURATION.md) (ES) | Real indexer connection properties |
-| [SEMANTIC_INDEXING_CHUNKING.md](docs/SEMANTIC_INDEXING_CHUNKING.md) | Semantic indexing & chunking |
-| [HARVESTER_MANAGEMENT_API_V5.md](docs/HARVESTER_MANAGEMENT_API_V5.md) | Management API v5 |
-| [HARVESTER_ADMIN_WEB_V5_BACKLOG.md](docs/HARVESTER_ADMIN_WEB_V5_BACKLOG.md) * | Admin web pending work |
-| [DARK_LEGACY_ARK_IMPORT.md](docs/DARK_LEGACY_ARK_IMPORT.md) | Legacy ARK import runbook |
-| [DYNAMIC_SCHEMA_REFACTORING.md](docs/DYNAMIC_SCHEMA_REFACTORING.md) | Dynamic validation schemas & i18n |
-| [ARQUITECTURA_TRANSACCIONAL.md](docs/ARQUITECTURA_TRANSACCIONAL.md) (ES) | Entity transactional architecture |
-| [REFACTORING_TRANSACCIONAL.md](docs/REFACTORING_TRANSACCIONAL.md) (ES) | Transactional refactoring record |
-| [REFACTORING_PACKAGE_STRUCTURE.md](docs/REFACTORING_PACKAGE_STRUCTURE.md) | Package conventions |
-| [DOCUMENTATION_INDEX.md](docs/DOCUMENTATION_INDEX.md) * | Full index of `docs/` with status |
+| Install, build or test the platform | [Developer onboarding](docs/ONBOARDING.md) |
+| Deploy or run it locally | [Docker guide](Docker/README.md) · [Docker Dev](docs/DOCKER_DEV.md) |
+| Configure the Harvester and manage access | [Configuration reference](docs/CONFIGURATION_PROPERTIES.md) · [Authentication and permissions](docs/AUTHENTICATION.md) |
+| Understand the components or integrate with the API | [Architecture](docs/ARCHITECTURE.md) · [Harvester Management API v5](docs/HARVESTER_MANAGEMENT_API_V5.md) |
+| Export and enrich metadata | [Metadata export guide](docs/METADATA_EXPORT.md) |
 
-\* Created or updated during the 2026-09-23 documentation work (see `docs/PROPUESTA_ACTUALIZACION_DOCUMENTACION_2026-09-23.md`). Historical decision records live in `docs/archive/`.
+See the [full documentation index](docs/DOCUMENTATION_INDEX.md) for specialized
+guides, component manuals and historical records.
 
-## 📝 Migration Guide: v4.x → 5.0.0-rc4
+## 📝 Upgrading to 5.0.0-rc5
 
-### Required Actions
+From RC4, check pending Flyway migrations with `database_info` and plan for one
+full validation per network. Review any scripts that call the former Python
+tools by path. See the [RC5 upgrade notes](CHANGELOG.md#upgrading-from-500-rc4)
+for configuration, compatibility and rollback details.
+
+Keep the existing configuration and data directories when changing the checkout.
+If the source repositories have local edits, review them before switching or
+prepare a separate release checkout and point it at your configuration.
+
+### Upgrading from v4.x
+
+#### Required Actions
 
 1. **Java 17+** and **Spring Boot 3.5** (javax → jakarta imports)
-2. **Entity indexing on Elasticsearch** (Solr entity APIs removed)
-3. **Storage**: configure `store.basepath` for filesystem + SQLite (catalog, validation, stats, logs)
-4. **Configuration**: review property names for Spring Boot 3.x; keep `application.properties.model` in sync
+2. **Storage**: configure `store.basepath` for filesystem + SQLite (catalog, validation, stats, logs)
+3. **Configuration**: review property names for Spring Boot 3.x; keep `application.properties.model` in sync
 
-### Breaking Changes
+#### Breaking Changes
 
-- Solr entity indexing APIs removed (Elasticsearch/OpenSearch instead)
 - `contrib-ibict`/`contrib-rcaap` no longer compiled
 - Core/entity library packages renamed to `org.lareferencia.core.*` (see note above)
-- Entity indexer completely rewritten (direct threaded model)
 
 ## 🤝 Contributing
 
@@ -439,11 +402,11 @@ Licensed under the **GNU Affero General Public License v3.0** — see [LICENSE.t
 
 **Email**: [soporte@lareferencia.redclara.net](mailto:soporte@lareferencia.redclara.net)
 
-When requesting support, please include: platform version (e.g. `5.0.0-rc4`), affected module, relevant log excerpts, configuration snippets (without sensitive data) and steps to reproduce.
+When requesting support, include the platform version (e.g. `5.0.0-rc5`), affected module, relevant log excerpts, configuration snippets (without sensitive data) and steps to reproduce.
 
-- **Website**: [https://www.lareferencia.info](https://www.lareferencia.info)
+- **Website**: [lareferencia.info](https://www.lareferencia.info)
 - **Issues**: [GitHub Issues](https://github.com/lareferencia/lareferencia-platform/issues)
-- **Organization**: [https://github.com/lareferencia](https://github.com/lareferencia)
+- **Organization**: [LA Referencia](https://github.com/lareferencia)
 
 ---
 

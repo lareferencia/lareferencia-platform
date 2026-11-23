@@ -1,6 +1,11 @@
 # Migración del Repository Dashboard a la autenticación y API v5
 
-**Status:** integration in progress · **Last updated:** 2026-11-16 · **Angular refactor and separate builds:** implemented and compiled · **runtime/gateway verification:** pending
+**Status:** historical · **Plan snapshot:** 2026-11-16
+
+RC5 builds and serves the React application from `web/`. This record describes
+the earlier Angular integration and preserves its original checklist.
+For RC5, use the [Dashboard configuration guide](../lareferencia-repository-dashboard/docs/CONFIGURATION.md),
+[Docker Dev](DOCKER_DEV.md#harvester-admin-web) and the [API v5 reference](HARVESTER_MANAGEMENT_API_V5.md).
 
 Este documento es el plan de trabajo para migrar `lareferencia-repository-dashboard`
 (Angular) al esquema local de autenticación y consultas del Harvester v5. Actualizar

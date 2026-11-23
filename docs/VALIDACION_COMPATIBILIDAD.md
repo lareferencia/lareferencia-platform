@@ -68,7 +68,7 @@ El perfil distribuido de Nodo Central ya incluye **Title — Presence**. En un p
 
 - **ReduceHeavyRecords** conserva su eliminación incondicional de los campos configurados. Para usar un límite, elegir **ReduceRecordsBySizeRule** e indicar `maxRecordSizeBytes` positivo y `fieldsToRemove`. Mide la serialización UTF-8 del DOM en ese punto de la cadena. Elimina los campos cuando el tamaño supera el límite.
 - **FieldNameTranslateRule** y **FieldNameConditionalTranslateRule** mantienen el límite histórico de 101 ocurrencias. La opción `processAllOccurrences: true` recorre toda la selección original.
-- Para volver al binario anterior, restaurar primero los perfiles que hayan adoptado el tipo por tamaño y retirar la propiedad nueva de renombre si se guardó. **Title — Presence** usa una clase y un cuantificador del motor anterior. Para restaurar el comportamiento previo de ese perfil basta retirar la regla añadida. Validar de nuevo al cambiar de motor.
+- Antes de volver a RC4, restaurar los perfiles que usen `ReduceRecordsBySizeRule` o `ImportEnrichments` y retirar `processAllOccurrences` de las reglas donde se haya guardado. **Title — Presence** usa una clase y un cuantificador disponibles en RC4. Para restaurar el comportamiento previo de ese perfil basta retirar la regla añadida. Validar de nuevo al cambiar de motor.
 
 ## Comprobar el impacto por red
 

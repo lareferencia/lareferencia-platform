@@ -1,5 +1,9 @@
 # Plan de consolidación del admin-ui y las APIs del harvester
 
+**Estado:** registro histórico del relevo. El estado de RC5 está en el
+[changelog](../CHANGELOG.md#500-rc5) y los contratos vigentes en la
+[referencia de la API v5](HARVESTER_MANAGEMENT_API_V5.md).
+
 Relevo del 19 de noviembre de 2026 · Rama coordinada `codex/rc5-pre`. Las etapas 1 y 2 están implementadas y probadas en el workspace. La etapa 2 actualiza también el tipo del resumen en admin-web. La etapa 1 abarca tres repositorios Git independientes: plataforma (plan, documentación y changelog), core-lib (consultas SQLite) y lrharvester-app (adaptador, operadores y regresiones). El lock de plataforma fija las versiones previas. Al preparar la integración, incluir los cambios de ambos módulos y actualizar el lock mediante el flujo coordinado.
 
 El [contexto técnico](DASHBOARD_CONTEXTO_TECNICO.md) explica los contratos y el significado de cada métrica. El [registro de evidencias](DASHBOARD_FALENCIAS_VALIDACION.md) conserva el comportamiento anterior, las fuentes y los experimentos F1–F10. El estudio funcional del dashboard Angular sigue siendo una entrada pendiente para decidir qué pantallas y permisos conservar.

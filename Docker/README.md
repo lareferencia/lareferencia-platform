@@ -2,6 +2,10 @@
 
 Choose your language: [English](#english) | [Español](#español) | [Português](#português)
 
+For RC5, see the [upgrade notes](../CHANGELOG.md#upgrading-from-500-rc4) and the
+[isolated developer guide](../docs/DOCKER_DEV.md). The analyses below describe
+earlier snapshots of the Docker scripts.
+
 Análisis técnico completo del script normal (español): [funcionamiento de docker.sh, construcción, configuración, almacenamiento y mantenimiento](ANALISIS_OPERATIVO_DOCKER_SH.md).
 
 English translation: [complete operational analysis of docker.sh](ANALISIS_OPERATIVO_DOCKER_SH.en.md).
@@ -217,11 +221,15 @@ Missing checkouts are cloned first (VuFind from `VUFIND_REPO_URL`/`VUFIND_REF`, 
 VuFind web module is disabled). A `./vufind` that differs from the `VUFIND_REPO_URL`/`VUFIND_REF`
 configured in `Docker/.env` is reported as a warning; `LR_SOLR_VUFIND_CHECK=strict` makes it stop.
 
-#### Upgrading: stop, pull, start
+#### Switching to a published release
+
+Once the RC5 tag is published, run these commands from a clean source workspace.
+Review the [upgrade notes](../CHANGELOG.md#upgrading-from-500-rc4) before starting
+the upgraded stack.
 
 ```bash
 ./Docker/docker.sh down     # or stop
-./githelper switch 5.0.0-rc4 # choose the published version; aligns platform module commits
+./githelper switch 5.0.0-rc5 # aligns platform module commits to the published lock
 ./Docker/docker.sh up
 ```
 

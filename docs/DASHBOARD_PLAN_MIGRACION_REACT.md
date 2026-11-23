@@ -1,5 +1,10 @@
 # Migrar Repository Dashboard a React reutilizando el Admin UI
 
+**Estado:** registro histórico de la migración. RC5 compila React por defecto.
+Consulta la [guía de Docker Dev](DOCKER_DEV.md#harvester-admin-web) y la
+[configuración del Dashboard](../lareferencia-repository-dashboard/docs/CONFIGURATION.md)
+para operar el entorno actual.
+
 ## Estado de la implementación
 
 Las etapas E0–E5 se completaron en la copia Docker. El candidato React incluye el XML histórico y el diagnóstico filtrado con acceso por red. La instalación habitual conserva Angular. Los commits de los dos módulos están fijados en el lock. [Comparación final con capturas de ambas interfaces](https://github.com/lareferencia/lareferencia-repository-dashboard/blob/9560717773e45f586e8a642997d2f2e6daccb051/docs/evidencias/comparacion-final-validaciones/README.md) · [Contrato de la API](HARVESTER_MANAGEMENT_API_V5.md) · [Lock de plataforma](../workspace.lock)

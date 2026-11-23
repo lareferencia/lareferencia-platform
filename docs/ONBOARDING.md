@@ -1,6 +1,6 @@
 # Developer Onboarding Guide
 
-**Status:** current · **Last verified:** 2026-11-16
+**Status:** current · **Last verified:** 2026-11-23
 
 Prepare a consistent workspace before building with Maven, the helper scripts or
 an IDE. Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the component map and
@@ -22,11 +22,11 @@ Each component is a nested independent Git repository. `workspace.ini` identifie
 - VuFind is external and excluded from the manifest, lock and platform release.
   Docker can prepare its checkout separately for the discovery/Solr integration.
 
-The current source version is **5.0.0-rc4**, Java 17 and Spring Boot 3.5.0.
+The source version covered here is **5.0.0-rc5**, with Java 17 and Spring Boot 3.5.0.
 Including the parent, the full Maven reactor has 13 projects. Internal dependency
 versions are managed by the parent, and frontend npm metadata follows that version.
-The consolidated metadata-export changes and verification scope are described in
-[the rc4 release notes](RELEASE_5.0.0_RC4.md).
+The [changelog](../CHANGELOG.md#500-rc5) records the scope of RC5 and the steps
+for upgrading from RC4.
 
 ## Prerequisites
 
@@ -42,10 +42,13 @@ The consolidated metadata-export changes and verification scope are described in
 
 ## Download a published release
 
+Once the RC5 tag appears on [GitHub Releases](https://github.com/lareferencia/lareferencia-platform/releases), use:
+
 ```bash
-git clone --branch 5.0.0-rc4 https://github.com/lareferencia/lareferencia-platform.git
+git clone --branch 5.0.0-rc5 https://github.com/lareferencia/lareferencia-platform.git
 cd lareferencia-platform
 ./githelper init
+./githelper lock verify
 ./build.sh lareferencia
 ```
 
@@ -53,6 +56,22 @@ cd lareferencia-platform
 stamp is needed. To select another published release in a clean workspace, use
 `./githelper switch VERSION`. GitHub's automatic source ZIP contains only the
 parent; use a Git clone or the complete platform ZIP attached to the release.
+
+## Test the RC5 candidate
+
+While RC5 is in review, use a separate checkout of the coordinator branch:
+
+```bash
+git clone --branch codex/rc5-pre https://github.com/lareferencia/lareferencia-platform.git lareferencia-platform-rc5
+cd lareferencia-platform-rc5
+git switch --detach HEAD
+./githelper init
+./githelper lock verify
+./githelper version sync --check
+./build.sh lareferencia
+```
+
+The detached checkout makes `init` use the lock of the downloaded commit.
 
 ## Building
 
@@ -70,11 +89,13 @@ The script `build.sh` defaults to `lite`; explicitly select `lareferencia` for t
 standard full implementation. The Harvester POM also defaults to `lite`.
 Country profiles select dependencies/contexts; they do not add the legacy contrib
 projects back to the reactor. The `rcaap` profile references its independent legacy
-artifact and is not the standard rc4 verification target.
+artifact. Use the `lareferencia` profile for RC5 verification.
 
 Both frontend Maven projects are enabled unless `-Dno-frontends` is supplied.
 The full build writes separate `admin-static/` and `dashboard-static/` trees.
-The individual Docker frontend scripts avoid depending on host Node/glibc.
+The Dashboard build uses React under `web/`. The optional Maven profile
+`dashboard-react` attaches a standalone ZIP. The individual Docker frontend
+scripts keep Node inside their containers.
 
 ## Testing
 
@@ -85,6 +106,7 @@ mvn clean verify -Plareferencia
 mvn -pl lareferencia-oai-pmh verify
 # After the Maven frontend build:
 (cd lareferencia-lrharvester-admin-web && ./node/node node_modules/vitest/vitest.mjs run)
+(cd lareferencia-repository-dashboard/web && ../target/frontend/node/node node_modules/vitest/vitest.mjs run)
 ```
 
 Docker must be available for integration tests. `mvn test` does not execute OAI's
@@ -107,7 +129,9 @@ fixtures). Use a disposable database, separate from runtime data.
 
 Feature branches start from fetched `origin/main`. Repeat release preparation
 and `pr` after module merges to refresh the final lock. Label the coordinator only
-when the module commits are integrated; its merge publishes the prepared version.
+when the module commits are integrated. The coordinator CI shows the release
+notes extracted from the version's changelog section. Its merge with a release
+label triggers publication.
 See [githelper.md](../githelper.md) for checks, numbering and recovery. `init` on a
 registered feature branch prepares its module branches and freezes the others.
 `init --dev` provides the traditional manifest-branch initialization where no
@@ -123,8 +147,10 @@ branch-set exists. `sync`/`pull` are explicit development operations.
 
 Compose defaults to PostgreSQL 17 and Solr 9.11. PostgreSQL 14 data requires the
 [documented migration or image pin](../Docker/README.md#-postgresql-14--17).
-Build success does not validate production TLS or complete the pending Dashboard
-browser/gateway acceptance checks in [DASHBOARD_V5_MIGRATION.md](DASHBOARD_V5_MIGRATION.md).
+See [Docker Dev](DOCKER_DEV.md#harvester-admin-web) for build and gateway behavior
+and the [Dashboard configuration guide](../lareferencia-repository-dashboard/docs/CONFIGURATION.md)
+for available modules and repository permissions. Verify TLS and the configured
+hostnames in the target deployment.
 
 ## Configuration and identity
 
@@ -152,6 +178,7 @@ package contracts are in [METADATA_EXCHANGE_FORMAT.md](METADATA_EXCHANGE_FORMAT.
 | Administration UI | lrharvester-admin-web |
 | Read-only Dashboard | repository-dashboard |
 | Shell commands | shell; shell-entity-plugin |
+| Python rights, enrichment and embedding tools | metadata-tools |
 | OAI provider | oai-pmh |
 | ARK support | dark-lib |
 | Solr configsets | owning module; Docker stages copies |
