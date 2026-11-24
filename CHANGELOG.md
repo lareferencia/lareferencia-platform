@@ -4,6 +4,8 @@
 
 ### Fixes
 
+- dARK advances the confirmed payload hash after successful staging, reconciles every selected ARK across pages, and discards unsaved minter settings when the administrator cancels editing.
+
 - Scheduled dARK staging retries a signed batch explicitly refused before reservation and defers it during a prolonged authority outage. The same OAI identifiers are used when staging resumes.
 
 - Githelper allows local configuration and generated files during workspace checkout when Git can preserve them. Git reports any files that block the change.
