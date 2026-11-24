@@ -4,6 +4,8 @@
 
 ### Fixes
 
+- dARK records minter attempts before sending, recovers receipts after a worker rollback, and binds each tracking catalogue to its minter installation and authority. Existing catalogues require explicit association after migration.
+
 - dARK advances the confirmed payload hash after successful staging, reconciles every selected ARK across pages, and discards unsaved minter settings when the administrator cancels editing.
 
 - Scheduled dARK staging retries a signed batch explicitly refused before reservation and defers it during a prolonged authority outage. The same OAI identifiers are used when staging resumes.
