@@ -311,8 +311,11 @@ elementos y se conserva el orden del documento XOAI. `occurrenceStart` permite
 agrupar campos hermanos que representan secuencias de ocurrencias: cada campo
 con ese nombre inicia un grupo nuevo y los siguientes campos hermanos se
 adjuntan hasta el próximo inicio. En ese modo, los campos internos deben usar
-selectores directos `:field` y cada selector escalar; un campo anterior al primer
-inicio es ambiguo y produce error de registro.
+selectores directos `:field` y cada selector escalar. Cuando el inicio es
+`value`, los campos `authority` y `confidence` que aparecen antes del primer
+valor se asocian a ese valor. Si el elemento solo contiene esos campos, no se
+emite ninguna ocurrencia. Otros campos antes del primer inicio siguen siendo
+ambiguos y producen un error de registro.
 
 `includeContext` puede añadir al objeto `schema`, `qualifier` y/o `path`:
 

@@ -8,6 +8,7 @@
 
 ### Metadata export
 
+- XOAI grouped projections accept `authority` and `confidence` before the first `value` and omit groups that contain only those auxiliary fields.
 - `prepare-classification-dataset` creates one plain or EmbeddingGemma classification text per annotated record. Prediction retains available FORD labels and can reuse the training text recipe.
 - `compute-metadata-embeddings` accepts classification datasets and carries their reference labels into JSONL and SQLite vector packages.
 - XOAI mappings support record selection by value prefix. The FORD profile exports all titles, descriptions and subjects of matching records.
