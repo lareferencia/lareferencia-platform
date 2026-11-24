@@ -4,7 +4,7 @@
 
 ### Fixes
 
-- dARK records minter attempts before sending, recovers receipts after a worker rollback, and binds each tracking catalogue to its minter installation and authority. Existing catalogues require explicit association after migration.
+- dARK saves the last reservation or metadata attempt on the existing tracking row. Confirmed results survive a worker rollback. Interrupted reservations reuse the OAI identifier, and an unconfirmed metadata submission requires review before resending.
 
 - dARK advances the confirmed payload hash after successful staging, reconciles every selected ARK across pages, and discards unsaved minter settings when the administrator cancels editing.
 
