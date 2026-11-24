@@ -18,7 +18,7 @@
 
 ### Repository dashboard
 
-- The optional dARK report lists identifiers assigned to each repository. Users can filter by state, update date or identifier and download all matching rows as CSV.
+- The dashboard ships with dARK identifiers and usage statistics enabled. The dARK report lists identifiers assigned to each repository. Users can filter by state, update date or identifier and download all matching rows as CSV.
 
 - Opening or closing the harvest comparison preserves dates entered in the history filter until the user applies or resets them.
 - The dashboard's TypeScript record type matches historical validation responses. Rule IDs can be strings or numbers, and metadata, outcomes and occurrence fields can be absent or null.
