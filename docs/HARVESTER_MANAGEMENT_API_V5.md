@@ -22,6 +22,8 @@ la estructura paginada de Spring Data (`content`, `totalElements`, `number`,
 
 | Método | Ruta relativa a `/api/v5/dashboard` | Resultado |
 |---|---|---|
+| GET | `/networks/{networkId}/dark` | ARK asignados a la red, con `content` y `totalElements`. Paginación desde `page=0`, `size=25` por defecto, máximo 200. |
+| GET | `/networks/{networkId}/dark/export.csv` | CSV de todos los resultados que cumplen los filtros aplicados. |
 | GET | `/harvesting/source/list` | Redes autorizadas y paginadas. `search` busca por nombre o acrónimo y `id` recupera una selección anterior dentro de los permisos del usuario. |
 | GET | `/harvesting/source/{acronym}` | Datos de una red. |
 | GET | `/harvesting/source/{acronym}/history` | Cosechas validadas. `availableOnly=true` limita el selector a las que conservan diagnóstico. |
@@ -35,6 +37,8 @@ la estructura paginada de Spring Data (`content`, `totalElements`, `number`,
 | GET | `/validation/source/{acronym}/{snapshotId}/valid_occrs/{ruleId}` | Ocurrencias válidas por regla. |
 | GET | `/validation/source/{acronym}/{snapshotId}/invalid_occrs/{ruleId}` | Ocurrencias inválidas por regla. |
 | GET | `/validation/source/{acronym}/{snapshotId}/metadata?identifier={idOai}` | XML histórico publicado, en JSON `{"xml":"…"}`. |
+
+Ambas consultas dARK requieren permiso sobre la red y seleccionan por `source_network_id`. Admiten `q` (parte literal del ARK o identificador OAI), `state` (RESERVED, DRAFT, UPDATE, PUBLISHED, TOMBSTONE o ERROR), `from` y `to` (días UTC inclusivos sobre la última actualización, formato YYYY-MM-DD). Listan primero las actualizaciones más recientes y desempatan por ARK. El CSV en UTF-8 usa punto y coma y contiene `ark`, `oai_id`, `state` y `updated_at_utc`.
 
 El resumen, los registros y las frecuencias aceptan los mismos filtros opcionales. `valid_rules` e `invalid_rules` admiten parámetros repetidos. Los criterios se combinan por intersección. `oai_identifier` busca por contenido. Las frecuencias cuentan cada ocurrencia de los registros seleccionados y abarcan todas las páginas. Sin filtros se obtiene el informe global.
 
