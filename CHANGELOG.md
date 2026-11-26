@@ -14,6 +14,7 @@
 
 ### Metadata export
 
+- FORD annotation profile 1.1 maps 29 reviewed branches of the Peruvian FORD vocabulary to second-level BECyT labels. Original subjects and occurrence provenance are retained, and equivalent codes produce one label. [FORD annotation guide](lareferencia-metadata-tools/docs/EMBEDDING_METADATA.md)
 - XOAI grouped projections accept `authority` and `confidence` before the first `value` and omit groups that contain only those auxiliary fields.
 - `prepare-classification-dataset` creates one plain or EmbeddingGemma classification text per annotated record. Prediction retains available FORD labels and can reuse the training text recipe.
 - `compute-metadata-embeddings` accepts classification datasets and carries their reference labels into JSONL and SQLite vector packages.
